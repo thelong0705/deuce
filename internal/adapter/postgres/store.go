@@ -9,9 +9,6 @@ import (
 
 // Store provides every generated query, plus the ability to run several of
 // them inside a single transaction.
-//
-// *Queries is embedded, so a Store can be used directly wherever a single
-// query is enough: store.CreateVenue(ctx, arg).
 type Store struct {
 	*Queries
 	pool *pgxpool.Pool

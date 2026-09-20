@@ -1,0 +1,12 @@
+profile: coverage.out
+
+local-prefix: "github.com/thelong0705/deuce"
+
+threshold:
+  package: 80
+
+exclude:
+  paths:
+    # Mostly sqlc generated code
+    - ^internal/adapter/postgres/
+    - ^cmd/
