@@ -6,10 +6,11 @@ MIGRATIONS_DIR := db/postgres/migration
 MIGRATE_IMAGE := migrate/migrate:v4.17.1
 DB_URL        := postgres://$(DB_USER):$(DB_USER)@localhost:5432/$(DB_NAME)?sslmode=disable
 SQLC_VERSION := 1.30.0
+MIGRATE_NETWORK ?= container:$(CONTAINER)
 
 MIGRATE := docker run --rm \
 	-v "$(PWD)/$(MIGRATIONS_DIR):/migration" \
-	--network container:$(CONTAINER) \
+	--network $(MIGRATE_NETWORK) \
 	$(MIGRATE_IMAGE) \
 	-path=/migration -database "$(DB_URL)"
 
