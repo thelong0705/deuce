@@ -13,9 +13,9 @@ import (
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
-    email, password_hash, display_name, role
+    email, password_hash, display_name, phone_number, role
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4, $5
 )
 RETURNING id, email, password_hash, display_name, phone_number, role, is_active, created_at, updated_at
 `
@@ -24,6 +24,7 @@ type CreateUserParams struct {
 	Email        string   `json:"email"`
 	PasswordHash string   `json:"password_hash"`
 	DisplayName  string   `json:"display_name"`
+	PhoneNumber  string   `json:"phone_number"`
 	Role         UserRole `json:"role"`
 }
 
@@ -32,6 +33,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.Email,
 		arg.PasswordHash,
 		arg.DisplayName,
+		arg.PhoneNumber,
 		arg.Role,
 	)
 	var i User
