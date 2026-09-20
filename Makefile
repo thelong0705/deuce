@@ -58,3 +58,23 @@ cover-check:
 	go run $(COVERAGE_TOOL) --config=.testcoverage.yml
 
 test-cover: test cover-check
+
+# Rules and exclusions live in .golangci.yml
+GOLANGCI_IMAGE := golangci/golangci-lint:v2.13.2
+GOLANGCI := docker run --rm -v "$(PWD):/app" -w /app $(GOLANGCI_IMAGE) golangci-lint
+
+lint:
+	$(GOLANGCI) run
+
+# Rewrites files in place.
+fmt:
+	$(GOLANGCI) fmt
+
+fmt-check:
+	@unformatted=$$(gofmt -l .); \
+	if [ -n "$$unformatted" ]; then \
+		echo "not gofmt'd, run 'make fmt':"; \
+		echo "$$unformatted"; \
+		exit 1; \
+	fi
+	@echo "all files are gofmt'd"
