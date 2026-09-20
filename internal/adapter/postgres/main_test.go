@@ -14,6 +14,7 @@ const defaultTestDSN = "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disa
 var (
 	testPool    *pgxpool.Pool
 	testQueries *Queries
+	testStore   *Store
 )
 
 func TestMain(m *testing.M) {
@@ -35,6 +36,7 @@ func TestMain(m *testing.M) {
 
 	testPool = pool
 	testQueries = New(pool)
+	testStore = NewStore(pool)
 
 	code := m.Run()
 
