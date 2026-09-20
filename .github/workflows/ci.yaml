@@ -11,6 +11,25 @@ on:
 
 jobs:
 
+  # Runs independently of Test: no database, and a formatting mistake should be
+  # reported even when the tests are failing for an unrelated reason.
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Format
+        run: make fmt-check
+
+      - name: Lint
+        run: make lint
+
   test:
     name: Test
     runs-on: ubuntu-latest

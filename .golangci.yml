@@ -1,0 +1,35 @@
+version: "2"
+
+linters:
+  # errcheck, govet, ineffassign, staticcheck and unused are on by default.
+  enable:
+    # revive is the maintained successor to golint, archived in 2021.
+    - revive
+    - misspell
+  exclusions:
+    rules:
+      # sqlc output is not ours to fix.
+      - path: \.sql\.go$
+        linters: [revive, staticcheck, errcheck, misspell]
+      - path: internal/adapter/postgres/(models|db)\.go$
+        linters: [revive, staticcheck, errcheck, misspell]
+      # revive defaults aimed at public libraries. Everything here lives under
+      # internal/, so it cannot be imported outside the module and a doc comment
+      # on every exported symbol buys nothing.
+      - text: "^(exported|package-comments):"
+        linters: [revive]
+      # Table-driven tests share one setup signature, so some cases do not use
+      # the *testing.T. Renaming it to _ case by case would make the table
+      # harder to read, not easier.
+      - text: "^unused-parameter:"
+        linters: [revive]
+
+formatters:
+  enable:
+    - gofmt
+    # Keeps stdlib, third-party and local imports in separate groups.
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/thelong0705/deuce

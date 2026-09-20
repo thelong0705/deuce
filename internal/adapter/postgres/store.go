@@ -14,6 +14,7 @@ type Store struct {
 	pool *pgxpool.Pool
 }
 
+// NewStore returns a Store backed by pool.
 func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{
 		Queries: New(pool),
