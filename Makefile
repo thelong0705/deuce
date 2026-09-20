@@ -16,7 +16,8 @@ MIGRATE := docker run --rm \
 
 .PHONY: db-start db-down db-wait db-psql \
         migrate-up migrate-down migrate-drop migrate-version \
-        sqlc-gen test test-cover
+        sqlc-gen test test-cover mocks \
+        lint fmt fmt-check
 
 db-start:
 	$(COMPOSE) up -d
@@ -78,3 +79,8 @@ fmt-check:
 		exit 1; \
 	fi
 	@echo "all files are gofmt'd"
+
+MOCKERY_VERSION := v2.53.7
+
+mocks:
+	go run github.com/vektra/mockery/v2@$(MOCKERY_VERSION)

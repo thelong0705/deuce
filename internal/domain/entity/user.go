@@ -46,16 +46,16 @@ var (
 	ErrEmailTaken       = errors.New("email already registered")
 )
 
-// Registration is what someone supplies to sign up.
-type Registration struct {
+// CreateUserInput is what someone supplies to sign up.
+type CreateUserInput struct {
 	Email       string
 	Password    string
 	PhoneNumber string
 	Role        Role
 }
 
-// Validate reports the first rule the registration breaks.
-func (r Registration) Validate() error {
+// Validate reports the first rule the input breaks.
+func (r CreateUserInput) Validate() error {
 	if _, err := mail.ParseAddress(r.Email); err != nil {
 		return ErrInvalidEmail
 	}
@@ -76,7 +76,7 @@ func (r Registration) Validate() error {
 
 // DisplayName is seeded from the email's local part so signup stays short.
 // Users set a real one later.
-func (r Registration) DisplayName() string {
+func (r CreateUserInput) DisplayName() string {
 	local, _, found := strings.Cut(r.Email, "@")
 	if !found || strings.TrimSpace(local) == "" {
 		return r.Email
