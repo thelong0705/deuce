@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: deuce-postgres
+    environment:
+      POSTGRES_USER: deuce
+      POSTGRES_PASSWORD: deuce
+      POSTGRES_DB: deuce
+    ports:
+      - "5432:5432"
+    volumes:
+      - deuce-pgdata:/var/lib/postgresql
+volumes:
+  deuce-pgdata:

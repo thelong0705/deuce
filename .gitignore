@@ -1,0 +1,17 @@
+# test coverage
+coverage.out
+coverage.html
+
+# build output
+/bin/
+/deuce
+
+# editors / agent tooling
+.idea/
+.vscode/
+.claude/
+.DS_Store
+
+# local env overrides
+.env
+.env.local
