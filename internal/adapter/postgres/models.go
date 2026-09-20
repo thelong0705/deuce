@@ -82,7 +82,7 @@ type User struct {
 	Email        string             `json:"email"`
 	PasswordHash string             `json:"password_hash"`
 	DisplayName  string             `json:"display_name"`
-	PhoneNumber  pgtype.Text        `json:"phone_number"`
+	PhoneNumber  string             `json:"phone_number"`
 	Role         UserRole           `json:"role"`
 	IsActive     bool               `json:"is_active"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`

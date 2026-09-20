@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/brianvoe/gofakeit/v7"
@@ -22,6 +23,7 @@ func TestCreateUser(t *testing.T) {
 				return CreateUserParams{
 					Email:        randomEmail(),
 					PasswordHash: gofakeit.Password(true, true, true, false, false, 32),
+					PhoneNumber:  randomPhone(),
 					DisplayName:  gofakeit.Name(),
 					Role:         UserRolePlayer,
 				}
@@ -33,6 +35,7 @@ func TestCreateUser(t *testing.T) {
 				return CreateUserParams{
 					Email:        randomEmail(),
 					PasswordHash: gofakeit.Password(true, true, true, false, false, 32),
+					PhoneNumber:  randomPhone(),
 					DisplayName:  gofakeit.Name(),
 					Role:         UserRoleOwner,
 				}
@@ -45,6 +48,7 @@ func TestCreateUser(t *testing.T) {
 				return CreateUserParams{
 					Email:        existing.Email,
 					PasswordHash: gofakeit.Password(true, true, true, false, false, 32),
+					PhoneNumber:  randomPhone(),
 					DisplayName:  gofakeit.Name(),
 					Role:         UserRolePlayer,
 				}
@@ -73,7 +77,7 @@ func TestCreateUser(t *testing.T) {
 			require.NotEqual(t, uuid.Nil, user.ID)
 			require.True(t, user.IsActive)
 			require.True(t, user.CreatedAt.Valid)
-			require.False(t, user.PhoneNumber.Valid, "phone is not set at signup")
+			require.Equal(t, arg.PhoneNumber, user.PhoneNumber)
 		})
 	}
 }
@@ -187,12 +191,17 @@ func TestUpdateUserProfile(t *testing.T) {
 	}
 }
 
+func randomPhone() string {
+	return fmt.Sprintf("+849%08d", gofakeit.Number(0, 99999999))
+}
+
 func createRandomUser(t *testing.T, role UserRole) User {
 	t.Helper()
 
 	user, err := testQueries.CreateUser(context.Background(), CreateUserParams{
 		Email:        randomEmail(),
 		PasswordHash: gofakeit.Password(true, true, true, false, false, 32),
+		PhoneNumber:  randomPhone(),
 		DisplayName:  gofakeit.Name(),
 		Role:         role,
 	})
