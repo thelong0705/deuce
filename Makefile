@@ -49,8 +49,12 @@ migrate-version:
 sqlc-gen:
 	docker run --rm -v "$(PWD):/src" -w /src sqlc/sqlc:$(SQLC_VERSION) generate
 
-test:
-	go test -race -v ./...
+COVERAGE_TOOL := github.com/vladopajic/go-test-coverage/v2@v2.19.0
 
-test-cover:
-	go test -coverprofile=coverage.out ./...
+test:
+	go test -race -v -coverprofile=coverage.out ./...
+
+cover-check:
+	go run $(COVERAGE_TOOL) --config=.testcoverage.yml
+
+test-cover: test cover-check
