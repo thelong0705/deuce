@@ -212,19 +212,7 @@ func randomEmail() string {
 // venues.owner_id is a foreign key, so every venue needs a user to own it.
 func createRandomOwner(t *testing.T) uuid.UUID {
 	t.Helper()
-
-	var id uuid.UUID
-	err := testPool.QueryRow(context.Background(),
-		`INSERT INTO users (email, password_hash, display_name, role)
-		 VALUES ($1, $2, $3, 'owner')
-		 RETURNING id`,
-		randomEmail(),
-		gofakeit.Password(true, true, true, false, false, 32),
-		gofakeit.Name(),
-	).Scan(&id)
-	require.NoError(t, err)
-
-	return id
+	return createRandomUser(t, UserRoleOwner).ID
 }
 
 func createRandomVenue(t *testing.T) Venue {
