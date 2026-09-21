@@ -18,7 +18,7 @@ import (
 var venueOwnerID = uuid.New()
 
 func validVenueBody() string {
-	return `{"name":"Ace Tennis Club","city":"Hanoi","address":"12 Le Loi"}`
+	return `{"name":"Ace Tennis Club","city":"Hanoi","address":"12 Le Loi","timezone":"Asia/Ho_Chi_Minh"}`
 }
 
 func venueOwner() *entity.User {
@@ -122,6 +122,16 @@ func TestCreateVenue(t *testing.T) {
 			},
 			wantStatus: http.StatusNotFound,
 			wantErrMsg: entity.ErrUserNotFound.Error(),
+		},
+		{
+			name: "an unusable timezone becomes 400",
+			body: `{"name":"A","city":"B","address":"C","timezone":"Hanoi/Somewhere"}`,
+			setup: func(venues *mocks.MockVenueUsecase) {
+				venues.EXPECT().Create(mock.Anything, mock.Anything).
+					Return(nil, entity.ErrVenueTimezoneInvalid).Once()
+			},
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: entity.ErrVenueTimezoneInvalid.Error(),
 		},
 		{
 			name: "a player becomes 403",

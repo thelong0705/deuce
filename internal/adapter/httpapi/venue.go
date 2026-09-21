@@ -11,9 +11,10 @@ import (
 )
 
 type createVenueRequest struct {
-	Name    string `json:"name"`
-	City    string `json:"city"`
-	Address string `json:"address"`
+	Name     string `json:"name"`
+	City     string `json:"city"`
+	Address  string `json:"address"`
+	Timezone string `json:"timezone"`
 }
 
 type venueResponse struct {
@@ -22,6 +23,7 @@ type venueResponse struct {
 	Name      string    `json:"name"`
 	City      string    `json:"city"`
 	Address   string    `json:"address"`
+	Timezone  string    `json:"timezone"`
 	IsActive  bool      `json:"is_active"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -33,6 +35,7 @@ func newVenueResponse(v entity.Venue) venueResponse {
 		Name:      v.Name,
 		City:      v.City,
 		Address:   v.Address,
+		Timezone:  v.Timezone,
 		IsActive:  v.IsActive,
 		CreatedAt: v.CreatedAt,
 	}
@@ -55,10 +58,11 @@ func (s *Server) createVenue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	venue, err := s.venues.Create(r.Context(), entity.CreateVenueInput{
-		OwnerID: owner.ID,
-		Name:    req.Name,
-		City:    req.City,
-		Address: req.Address,
+		OwnerID:  owner.ID,
+		Name:     req.Name,
+		City:     req.City,
+		Address:  req.Address,
+		Timezone: req.Timezone,
 	})
 	if err != nil {
 		writeAppError(w, err)

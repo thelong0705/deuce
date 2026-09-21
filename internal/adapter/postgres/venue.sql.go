@@ -13,18 +13,19 @@ import (
 
 const createVenue = `-- name: CreateVenue :one
 INSERT INTO venues (
-    owner_id, name, city, address
+    owner_id, name, city, address, timezone
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4, $5
 )
-RETURNING id, owner_id, name, city, address, is_active, created_at, updated_at
+RETURNING id, owner_id, name, city, address, is_active, created_at, updated_at, timezone
 `
 
 type CreateVenueParams struct {
-	OwnerID uuid.UUID `json:"owner_id"`
-	Name    string    `json:"name"`
-	City    string    `json:"city"`
-	Address string    `json:"address"`
+	OwnerID  uuid.UUID `json:"owner_id"`
+	Name     string    `json:"name"`
+	City     string    `json:"city"`
+	Address  string    `json:"address"`
+	Timezone string    `json:"timezone"`
 }
 
 func (q *Queries) CreateVenue(ctx context.Context, arg CreateVenueParams) (Venue, error) {
@@ -33,6 +34,7 @@ func (q *Queries) CreateVenue(ctx context.Context, arg CreateVenueParams) (Venue
 		arg.Name,
 		arg.City,
 		arg.Address,
+		arg.Timezone,
 	)
 	var i Venue
 	err := row.Scan(
@@ -44,6 +46,7 @@ func (q *Queries) CreateVenue(ctx context.Context, arg CreateVenueParams) (Venue
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Timezone,
 	)
 	return i, err
 }
@@ -52,7 +55,7 @@ const deactivateVenue = `-- name: DeactivateVenue :one
 UPDATE venues
 SET is_active = false
 WHERE id = $1
-RETURNING id, owner_id, name, city, address, is_active, created_at, updated_at
+RETURNING id, owner_id, name, city, address, is_active, created_at, updated_at, timezone
 `
 
 func (q *Queries) DeactivateVenue(ctx context.Context, id uuid.UUID) (Venue, error) {
@@ -67,12 +70,13 @@ func (q *Queries) DeactivateVenue(ctx context.Context, id uuid.UUID) (Venue, err
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Timezone,
 	)
 	return i, err
 }
 
 const getVenue = `-- name: GetVenue :one
-SELECT id, owner_id, name, city, address, is_active, created_at, updated_at FROM venues
+SELECT id, owner_id, name, city, address, is_active, created_at, updated_at, timezone FROM venues
 WHERE id = $1 LIMIT 1
 `
 
@@ -88,12 +92,13 @@ func (q *Queries) GetVenue(ctx context.Context, id uuid.UUID) (Venue, error) {
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Timezone,
 	)
 	return i, err
 }
 
 const listVenues = `-- name: ListVenues :many
-SELECT id, owner_id, name, city, address, is_active, created_at, updated_at FROM venues
+SELECT id, owner_id, name, city, address, is_active, created_at, updated_at, timezone FROM venues
 WHERE is_active
 ORDER BY name
 `
@@ -116,6 +121,7 @@ func (q *Queries) ListVenues(ctx context.Context) ([]Venue, error) {
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Timezone,
 		); err != nil {
 			return nil, err
 		}
@@ -128,7 +134,7 @@ func (q *Queries) ListVenues(ctx context.Context) ([]Venue, error) {
 }
 
 const listVenuesByOwner = `-- name: ListVenuesByOwner :many
-SELECT id, owner_id, name, city, address, is_active, created_at, updated_at FROM venues
+SELECT id, owner_id, name, city, address, is_active, created_at, updated_at, timezone FROM venues
 WHERE owner_id = $1
 ORDER BY name
 `
@@ -151,6 +157,7 @@ func (q *Queries) ListVenuesByOwner(ctx context.Context, ownerID uuid.UUID) ([]V
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Timezone,
 		); err != nil {
 			return nil, err
 		}
@@ -168,7 +175,7 @@ SET name    = $2,
     city    = $3,
     address = $4
 WHERE id = $1
-RETURNING id, owner_id, name, city, address, is_active, created_at, updated_at
+RETURNING id, owner_id, name, city, address, is_active, created_at, updated_at, timezone
 `
 
 type UpdateVenueParams struct {
@@ -195,6 +202,7 @@ func (q *Queries) UpdateVenue(ctx context.Context, arg UpdateVenueParams) (Venue
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Timezone,
 	)
 	return i, err
 }

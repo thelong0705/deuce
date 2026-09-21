@@ -1,8 +1,8 @@
 -- name: CreateVenue :one
 INSERT INTO venues (
-    owner_id, name, city, address
+    owner_id, name, city, address, timezone
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4, $5
 )
 RETURNING *;
 
