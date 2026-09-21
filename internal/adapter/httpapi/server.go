@@ -11,16 +11,17 @@ import (
 	"github.com/thelong0705/deuce/internal/domain/entity"
 )
 
-type UserRegistrar interface {
+// UserRegister registers a new user.
+type UserRegister interface {
 	Register(ctx context.Context, in entity.CreateUserInput) (*entity.User, error)
 }
 
 type Server struct {
-	users  UserRegistrar
+	users  UserRegister
 	router *chi.Mux
 }
 
-func NewServer(users UserRegistrar) *Server {
+func NewServer(users UserRegister) *Server {
 	s := &Server{
 		users:  users,
 		router: chi.NewRouter(),
@@ -29,15 +30,13 @@ func NewServer(users UserRegistrar) *Server {
 	return s
 }
 
-// Handler returns the router as a plain http.Handler, so nothing outside this
-// package needs to know which router is used.
+// Handler returns the router as a plain http.Handler
 func (s *Server) Handler() http.Handler {
 	return s.router
 }
 
 func (s *Server) routes() {
 	s.router.Use(middleware.RequestID)
-	s.router.Use(middleware.RealIP)
 	s.router.Use(middleware.Logger)
 	s.router.Use(middleware.Recoverer)
 	s.router.Use(middleware.Timeout(30 * time.Second))

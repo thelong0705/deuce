@@ -42,7 +42,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	var req createUserRequest
 
 	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields() // a typo'd field should fail loudly, not be ignored
+	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
@@ -62,10 +62,6 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, newUserResponse(*user))
 }
 
-// writeRegisterError is the single place domain errors become status codes.
-//
-// Anything unrecognised is a 500 with a generic message: an unexpected error
-// may carry a query or a connection string, and that must not reach a client.
 func writeRegisterError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, entity.ErrEmailTaken):
