@@ -1,12 +1,16 @@
 import type { LoginInput, Role, SignupInput, VenueInput } from './validation'
 
-export type CreatedUser = {
+// The shape /users and /me both return.
+export type User = {
   id: string
   email: string
   display_name: string
+  phone_number: string
   role: Role
   created_at: string
 }
+
+export type CreatedUser = User
 
 export type Session = {
   user_id: string
@@ -58,6 +62,15 @@ export async function login(input: LoginInput): Promise<Session> {
 
 export async function logout(): Promise<void> {
   await request('/sessions', { method: 'DELETE' })
+}
+
+// me confirms the session with the server and reports who it belongs to. The
+// stored hint cannot answer either question: it is not proof the session is
+// still live, and it does not carry the role.
+export async function me(): Promise<User> {
+  const response = await request('/me', { method: 'GET' })
+
+  return (await response.json()) as User
 }
 
 export type Venue = {

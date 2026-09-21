@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 
 import { LoginForm } from './LoginForm'
 import { SignedIn } from './SignedIn'
@@ -18,11 +18,13 @@ export function App() {
     setSession(next)
   }
 
-  function signOut() {
+  // Stable identity: SignedIn takes this as an effect dependency, and a fresh
+  // function every render would refetch /me on every render.
+  const signOut = useCallback(() => {
     clearSession()
     setSession(null)
     setTab('login')
-  }
+  }, [])
 
   return (
     <main className="page">

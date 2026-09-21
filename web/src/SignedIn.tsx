@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Venues } from './Venues'
-import { ApiError, logout } from './api'
-import type { Session } from './api'
+import { ApiError, logout, me } from './api'
+import type { Session, User } from './api'
 
 type Props = {
   session: Session
@@ -10,8 +10,35 @@ type Props = {
 }
 
 export function SignedIn({ session, onSignedOut }: Props) {
+  // null until /me answers. The stored session hint says nothing about the
+  // role, so who this is has to come from the server.
+  const [user, setUser] = useState<User | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const current = await me()
+        if (!cancelled) {
+          setUser(current)
+        }
+      } catch (err) {
+        // This is also the first real check that the session is still live.
+        if (err instanceof ApiError && err.status === 401) {
+          onSignedOut()
+        } else if (!cancelled) {
+          setError(err instanceof ApiError ? err.message : 'Could not load your account.')
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [onSignedOut])
 
   async function handleLogout() {
     setSubmitting(true)
@@ -43,7 +70,9 @@ export function SignedIn({ session, onSignedOut }: Props) {
 
         <dl className="summary">
           <dt>User</dt>
-          <dd className="mono">{session.user_id}</dd>
+          <dd>{user ? user.email : <span className="mono">{session.user_id}</span>}</dd>
+          <dt>Account</dt>
+          <dd>{user ? accountLabel(user) : '…'}</dd>
           <dt>Expires</dt>
           <dd>{formatExpiry(session.expires_at)}</dd>
         </dl>
@@ -59,9 +88,15 @@ export function SignedIn({ session, onSignedOut }: Props) {
         </button>
       </div>
 
-      <Venues onUnauthorized={onSignedOut} />
+      {/* Venues are an owner's feature, so a player is never shown the section
+          at all — not an empty list and a form that would only 403. */}
+      {user?.role === 'owner' && <Venues onUnauthorized={onSignedOut} />}
     </>
   )
+}
+
+function accountLabel(user: User): string {
+  return user.role === 'owner' ? 'Court owner' : 'Player'
 }
 
 function formatExpiry(value: string): string {
