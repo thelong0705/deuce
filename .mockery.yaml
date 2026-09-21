@@ -17,6 +17,8 @@ packages:
       VenueRepo:
       VenueFinder:
       CourtRepo:
+      BookingRepo:
+      CourtFinder:
       UserFinder:
 
   github.com/thelong0705/deuce/internal/adapter/httpapi:
