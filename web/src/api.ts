@@ -81,6 +81,7 @@ export type Venue = {
   name: string
   city: string
   address: string
+  timezone: string
   is_active: boolean
   created_at: string
 }
@@ -94,6 +95,7 @@ export async function createVenue(input: VenueInput): Promise<Venue> {
       name: input.name.trim(),
       city: input.city.trim(),
       address: input.address.trim(),
+      timezone: input.timezone,
     }),
   })
 
@@ -139,9 +141,9 @@ export async function createCourt(venueID: string, input: CourtInput): Promise<C
 
 // --- Booking -------------------------------------------------------------
 //
-// None of the endpoints below exist on the server yet. They are the contract
-// this UI is written against; web/README.md spells it out. Until they land,
-// every call here comes back 404 and the screens say so.
+// Only createBooking is implemented. The rest are the contract this UI is
+// written against; web/README.md spells it out. Until they land, those calls
+// come back 404 and the screens say so.
 
 // searchVenues browses every owner's venues, unlike GET /venues, which only
 // ever returns the caller's own.
@@ -181,28 +183,42 @@ export async function listAvailability(courtID: string, date: string): Promise<S
   return body.slots ?? []
 }
 
+// Booking is what POST returns: the row, and nothing about the court beyond
+// its id. The court is already in the URL, so the server has no reason to
+// repeat it.
 export type Booking = {
   id: string
+  court_id: string
+  player_id: string
   starts_at: string
+  ends_at: string
   created_at: string
-  court: { id: string; name: string; price_per_hour: number }
-  venue: { id: string; name: string; city: string; address: string }
 }
 
+// This one is implemented. The court is named by the path, so the body is
+// only the hour.
 export async function createBooking(courtID: string, startsAt: string): Promise<Booking> {
-  const response = await request('/bookings', {
+  const response = await request(`/courts/${encodeURIComponent(courtID)}/bookings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ court_id: courtID, starts_at: startsAt }),
+    body: JSON.stringify({ starts_at: startsAt }),
   })
 
   return (await response.json()) as Booking
 }
 
-export async function listBookings(): Promise<Booking[]> {
+// A listed booking carries the court and venue names, because a list of court
+// ids tells a player nothing. Resolving them client side would be one request
+// per row, so the server is the place to join.
+export type BookingListItem = Booking & {
+  court: { name: string; price_per_hour: number }
+  venue: { id: string; name: string; city: string }
+}
+
+export async function listBookings(): Promise<BookingListItem[]> {
   const response = await request('/bookings', { method: 'GET' })
 
-  const body = (await response.json()) as { bookings?: Booking[] }
+  const body = (await response.json()) as { bookings?: BookingListItem[] }
   return body.bookings ?? []
 }
 

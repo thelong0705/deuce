@@ -6,6 +6,9 @@ export type Role = 'player' | 'owner'
 export type SignupInput = {
   email: string
   password: string
+  // confirmPassword never leaves the form. It exists so a typo in a field
+  // nobody can read costs a moment rather than a password reset.
+  confirmPassword: string
   // countryISO picks the dialling code; phoneNumber is the national part as
   // typed. The two are joined into E.164 only when the request goes out.
   countryISO: string
@@ -22,6 +25,9 @@ export type VenueInput = {
   name: string
   city: string
   address: string
+  // timezone is an IANA name. The courts' opening hours are read in it, so a
+  // venue cannot be registered without one.
+  timezone: string
 }
 
 export type FieldErrors = Partial<Record<keyof SignupInput, string>>
@@ -77,6 +83,12 @@ export function validate(input: SignupInput): FieldErrors {
     errors.password = `Too long — ${MAX_PASSWORD_BYTES} characters maximum`
   }
 
+  // Only worth saying once the password itself is acceptable, or a short
+  // password reads as two complaints about the same mistake.
+  if (errors.password === undefined && input.confirmPassword !== input.password) {
+    errors.confirmPassword = 'Passwords do not match'
+  }
+
   const digits = nationalDigits(input.phoneNumber)
   if (input.phoneNumber.trim() === '') {
     errors.phoneNumber = 'Phone number is required'
@@ -129,6 +141,12 @@ export function validateVenue(input: VenueInput): VenueFieldErrors {
 
   if (input.address.trim() === '') {
     errors.address = 'Address is required'
+  }
+
+  // The select is populated from the browser's own zone list, so an invalid
+  // name is not reachable from the form; only an empty one is.
+  if (input.timezone.trim() === '') {
+    errors.timezone = 'Timezone is required'
   }
 
   return errors

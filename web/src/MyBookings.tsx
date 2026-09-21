@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { ApiError, listBookings } from './api'
-import type { Booking } from './api'
+import type { BookingListItem } from './api'
 
 type Props = {
   // version changes when a booking is made, which reloads the list.
@@ -10,7 +10,7 @@ type Props = {
 }
 
 export function MyBookings({ version, onUnauthorized }: Props) {
-  const [bookings, setBookings] = useState<Booking[] | null>(null)
+  const [bookings, setBookings] = useState<BookingListItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -43,7 +43,9 @@ export function MyBookings({ version, onUnauthorized }: Props) {
         <ul className="bookings">
           {bookings.map((booking) => (
             <li key={booking.id}>
-              <span className="booking-when">{formatWhen(booking.starts_at)}</span>
+              <span className="booking-when">
+                {formatWhen(booking.starts_at)} &ndash; {formatEnd(booking.ends_at)}
+              </span>
               <span className="booking-where">
                 {booking.court.name} at {booking.venue.name}, {booking.venue.city}
               </span>
@@ -68,4 +70,14 @@ function formatWhen(startsAt: string): string {
   }
 
   return at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+// The end is on the same day as the start, so only the time is worth repeating.
+function formatEnd(endsAt: string): string {
+  const at = new Date(endsAt)
+  if (Number.isNaN(at.getTime())) {
+    return endsAt
+  }
+
+  return at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 
+import { PasswordField } from './PasswordField'
 import { PhoneField } from './PhoneField'
 import { ApiError, signup } from './api'
 import type { CreatedUser } from './api'
@@ -11,6 +12,7 @@ import type { FieldErrors, Role, SignupInput } from './validation'
 const empty: SignupInput = {
   email: '',
   password: '',
+  confirmPassword: '',
   countryISO: defaultCountry.iso,
   phoneNumber: '',
   role: 'player',
@@ -114,27 +116,24 @@ export function SignupForm({ onSignIn }: Props) {
         </p>
       )}
 
-      <label htmlFor="password">
-        Password
-        <input
-          id="password"
-          type="password"
-          autoComplete="new-password"
-          value={input.password}
-          onChange={(e) => update({ password: e.target.value })}
-          aria-invalid={Boolean(fieldErrors.password)}
-          aria-describedby={fieldErrors.password ? 'password-error' : 'password-hint'}
-        />
-      </label>
-      {fieldErrors.password ? (
-        <p className="field-error" id="password-error">
-          {fieldErrors.password}
-        </p>
-      ) : (
-        <p className="hint" id="password-hint">
-          {input.password.length} / {MAX_PASSWORD_BYTES} characters
-        </p>
-      )}
+      <PasswordField
+        id="password"
+        label="Password"
+        autoComplete="new-password"
+        value={input.password}
+        error={fieldErrors.password}
+        hint={`${input.password.length} / ${MAX_PASSWORD_BYTES} characters`}
+        onChange={(password) => update({ password })}
+      />
+
+      <PasswordField
+        id="confirm-password"
+        label="Confirm password"
+        autoComplete="new-password"
+        value={input.confirmPassword}
+        error={fieldErrors.confirmPassword}
+        onChange={(confirmPassword) => update({ confirmPassword })}
+      />
 
       <PhoneField
         countryISO={input.countryISO}

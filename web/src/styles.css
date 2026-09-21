@@ -279,6 +279,60 @@ input.phone-number {
   border-radius: 0;
 }
 
+/* Same trick as the phone field: the border is on the wrapper so the input
+   and the reveal button read as one control. */
+.password-field {
+  display: flex;
+  align-items: stretch;
+  margin-top: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.password-field:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.password-field[data-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.password-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.password-field input:focus-visible {
+  outline: none;
+}
+
+button.password-reveal {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0 12px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+button.password-reveal:hover:not(:disabled) {
+  color: var(--accent);
+  filter: none;
+}
+
+button.password-reveal:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .hint,
 .field-error {
   margin: 6px 0 0;
