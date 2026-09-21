@@ -17,6 +17,53 @@ func (_m *MockPasswordHasher) EXPECT() *MockPasswordHasher_Expecter {
 	return &MockPasswordHasher_Expecter{mock: &_m.Mock}
 }
 
+// Compare provides a mock function with given fields: hash, plain
+func (_m *MockPasswordHasher) Compare(hash string, plain string) error {
+	ret := _m.Called(hash, plain)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Compare")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string, string) error); ok {
+		r0 = rf(hash, plain)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockPasswordHasher_Compare_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Compare'
+type MockPasswordHasher_Compare_Call struct {
+	*mock.Call
+}
+
+// Compare is a helper method to define mock.On call
+//   - hash string
+//   - plain string
+func (_e *MockPasswordHasher_Expecter) Compare(hash interface{}, plain interface{}) *MockPasswordHasher_Compare_Call {
+	return &MockPasswordHasher_Compare_Call{Call: _e.mock.On("Compare", hash, plain)}
+}
+
+func (_c *MockPasswordHasher_Compare_Call) Run(run func(hash string, plain string)) *MockPasswordHasher_Compare_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockPasswordHasher_Compare_Call) Return(_a0 error) *MockPasswordHasher_Compare_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockPasswordHasher_Compare_Call) RunAndReturn(run func(string, string) error) *MockPasswordHasher_Compare_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Hash provides a mock function with given fields: plain
 func (_m *MockPasswordHasher) Hash(plain string) (string, error) {
 	ret := _m.Called(plain)

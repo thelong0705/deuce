@@ -45,7 +45,7 @@ func TestAuthLogin(t *testing.T) {
 	tests := []struct {
 		name    string
 		mutate  func(in *entity.LoginInput)
-		setup   func(creds *mocks.MockCredentialFinder, pw *mocks.MockPasswordComparer, sessions *mocks.MockSessionStore)
+		setup   func(creds *mocks.MockCredentialFinder, pw *mocks.MockPasswordHasher, sessions *mocks.MockSessionStore)
 		wantErr error
 	}{
 		{
@@ -54,18 +54,18 @@ func TestAuthLogin(t *testing.T) {
 		{
 			name:    "rejects a malformed email before any lookup",
 			mutate:  func(in *entity.LoginInput) { in.Email = "nope" },
-			setup:   func(*mocks.MockCredentialFinder, *mocks.MockPasswordComparer, *mocks.MockSessionStore) {},
+			setup:   func(*mocks.MockCredentialFinder, *mocks.MockPasswordHasher, *mocks.MockSessionStore) {},
 			wantErr: entity.ErrInvalidEmail,
 		},
 		{
 			name:    "rejects an empty password before any lookup",
 			mutate:  func(in *entity.LoginInput) { in.Password = "" },
-			setup:   func(*mocks.MockCredentialFinder, *mocks.MockPasswordComparer, *mocks.MockSessionStore) {},
+			setup:   func(*mocks.MockCredentialFinder, *mocks.MockPasswordHasher, *mocks.MockSessionStore) {},
 			wantErr: entity.ErrPasswordRequired,
 		},
 		{
 			name: "an unknown email is indistinguishable from a wrong password",
-			setup: func(creds *mocks.MockCredentialFinder, _ *mocks.MockPasswordComparer, _ *mocks.MockSessionStore) {
+			setup: func(creds *mocks.MockCredentialFinder, _ *mocks.MockPasswordHasher, _ *mocks.MockSessionStore) {
 				creds.EXPECT().GetCredentialsByEmail(mock.Anything, mock.Anything).
 					Return(uuid.Nil, "", entity.ErrUserNotFound).Once()
 			},
@@ -73,7 +73,7 @@ func TestAuthLogin(t *testing.T) {
 		},
 		{
 			name: "a wrong password does not create a session",
-			setup: func(creds *mocks.MockCredentialFinder, pw *mocks.MockPasswordComparer, _ *mocks.MockSessionStore) {
+			setup: func(creds *mocks.MockCredentialFinder, pw *mocks.MockPasswordHasher, _ *mocks.MockSessionStore) {
 				creds.EXPECT().GetCredentialsByEmail(mock.Anything, mock.Anything).
 					Return(authUserID, storedHash, nil).Once()
 				pw.EXPECT().Compare(storedHash, mock.Anything).Return(errors.New("mismatch")).Once()
@@ -82,7 +82,7 @@ func TestAuthLogin(t *testing.T) {
 		},
 		{
 			name: "propagates a lookup failure",
-			setup: func(creds *mocks.MockCredentialFinder, _ *mocks.MockPasswordComparer, _ *mocks.MockSessionStore) {
+			setup: func(creds *mocks.MockCredentialFinder, _ *mocks.MockPasswordHasher, _ *mocks.MockSessionStore) {
 				creds.EXPECT().GetCredentialsByEmail(mock.Anything, mock.Anything).
 					Return(uuid.Nil, "", boom).Once()
 			},
@@ -90,7 +90,7 @@ func TestAuthLogin(t *testing.T) {
 		},
 		{
 			name: "propagates a session store failure",
-			setup: func(creds *mocks.MockCredentialFinder, pw *mocks.MockPasswordComparer, sessions *mocks.MockSessionStore) {
+			setup: func(creds *mocks.MockCredentialFinder, pw *mocks.MockPasswordHasher, sessions *mocks.MockSessionStore) {
 				creds.EXPECT().GetCredentialsByEmail(mock.Anything, mock.Anything).
 					Return(authUserID, storedHash, nil).Once()
 				pw.EXPECT().Compare(storedHash, authPassword).Return(nil).Once()
@@ -104,7 +104,7 @@ func TestAuthLogin(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			creds := mocks.NewMockCredentialFinder(t)
-			pw := mocks.NewMockPasswordComparer(t)
+			pw := mocks.NewMockPasswordHasher(t)
 			sessions := mocks.NewMockSessionStore(t)
 
 			var storedToken string
@@ -130,7 +130,7 @@ func TestAuthLogin(t *testing.T) {
 				tt.mutate(&in)
 			}
 
-			svc := usecase.NewAuth(creds, pw, sessions, sessionTTL)
+			svc := usecase.NewUser(mocks.NewMockUserCreator(t), pw, creds, sessions, sessionTTL)
 			token, session, err := svc.Login(context.Background(), in)
 
 			if tt.wantErr != nil {
@@ -161,7 +161,7 @@ func TestLoginTokensAreUnique(t *testing.T) {
 
 	for range 50 {
 		creds := mocks.NewMockCredentialFinder(t)
-		pw := mocks.NewMockPasswordComparer(t)
+		pw := mocks.NewMockPasswordHasher(t)
 		sessions := mocks.NewMockSessionStore(t)
 
 		creds.EXPECT().GetCredentialsByEmail(mock.Anything, mock.Anything).
@@ -170,7 +170,7 @@ func TestLoginTokensAreUnique(t *testing.T) {
 		sessions.EXPECT().CreateSession(mock.Anything, mock.Anything, mock.Anything).
 			Return(&entity.Session{}, nil).Once()
 
-		svc := usecase.NewAuth(creds, pw, sessions, sessionTTL)
+		svc := usecase.NewUser(mocks.NewMockUserCreator(t), pw, creds, sessions, sessionTTL)
 		token, _, err := svc.Login(context.Background(), validLogin())
 		require.NoError(t, err)
 
@@ -249,9 +249,10 @@ func TestAuthAuthenticate(t *testing.T) {
 			sessions := mocks.NewMockSessionStore(t)
 			tt.setup(sessions)
 
-			svc := usecase.NewAuth(
+			svc := usecase.NewUser(
+				mocks.NewMockUserCreator(t),
+				mocks.NewMockPasswordHasher(t),
 				mocks.NewMockCredentialFinder(t),
-				mocks.NewMockPasswordComparer(t),
 				sessions,
 				sessionTTL,
 			)
@@ -277,9 +278,10 @@ func TestAuthLogout(t *testing.T) {
 		sessions := mocks.NewMockSessionStore(t)
 		sessions.EXPECT().DeleteSession(mock.Anything, hashOf(token)).Return(nil).Once()
 
-		svc := usecase.NewAuth(
+		svc := usecase.NewUser(
+			mocks.NewMockUserCreator(t),
+			mocks.NewMockPasswordHasher(t),
 			mocks.NewMockCredentialFinder(t),
-			mocks.NewMockPasswordComparer(t),
 			sessions,
 			sessionTTL,
 		)
@@ -290,9 +292,10 @@ func TestAuthLogout(t *testing.T) {
 	t.Run("an empty token is a no-op", func(t *testing.T) {
 		sessions := mocks.NewMockSessionStore(t)
 
-		svc := usecase.NewAuth(
+		svc := usecase.NewUser(
+			mocks.NewMockUserCreator(t),
+			mocks.NewMockPasswordHasher(t),
 			mocks.NewMockCredentialFinder(t),
-			mocks.NewMockPasswordComparer(t),
 			sessions,
 			sessionTTL,
 		)

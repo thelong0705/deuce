@@ -23,11 +23,6 @@ type CredentialFinder interface {
 	GetCredentialsByEmail(ctx context.Context, email string) (userID uuid.UUID, passwordHash string, err error)
 }
 
-// PasswordComparer reports whether a plaintext password matches a hash.
-type PasswordComparer interface {
-	Compare(hash, plain string) error
-}
-
 // SessionStore persists sessions and looks them up by token hash.
 type SessionStore interface {
 	CreateSession(ctx context.Context, s entity.Session, tokenHash string) (*entity.Session, error)
@@ -35,20 +30,9 @@ type SessionStore interface {
 	DeleteSession(ctx context.Context, tokenHash string) error
 }
 
-type Auth struct {
-	credentials CredentialFinder
-	passwords   PasswordComparer
-	sessions    SessionStore
-	ttl         time.Duration
-}
-
-func NewAuth(credentials CredentialFinder, passwords PasswordComparer, sessions SessionStore, ttl time.Duration) *Auth {
-	return &Auth{credentials: credentials, passwords: passwords, sessions: sessions, ttl: ttl}
-}
-
 // Login checks the credentials and starts a session, returning the raw token
 // once. Only its hash is stored.
-func (s *Auth) Login(ctx context.Context, in entity.LoginInput) (string, *entity.Session, error) {
+func (s *User) Login(ctx context.Context, in entity.LoginInput) (string, *entity.Session, error) {
 	if err := in.Validate(); err != nil {
 		return "", nil, err
 	}
@@ -61,7 +45,7 @@ func (s *Auth) Login(ctx context.Context, in entity.LoginInput) (string, *entity
 		return "", nil, err
 	}
 
-	if err := s.passwords.Compare(passwordHash, in.Password); err != nil {
+	if err := s.hasher.Compare(passwordHash, in.Password); err != nil {
 		return "", nil, entity.ErrInvalidCredentials
 	}
 
@@ -74,7 +58,7 @@ func (s *Auth) Login(ctx context.Context, in entity.LoginInput) (string, *entity
 		UserID:    userID,
 		UserAgent: in.UserAgent,
 		ClientIP:  in.ClientIP,
-		ExpiresAt: time.Now().Add(s.ttl),
+		ExpiresAt: time.Now().Add(s.sessionTTL),
 	}, hash)
 	if err != nil {
 		return "", nil, err
@@ -84,7 +68,7 @@ func (s *Auth) Login(ctx context.Context, in entity.LoginInput) (string, *entity
 }
 
 // Authenticate returns the user behind a session token.
-func (s *Auth) Authenticate(ctx context.Context, token string) (*entity.User, error) {
+func (s *User) Authenticate(ctx context.Context, token string) (*entity.User, error) {
 	if token == "" {
 		return nil, entity.ErrSessionInvalid
 	}
@@ -106,7 +90,7 @@ func (s *Auth) Authenticate(ctx context.Context, token string) (*entity.User, er
 }
 
 // Logout ends a session. An unknown token is not an error.
-func (s *Auth) Logout(ctx context.Context, token string) error {
+func (s *User) Logout(ctx context.Context, token string) error {
 	if token == "" {
 		return nil
 	}

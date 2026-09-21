@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -146,7 +147,7 @@ func TestRegister(t *testing.T) {
 				tt.mutate(&in)
 			}
 
-			svc := usecase.NewUser(creator, hasher)
+			svc := usecase.NewUser(creator, hasher, mocks.NewMockCredentialFinder(t), mocks.NewMockSessionStore(t), time.Hour)
 			_, err := svc.Register(context.Background(), in)
 
 			if tt.wantErr != nil {
