@@ -1,11 +1,12 @@
 package entity
 
 import (
-	"errors"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/thelong0705/deuce/internal/pkg/apperr"
 )
 
 // Venue is a site with courts, owned by one user.
@@ -20,10 +21,10 @@ type Venue struct {
 }
 
 var (
-	ErrOwnerRequired        = errors.New("owner is required")
-	ErrVenueNameRequired    = errors.New("venue name is required")
-	ErrVenueCityRequired    = errors.New("venue city is required")
-	ErrVenueAddressRequired = errors.New("venue address is required")
+	ErrOwnerRequired        = apperr.New(apperr.KindInvalid, "owner_required", "owner is required")
+	ErrVenueNameRequired    = apperr.New(apperr.KindInvalid, "venue_name_required", "venue name is required")
+	ErrVenueCityRequired    = apperr.New(apperr.KindInvalid, "venue_city_required", "venue city is required")
+	ErrVenueAddressRequired = apperr.New(apperr.KindInvalid, "venue_address_required", "venue address is required")
 )
 
 // CreateVenueInput is what an owner supplies to register a venue.

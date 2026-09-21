@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"time"
 
@@ -44,7 +43,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		writeBody(w, http.StatusBadRequest, invalidBodyResponse)
 		return
 	}
 
@@ -55,26 +54,9 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 		Role:        entity.Role(req.Role),
 	})
 	if err != nil {
-		writeRegisterError(w, err)
+		writeAppError(w, err)
 		return
 	}
 
 	writeJSON(w, http.StatusCreated, newUserResponse(*user))
-}
-
-func writeRegisterError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, entity.ErrEmailTaken):
-		writeError(w, http.StatusConflict, err.Error())
-
-	case errors.Is(err, entity.ErrInvalidEmail),
-		errors.Is(err, entity.ErrPasswordTooShort),
-		errors.Is(err, entity.ErrPasswordTooLong),
-		errors.Is(err, entity.ErrPhoneRequired),
-		errors.Is(err, entity.ErrInvalidRole):
-		writeError(w, http.StatusBadRequest, err.Error())
-
-	default:
-		writeError(w, http.StatusInternalServerError, "could not create user")
-	}
 }
