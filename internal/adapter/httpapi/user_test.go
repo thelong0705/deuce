@@ -33,21 +33,45 @@ func registeredUser() *entity.User {
 	}
 }
 
-// do sends a request through the router and returns the recorded response.
-func do(t *testing.T, users httpapi.UserUsecase, venues httpapi.VenueUsecase, method, path, body string) *httptest.ResponseRecorder {
+// deps are the use cases a test wires into the server. Any left nil become a
+// mock with no expectations, so a handler that reaches for one fails the test.
+type deps struct {
+	users  httpapi.UserUsecase
+	venues httpapi.VenueUsecase
+	courts httpapi.CourtUsecase
+}
+
+func (d deps) handler(t *testing.T) http.Handler {
 	t.Helper()
 
-	return send(t, users, venues, newRequest(method, path, body))
+	if d.users == nil {
+		d.users = mocks.NewMockUserUsecase(t)
+	}
+	if d.venues == nil {
+		d.venues = mocks.NewMockVenueUsecase(t)
+	}
+	if d.courts == nil {
+		d.courts = mocks.NewMockCourtUsecase(t)
+	}
+
+	return httpapi.NewServer(d.users, d.venues, d.courts).Handler()
+}
+
+// do sends a request through the router and returns the recorded response.
+func do(t *testing.T, d deps, method, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	return send(t, d, newRequest(method, path, body))
 }
 
 // doAuthed is do with a session cookie attached.
-func doAuthed(t *testing.T, users httpapi.UserUsecase, venues httpapi.VenueUsecase, method, path, body string) *httptest.ResponseRecorder {
+func doAuthed(t *testing.T, d deps, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
 	req := newRequest(method, path, body)
 	req.AddCookie(&http.Cookie{Name: sessionName, Value: rawToken})
 
-	return send(t, users, venues, req)
+	return send(t, d, req)
 }
 
 func newRequest(method, path, body string) *http.Request {
@@ -57,11 +81,11 @@ func newRequest(method, path, body string) *http.Request {
 	return req
 }
 
-func send(t *testing.T, users httpapi.UserUsecase, venues httpapi.VenueUsecase, req *http.Request) *httptest.ResponseRecorder {
+func send(t *testing.T, d deps, req *http.Request) *httptest.ResponseRecorder {
 	t.Helper()
 
 	rec := httptest.NewRecorder()
-	httpapi.NewServer(users, venues).Handler().ServeHTTP(rec, req)
+	d.handler(t).ServeHTTP(rec, req)
 
 	return rec
 }
@@ -200,7 +224,7 @@ func TestCreateUser(t *testing.T) {
 					Return(registeredUser(), nil).Once()
 			}
 
-			rec := do(t, users, mocks.NewMockVenueUsecase(t), http.MethodPost, "/users", tt.body)
+			rec := do(t, deps{users: users}, http.MethodPost, "/users", tt.body)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 			require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
@@ -229,14 +253,14 @@ type errorBody struct {
 }
 
 func TestHealthz(t *testing.T) {
-	rec := do(t, mocks.NewMockUserUsecase(t), mocks.NewMockVenueUsecase(t), http.MethodGet, "/healthz", "")
+	rec := do(t, deps{}, http.MethodGet, "/healthz", "")
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.JSONEq(t, `{"status":"ok"}`, rec.Body.String())
 }
 
 func TestUnknownRouteIs404(t *testing.T) {
-	rec := do(t, mocks.NewMockUserUsecase(t), mocks.NewMockVenueUsecase(t), http.MethodGet, "/nope", "")
+	rec := do(t, deps{}, http.MethodGet, "/nope", "")
 
 	require.Equal(t, http.StatusNotFound, rec.Code)
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/thelong0705/deuce/internal/adapter/httpapi"
 	"github.com/thelong0705/deuce/internal/adapter/httpapi/mocks"
 	"github.com/thelong0705/deuce/internal/domain/entity"
 )
@@ -146,7 +145,7 @@ func TestLogin(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			rec := httptest.NewRecorder()
-			httpapi.NewServer(login, mocks.NewMockVenueUsecase(t)).Handler().ServeHTTP(rec, req)
+			deps{users: login}.handler(t).ServeHTTP(rec, req)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 
@@ -184,7 +183,7 @@ func TestLoginPassesTheRequestContext(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "203.0.113.9")
 
 	rec := httptest.NewRecorder()
-	httpapi.NewServer(login, mocks.NewMockVenueUsecase(t)).Handler().ServeHTTP(rec, req)
+	deps{users: login}.handler(t).ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusCreated, rec.Code)
 }
@@ -244,7 +243,7 @@ func TestLogout(t *testing.T) {
 			}
 
 			rec := httptest.NewRecorder()
-			httpapi.NewServer(logout, mocks.NewMockVenueUsecase(t)).Handler().ServeHTTP(rec, req)
+			deps{users: logout}.handler(t).ServeHTTP(rec, req)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 

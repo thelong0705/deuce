@@ -26,16 +26,23 @@ type VenueUsecase interface {
 	ListByOwner(ctx context.Context, ownerID uuid.UUID) ([]entity.Venue, error)
 }
 
+// CourtUsecase registers courts at a venue.
+type CourtUsecase interface {
+	Create(ctx context.Context, in entity.CreateCourtInput) (*entity.Court, error)
+}
+
 type Server struct {
 	users  UserUsecase
 	venues VenueUsecase
+	courts CourtUsecase
 	router *chi.Mux
 }
 
-func NewServer(users UserUsecase, venues VenueUsecase) *Server {
+func NewServer(users UserUsecase, venues VenueUsecase, courts CourtUsecase) *Server {
 	s := &Server{
 		users:  users,
 		venues: venues,
+		courts: courts,
 		router: chi.NewRouter(),
 	}
 	s.routes()
@@ -63,6 +70,7 @@ func (s *Server) routes() {
 		r.Get("/me", s.currentUser)
 		r.Post("/venues", s.createVenue)
 		r.Get("/venues", s.listVenues)
+		r.Post("/venues/{venueID}/courts", s.createCourt)
 	})
 }
 

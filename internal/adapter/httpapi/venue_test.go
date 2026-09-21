@@ -170,7 +170,7 @@ func TestCreateVenue(t *testing.T) {
 					Return(createdVenue(), nil).Once()
 			}
 
-			rec := doAuthed(t, signedInOwner(t), venues, http.MethodPost, "/venues", tt.body)
+			rec := doAuthed(t, deps{users: signedInOwner(t), venues: venues}, http.MethodPost, "/venues", tt.body)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 			require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
@@ -204,7 +204,7 @@ func TestCreateVenueTakesTheOwnerFromTheSession(t *testing.T) {
 		Return(createdVenue(), nil).
 		Once()
 
-	rec := doAuthed(t, signedInOwner(t), venues, http.MethodPost, "/venues", validVenueBody())
+	rec := doAuthed(t, deps{users: signedInOwner(t), venues: venues}, http.MethodPost, "/venues", validVenueBody())
 
 	require.Equal(t, http.StatusCreated, rec.Code)
 }
@@ -264,7 +264,7 @@ func TestListVenues(t *testing.T) {
 			venues := mocks.NewMockVenueUsecase(t)
 			tt.setup(venues)
 
-			rec := doAuthed(t, signedInOwner(t), venues, http.MethodGet, "/venues", "")
+			rec := doAuthed(t, deps{users: signedInOwner(t), venues: venues}, http.MethodGet, "/venues", "")
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 
@@ -299,7 +299,7 @@ func TestVenueRoutesRequireASession(t *testing.T) {
 
 			venues := mocks.NewMockVenueUsecase(t)
 
-			rec := do(t, users, venues, tt.method, "/venues", tt.body)
+			rec := do(t, deps{users: users, venues: venues}, tt.method, "/venues", tt.body)
 
 			require.Equal(t, http.StatusUnauthorized, rec.Code)
 			venues.AssertNotCalled(t, "Create")

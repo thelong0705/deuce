@@ -28,6 +28,7 @@ packages:
     interfaces:
       UserUsecase:
       VenueUsecase:
+      CourtUsecase:
 
 # Silence v3 deprecation warnings by opting into the future defaults now.
 resolve-type-alias: false
