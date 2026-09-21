@@ -2,15 +2,20 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/thelong0705/deuce/internal/domain/entity"
 	"github.com/thelong0705/deuce/internal/domain/usecase"
 )
 
-var _ usecase.VenueRepo = (*VenueRepository)(nil)
+var (
+	_ usecase.VenueRepo   = (*VenueRepository)(nil)
+	_ usecase.VenueFinder = (*VenueRepository)(nil)
+)
 
 // VenueRepository persists venues in Postgres.
 type VenueRepository struct {
@@ -45,6 +50,18 @@ func toEntityVenue(v Venue) *entity.Venue {
 		IsActive:  v.IsActive,
 		CreatedAt: v.CreatedAt.Time,
 	}
+}
+
+func (r *VenueRepository) GetVenue(ctx context.Context, id uuid.UUID) (*entity.Venue, error) {
+	row, err := r.q.GetVenue(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, entity.ErrVenueNotFound
+		}
+		return nil, fmt.Errorf("get venue: %w", err)
+	}
+
+	return toEntityVenue(row), nil
 }
 
 func (r *VenueRepository) ListVenuesByOwner(ctx context.Context, ownerID uuid.UUID) ([]entity.Venue, error) {
