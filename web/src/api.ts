@@ -1,3 +1,5 @@
+import { countryByISO } from './countries'
+import { toE164 } from './validation'
 import type { CourtInput, LoginInput, Role, SignupInput, VenueInput } from './validation'
 
 // The shape /users and /me both return.
@@ -37,7 +39,7 @@ export async function signup(input: SignupInput): Promise<CreatedUser> {
     body: JSON.stringify({
       email: input.email.trim(),
       password: input.password,
-      phone_number: input.phoneNumber.trim(),
+      phone_number: toE164(countryByISO(input.countryISO).dial, input.phoneNumber),
       role: input.role,
     }),
   })
