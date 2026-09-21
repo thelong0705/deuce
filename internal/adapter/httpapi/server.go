@@ -31,19 +31,26 @@ type CourtUsecase interface {
 	Create(ctx context.Context, in entity.CreateCourtInput) (*entity.Court, error)
 }
 
-type Server struct {
-	users  UserUsecase
-	venues VenueUsecase
-	courts CourtUsecase
-	router *chi.Mux
+// BookingUsecase books slots on a court.
+type BookingUsecase interface {
+	Book(ctx context.Context, in entity.BookSlotInput) (*entity.Booking, error)
 }
 
-func NewServer(users UserUsecase, venues VenueUsecase, courts CourtUsecase) *Server {
+type Server struct {
+	users    UserUsecase
+	venues   VenueUsecase
+	courts   CourtUsecase
+	bookings BookingUsecase
+	router   *chi.Mux
+}
+
+func NewServer(users UserUsecase, venues VenueUsecase, courts CourtUsecase, bookings BookingUsecase) *Server {
 	s := &Server{
-		users:  users,
-		venues: venues,
-		courts: courts,
-		router: chi.NewRouter(),
+		users:    users,
+		venues:   venues,
+		courts:   courts,
+		bookings: bookings,
+		router:   chi.NewRouter(),
 	}
 	s.routes()
 	return s
@@ -71,6 +78,7 @@ func (s *Server) routes() {
 		r.Post("/venues", s.createVenue)
 		r.Get("/venues", s.listVenues)
 		r.Post("/venues/{venueID}/courts", s.createCourt)
+		r.Post("/courts/{courtID}/bookings", s.createBooking)
 	})
 }
 

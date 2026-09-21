@@ -53,12 +53,14 @@ func run() error {
 		userRepo    = postgres.NewUserRepository(queries)
 		venueRepo   = postgres.NewVenueRepository(queries)
 		courtRepo   = postgres.NewCourtRepository(queries)
+		bookingRepo = postgres.NewBookingRepository(queries)
 		sessionRepo = postgres.NewSessionRepository(queries)
 		hasher      = crypto.NewBcryptHasher()
 		userUC      = usecase.NewUser(userRepo, hasher, userRepo, sessionRepo, sessionTTL)
 		venueUC     = usecase.NewVenue(venueRepo, userRepo)
 		courtUC     = usecase.NewCourt(courtRepo, venueRepo)
-		api         = httpapi.NewServer(userUC, venueUC, courtUC)
+		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo)
+		api         = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC)
 	)
 
 	srv := &http.Server{
