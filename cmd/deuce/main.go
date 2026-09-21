@@ -55,7 +55,7 @@ func run() error {
 		sessionRepo = postgres.NewSessionRepository(queries)
 		hasher      = crypto.NewBcryptHasher()
 		userUC      = usecase.NewUser(userRepo, hasher, userRepo, sessionRepo, sessionTTL)
-		venueUC     = usecase.NewVenue(venueRepo, venueRepo, userRepo)
+		venueUC     = usecase.NewVenue(venueRepo, userRepo)
 		api         = httpapi.NewServer(userUC, venueUC)
 	)
 

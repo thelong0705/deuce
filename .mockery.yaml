@@ -14,8 +14,7 @@ packages:
       CredentialFinder:
       SessionStore:
       PasswordHasher:
-      VenueCreator:
-      VenueLister:
+      VenueRepo:
       UserFinder:
 
   github.com/thelong0705/deuce/internal/adapter/httpapi:

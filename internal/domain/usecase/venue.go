@@ -8,13 +8,9 @@ import (
 	"github.com/thelong0705/deuce/internal/domain/entity"
 )
 
-// VenueCreator creates a venue.
-type VenueCreator interface {
+// VenueRepo stores and reads back venues.
+type VenueRepo interface {
 	CreateVenue(ctx context.Context, in entity.CreateVenueInput) (*entity.Venue, error)
-}
-
-// VenueLister lists the venues owned by a user.
-type VenueLister interface {
 	ListVenuesByOwner(ctx context.Context, ownerID uuid.UUID) ([]entity.Venue, error)
 }
 
@@ -24,13 +20,12 @@ type UserFinder interface {
 }
 
 type Venue struct {
-	venueCreator VenueCreator
-	venueLister  VenueLister
-	userFinder   UserFinder
+	venueRepo  VenueRepo
+	userFinder UserFinder
 }
 
-func NewVenue(venueCreator VenueCreator, venueLister VenueLister, userFinder UserFinder) *Venue {
-	return &Venue{venueCreator: venueCreator, venueLister: venueLister, userFinder: userFinder}
+func NewVenue(venueRepo VenueRepo, userFinder UserFinder) *Venue {
+	return &Venue{venueRepo: venueRepo, userFinder: userFinder}
 }
 
 // Create validates the input, checks the owner may register venues, and
@@ -53,7 +48,7 @@ func (s *Venue) Create(ctx context.Context, in entity.CreateVenueInput) (*entity
 		return nil, entity.ErrOwnerInactive
 	}
 
-	return s.venueCreator.CreateVenue(ctx, in)
+	return s.venueRepo.CreateVenue(ctx, in)
 }
 
 // ListByOwner returns every venue owned by a user, active or not.
@@ -62,5 +57,5 @@ func (s *Venue) ListByOwner(ctx context.Context, ownerID uuid.UUID) ([]entity.Ve
 		return nil, entity.ErrOwnerRequired
 	}
 
-	return s.venueLister.ListVenuesByOwner(ctx, ownerID)
+	return s.venueRepo.ListVenuesByOwner(ctx, ownerID)
 }

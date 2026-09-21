@@ -10,10 +10,7 @@ import (
 	"github.com/thelong0705/deuce/internal/domain/usecase"
 )
 
-var (
-	_ usecase.VenueCreator = (*VenueRepository)(nil)
-	_ usecase.VenueLister  = (*VenueRepository)(nil)
-)
+var _ usecase.VenueRepo = (*VenueRepository)(nil)
 
 // VenueRepository persists venues in Postgres.
 type VenueRepository struct {

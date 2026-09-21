@@ -31,7 +31,7 @@ func activeOwner() *entity.User {
 
 // noVenueMocks sets no expectations, so the mock panics if either dependency
 // is touched.
-func noVenueMocks(*mocks.MockVenueCreator, *mocks.MockUserFinder) {}
+func noVenueMocks(*mocks.MockVenueRepo, *mocks.MockUserFinder) {}
 
 func TestVenueCreate(t *testing.T) {
 	boom := errors.New("boom")
@@ -41,12 +41,12 @@ func TestVenueCreate(t *testing.T) {
 		// mutate adjusts the valid input for this case
 		mutate func(in *entity.CreateVenueInput)
 		// setup configures the mocks; nil means the happy path
-		setup func(creator *mocks.MockVenueCreator, finder *mocks.MockUserFinder)
+		setup func(repo *mocks.MockVenueRepo, finder *mocks.MockUserFinder)
 		// wantErr is what Create must return
 		wantErr error
 		// wantStored asserts what was handed to storage
 		wantStored func(t *testing.T, in entity.CreateVenueInput)
-		// wantNoStorage asserts the creator was never reached
+		// wantNoStorage asserts the repo was never reached
 		wantNoStorage bool
 	}{
 		{
@@ -88,7 +88,7 @@ func TestVenueCreate(t *testing.T) {
 		},
 		{
 			name: "rejects a player",
-			setup: func(_ *mocks.MockVenueCreator, finder *mocks.MockUserFinder) {
+			setup: func(_ *mocks.MockVenueRepo, finder *mocks.MockUserFinder) {
 				finder.EXPECT().GetUser(mock.Anything, ownerID).
 					Return(&entity.User{ID: ownerID, Role: entity.RolePlayer, IsActive: true}, nil).Once()
 			},
@@ -97,7 +97,7 @@ func TestVenueCreate(t *testing.T) {
 		},
 		{
 			name: "rejects a deactivated owner",
-			setup: func(_ *mocks.MockVenueCreator, finder *mocks.MockUserFinder) {
+			setup: func(_ *mocks.MockVenueRepo, finder *mocks.MockUserFinder) {
 				finder.EXPECT().GetUser(mock.Anything, ownerID).
 					Return(&entity.User{ID: ownerID, Role: entity.RoleOwner, IsActive: false}, nil).Once()
 			},
@@ -106,17 +106,17 @@ func TestVenueCreate(t *testing.T) {
 		},
 		{
 			name: "propagates a lookup failure",
-			setup: func(_ *mocks.MockVenueCreator, finder *mocks.MockUserFinder) {
+			setup: func(_ *mocks.MockVenueRepo, finder *mocks.MockUserFinder) {
 				finder.EXPECT().GetUser(mock.Anything, ownerID).Return(nil, boom).Once()
 			},
 			wantErr:       boom,
 			wantNoStorage: true,
 		},
 		{
-			name: "propagates a creator failure",
-			setup: func(creator *mocks.MockVenueCreator, finder *mocks.MockUserFinder) {
+			name: "propagates a repo failure",
+			setup: func(repo *mocks.MockVenueRepo, finder *mocks.MockUserFinder) {
 				finder.EXPECT().GetUser(mock.Anything, ownerID).Return(activeOwner(), nil).Once()
-				creator.EXPECT().CreateVenue(mock.Anything, mock.Anything).Return(nil, boom).Once()
+				repo.EXPECT().CreateVenue(mock.Anything, mock.Anything).Return(nil, boom).Once()
 			},
 			wantErr: boom,
 		},
@@ -124,16 +124,16 @@ func TestVenueCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			creator := mocks.NewMockVenueCreator(t)
+			repo := mocks.NewMockVenueRepo(t)
 			finder := mocks.NewMockUserFinder(t)
 
 			var storedInput entity.CreateVenueInput
 
 			if tt.setup != nil {
-				tt.setup(creator, finder)
+				tt.setup(repo, finder)
 			} else {
 				finder.EXPECT().GetUser(mock.Anything, ownerID).Return(activeOwner(), nil).Once()
-				creator.EXPECT().
+				repo.EXPECT().
 					CreateVenue(mock.Anything, mock.Anything).
 					Run(func(_ context.Context, in entity.CreateVenueInput) {
 						storedInput = in
@@ -147,7 +147,7 @@ func TestVenueCreate(t *testing.T) {
 				tt.mutate(&in)
 			}
 
-			svc := usecase.NewVenue(creator, mocks.NewMockVenueLister(t), finder)
+			svc := usecase.NewVenue(repo, finder)
 			_, err := svc.Create(context.Background(), in)
 
 			if tt.wantErr != nil {
@@ -157,7 +157,7 @@ func TestVenueCreate(t *testing.T) {
 			}
 
 			if tt.wantNoStorage {
-				creator.AssertNotCalled(t, "CreateVenue")
+				repo.AssertNotCalled(t, "CreateVenue")
 			}
 
 			if tt.wantStored != nil {
@@ -173,15 +173,15 @@ func TestVenueListByOwner(t *testing.T) {
 	tests := []struct {
 		name    string
 		ownerID uuid.UUID
-		setup   func(lister *mocks.MockVenueLister)
+		setup   func(repo *mocks.MockVenueRepo)
 		wantErr error
 		wantLen int
 	}{
 		{
 			name:    "returns the owner's venues",
 			ownerID: ownerID,
-			setup: func(lister *mocks.MockVenueLister) {
-				lister.EXPECT().ListVenuesByOwner(mock.Anything, ownerID).
+			setup: func(repo *mocks.MockVenueRepo) {
+				repo.EXPECT().ListVenuesByOwner(mock.Anything, ownerID).
 					Return([]entity.Venue{{Name: "Ace"}, {Name: "Deuce"}}, nil).Once()
 			},
 			wantLen: 2,
@@ -189,22 +189,22 @@ func TestVenueListByOwner(t *testing.T) {
 		{
 			name:    "an owner with no venues returns an empty slice",
 			ownerID: ownerID,
-			setup: func(lister *mocks.MockVenueLister) {
-				lister.EXPECT().ListVenuesByOwner(mock.Anything, ownerID).
+			setup: func(repo *mocks.MockVenueRepo) {
+				repo.EXPECT().ListVenuesByOwner(mock.Anything, ownerID).
 					Return([]entity.Venue{}, nil).Once()
 			},
 		},
 		{
 			name:    "rejects a nil owner without querying",
 			ownerID: uuid.Nil,
-			setup:   func(*mocks.MockVenueLister) {},
+			setup:   func(*mocks.MockVenueRepo) {},
 			wantErr: entity.ErrOwnerRequired,
 		},
 		{
 			name:    "propagates a storage failure",
 			ownerID: ownerID,
-			setup: func(lister *mocks.MockVenueLister) {
-				lister.EXPECT().ListVenuesByOwner(mock.Anything, ownerID).Return(nil, boom).Once()
+			setup: func(repo *mocks.MockVenueRepo) {
+				repo.EXPECT().ListVenuesByOwner(mock.Anything, ownerID).Return(nil, boom).Once()
 			},
 			wantErr: boom,
 		},
@@ -212,15 +212,15 @@ func TestVenueListByOwner(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lister := mocks.NewMockVenueLister(t)
-			tt.setup(lister)
+			repo := mocks.NewMockVenueRepo(t)
+			tt.setup(repo)
 
-			svc := usecase.NewVenue(mocks.NewMockVenueCreator(t), lister, mocks.NewMockUserFinder(t))
+			svc := usecase.NewVenue(repo, mocks.NewMockUserFinder(t))
 			got, err := svc.ListByOwner(context.Background(), tt.ownerID)
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
-				lister.AssertNotCalled(t, "ListVenuesByOwner")
+				repo.AssertNotCalled(t, "ListVenuesByOwner")
 				return
 			}
 
