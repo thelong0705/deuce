@@ -73,3 +73,27 @@ func TestCodeOf(t *testing.T) {
 		})
 	}
 }
+
+func TestKindsAreDistinct(t *testing.T) {
+	kinds := []apperr.Kind{
+		apperr.KindInvalid,
+		apperr.KindNotFound,
+		apperr.KindConflict,
+		apperr.KindUnauthorized,
+		apperr.KindForbidden,
+		apperr.KindInternal,
+	}
+
+	seen := make(map[apperr.Kind]bool, len(kinds))
+	for _, k := range kinds {
+		require.False(t, seen[k], "duplicate kind %q", k)
+		seen[k] = true
+	}
+}
+
+func TestKindOfUnauthorized(t *testing.T) {
+	err := apperr.New(apperr.KindUnauthorized, "no_session", "not signed in")
+
+	require.Equal(t, apperr.KindUnauthorized, apperr.KindOf(err))
+	require.Equal(t, apperr.KindUnauthorized, apperr.KindOf(fmt.Errorf("wrapped: %w", err)))
+}

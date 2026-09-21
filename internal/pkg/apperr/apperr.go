@@ -10,9 +10,12 @@ import "errors"
 type Kind string
 
 const (
-	KindInvalid   Kind = "invalid"
-	KindNotFound  Kind = "not_found"
-	KindConflict  Kind = "conflict"
+	KindInvalid  Kind = "invalid"
+	KindNotFound Kind = "not_found"
+	KindConflict Kind = "conflict"
+	// KindUnauthorized means the caller is not authenticated.
+	KindUnauthorized Kind = "unauthorized"
+	// KindForbidden means the caller is authenticated but not permitted.
 	KindForbidden Kind = "forbidden"
 	KindInternal  Kind = "internal"
 )
