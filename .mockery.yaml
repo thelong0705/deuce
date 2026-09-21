@@ -13,6 +13,15 @@ packages:
       UserCreator:
       PasswordHasher:
 
+  github.com/thelong0705/deuce/internal/adapter/httpapi:
+    config:
+      dir: internal/adapter/httpapi/mocks
+      outpkg: mocks
+      mockname: "Mock{{.InterfaceName}}"
+      filename: "{{.InterfaceName}}.go"
+    interfaces:
+      UserRegistrar:
+
 # Silence v3 deprecation warnings by opting into the future defaults now.
 resolve-type-alias: false
 disable-version-string: true
