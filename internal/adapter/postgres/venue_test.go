@@ -21,10 +21,11 @@ func TestCreateVenue(t *testing.T) {
 			name: "valid venue",
 			arg: func(t *testing.T) CreateVenueParams {
 				return CreateVenueParams{
-					OwnerID: createRandomOwner(t),
-					Name:    gofakeit.Company() + " Tennis Club",
-					City:    gofakeit.City(),
-					Address: gofakeit.Street(),
+					OwnerID:  createRandomOwner(t),
+					Name:     gofakeit.Company() + " Tennis Club",
+					City:     gofakeit.City(),
+					Address:  gofakeit.Street(),
+					Timezone: "Asia/Ho_Chi_Minh",
 				}
 			},
 		},
@@ -32,10 +33,11 @@ func TestCreateVenue(t *testing.T) {
 			name: "unknown owner",
 			arg: func(t *testing.T) CreateVenueParams {
 				return CreateVenueParams{
-					OwnerID: uuid.New(),
-					Name:    gofakeit.Company() + " Tennis Club",
-					City:    gofakeit.City(),
-					Address: gofakeit.Street(),
+					OwnerID:  uuid.New(),
+					Name:     gofakeit.Company() + " Tennis Club",
+					City:     gofakeit.City(),
+					Address:  gofakeit.Street(),
+					Timezone: "Asia/Ho_Chi_Minh",
 				}
 			},
 			wantErr: true,
@@ -219,10 +221,11 @@ func createRandomVenue(t *testing.T) Venue {
 	t.Helper()
 
 	venue, err := testQueries.CreateVenue(context.Background(), CreateVenueParams{
-		OwnerID: createRandomOwner(t),
-		Name:    gofakeit.Company() + " Tennis Club",
-		City:    gofakeit.City(),
-		Address: gofakeit.Street(),
+		OwnerID:  createRandomOwner(t),
+		Name:     gofakeit.Company() + " Tennis Club",
+		City:     gofakeit.City(),
+		Address:  gofakeit.Street(),
+		Timezone: "Asia/Ho_Chi_Minh",
 	})
 	require.NoError(t, err)
 

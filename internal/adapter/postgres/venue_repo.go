@@ -28,10 +28,11 @@ func NewVenueRepository(q *Queries) *VenueRepository {
 
 func (r *VenueRepository) CreateVenue(ctx context.Context, in entity.CreateVenueInput) (*entity.Venue, error) {
 	row, err := r.q.CreateVenue(ctx, CreateVenueParams{
-		OwnerID: in.OwnerID,
-		Name:    in.Name,
-		City:    in.City,
-		Address: in.Address,
+		OwnerID:  in.OwnerID,
+		Name:     in.Name,
+		City:     in.City,
+		Address:  in.Address,
+		Timezone: in.Timezone,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create venue: %w", err)
@@ -47,6 +48,7 @@ func toEntityVenue(v Venue) *entity.Venue {
 		Name:      v.Name,
 		City:      v.City,
 		Address:   v.Address,
+		Timezone:  v.Timezone,
 		IsActive:  v.IsActive,
 		CreatedAt: v.CreatedAt.Time,
 	}

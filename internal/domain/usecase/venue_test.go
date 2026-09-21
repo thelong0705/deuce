@@ -18,10 +18,11 @@ var ownerID = uuid.New()
 
 func validVenueInput() entity.CreateVenueInput {
 	return entity.CreateVenueInput{
-		OwnerID: ownerID,
-		Name:    "Ace Tennis Club",
-		City:    "Hanoi",
-		Address: "12 Le Loi",
+		OwnerID:  ownerID,
+		Name:     "Ace Tennis Club",
+		City:     "Hanoi",
+		Address:  "12 Le Loi",
+		Timezone: "Asia/Ho_Chi_Minh",
 	}
 }
 

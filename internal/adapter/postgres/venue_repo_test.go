@@ -15,10 +15,11 @@ func validVenueInput(t *testing.T) entity.CreateVenueInput {
 	t.Helper()
 
 	return entity.CreateVenueInput{
-		OwnerID: createRandomOwner(t),
-		Name:    gofakeit.Company() + " Tennis Club",
-		City:    gofakeit.City(),
-		Address: gofakeit.Street(),
+		OwnerID:  createRandomOwner(t),
+		Name:     gofakeit.Company() + " Tennis Club",
+		City:     gofakeit.City(),
+		Address:  gofakeit.Street(),
+		Timezone: "Asia/Ho_Chi_Minh",
 	}
 }
 
@@ -124,17 +125,17 @@ func TestVenueRepositoryListVenuesByOwner(t *testing.T) {
 	other := createRandomOwner(t)
 
 	first, err := repo.CreateVenue(ctx, entity.CreateVenueInput{
-		OwnerID: owner, Name: "Ace Club", City: "Hanoi", Address: "1 A St",
+		OwnerID: owner, Name: "Ace Club", City: "Hanoi", Address: "1 A St", Timezone: "Asia/Ho_Chi_Minh",
 	})
 	require.NoError(t, err)
 
 	second, err := repo.CreateVenue(ctx, entity.CreateVenueInput{
-		OwnerID: owner, Name: "Baseline Club", City: "Hanoi", Address: "2 B St",
+		OwnerID: owner, Name: "Baseline Club", City: "Hanoi", Address: "2 B St", Timezone: "Asia/Ho_Chi_Minh",
 	})
 	require.NoError(t, err)
 
 	_, err = repo.CreateVenue(ctx, entity.CreateVenueInput{
-		OwnerID: other, Name: "Someone Else", City: "Hanoi", Address: "3 C St",
+		OwnerID: other, Name: "Someone Else", City: "Hanoi", Address: "3 C St", Timezone: "Asia/Ho_Chi_Minh",
 	})
 	require.NoError(t, err)
 
