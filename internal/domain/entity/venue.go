@@ -24,6 +24,8 @@ var (
 	ErrVenueNameRequired    = errors.New("venue name is required")
 	ErrVenueCityRequired    = errors.New("venue city is required")
 	ErrVenueAddressRequired = errors.New("venue address is required")
+	ErrNotAnOwner           = errors.New("only an owner can register a venue")
+	ErrOwnerInactive        = errors.New("owner account is not active")
 )
 
 // CreateVenueInput is what an owner supplies to register a venue.

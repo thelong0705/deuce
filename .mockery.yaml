@@ -12,6 +12,8 @@ packages:
     interfaces:
       UserCreator:
       PasswordHasher:
+      VenueCreator:
+      UserFinder:
 
   github.com/thelong0705/deuce/internal/adapter/httpapi:
     config:
