@@ -5,13 +5,18 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/thelong0705/deuce/internal/domain/entity"
 	"github.com/thelong0705/deuce/internal/domain/usecase"
 )
 
-var _ usecase.UserCreator = (*UserRepository)(nil)
+var (
+	_ usecase.UserCreator = (*UserRepository)(nil)
+	_ usecase.UserFinder  = (*UserRepository)(nil)
+)
 
 // UserRepository persists users in Postgres.
 type UserRepository struct {
@@ -89,4 +94,16 @@ func toEntityRole(r UserRole) (entity.Role, error) {
 	default:
 		return "", fmt.Errorf("unknown role %q from database", r)
 	}
+}
+
+func (r *UserRepository) GetUser(ctx context.Context, id uuid.UUID) (*entity.User, error) {
+	row, err := r.q.GetUser(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, entity.ErrUserNotFound
+		}
+		return nil, fmt.Errorf("get user: %w", err)
+	}
+
+	return toEntityUser(row)
 }

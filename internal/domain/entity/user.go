@@ -44,6 +44,7 @@ var (
 	ErrPhoneRequired    = errors.New("phone number is required")
 	ErrInvalidRole      = errors.New(`role must be "player" or "owner"`)
 	ErrEmailTaken       = errors.New("email already registered")
+	ErrUserNotFound     = errors.New("user not found")
 )
 
 // CreateUserInput is what someone supplies to sign up.
