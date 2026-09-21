@@ -1,9 +1,26 @@
 import { useEffect, useState } from 'react'
 
-import { PlayerHome } from './PlayerHome'
+import { Account } from './Account'
+import { Browse } from './Browse'
+import { MenuBar } from './MenuBar'
+import type { MenuItem } from './MenuBar'
+import { MyBookings } from './MyBookings'
 import { Venues } from './Venues'
 import { ApiError, logout, me } from './api'
 import type { Session, User } from './api'
+
+type Section = 'book' | 'bookings' | 'venues' | 'account'
+
+const playerMenu: MenuItem<Section>[] = [
+  { key: 'book', label: 'Book a court' },
+  { key: 'bookings', label: 'My bookings' },
+  { key: 'account', label: 'Account' },
+]
+
+const ownerMenu: MenuItem<Section>[] = [
+  { key: 'venues', label: 'My venues' },
+  { key: 'account', label: 'Account' },
+]
 
 type Props = {
   session: Session
@@ -14,8 +31,12 @@ export function SignedIn({ session, onSignedOut }: Props) {
   // null until /me answers. The stored session hint says nothing about the
   // role, so who this is has to come from the server.
   const [user, setUser] = useState<User | null>(null)
+  const [section, setSection] = useState<Section>('account')
   const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
+  // Bumped after a booking so My bookings reloads rather than showing what it
+  // happened to fetch earlier.
+  const [version, setVersion] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -23,9 +44,12 @@ export function SignedIn({ session, onSignedOut }: Props) {
     void (async () => {
       try {
         const current = await me()
-        if (!cancelled) {
-          setUser(current)
+        if (cancelled) {
+          return
         }
+        setUser(current)
+        // Land on the section that account is actually for.
+        setSection(current.role === 'owner' ? 'venues' : 'book')
       } catch (err) {
         // This is also the first real check that the session is still live.
         if (err instanceof ApiError && err.status === 401) {
@@ -41,8 +65,8 @@ export function SignedIn({ session, onSignedOut }: Props) {
     }
   }, [onSignedOut])
 
-  async function handleLogout() {
-    setSubmitting(true)
+  async function handleSignOut() {
+    setSigningOut(true)
     setError(null)
     try {
       await logout()
@@ -59,54 +83,42 @@ export function SignedIn({ session, onSignedOut }: Props) {
         setError('Something went wrong.')
       }
     } finally {
-      setSubmitting(false)
+      setSigningOut(false)
     }
   }
 
+  // Venues are an owner's feature and booking is a player's, so neither is
+  // offered to the other — not an empty list, and not a form that could only
+  // ever come back 403.
+  const items = user === null ? [] : user.role === 'owner' ? ownerMenu : playerMenu
+
   return (
     <>
-      <div className="card">
-        <h1>Signed in</h1>
-        <p className="lede">Your session is active.</p>
+      <MenuBar
+        user={user}
+        items={items}
+        active={section}
+        onSelect={setSection}
+        onSignOut={handleSignOut}
+        signingOut={signingOut}
+      />
 
-        <dl className="summary">
-          <dt>User</dt>
-          <dd>{user ? user.email : <span className="mono">{session.user_id}</span>}</dd>
-          <dt>Account</dt>
-          <dd>{user ? accountLabel(user) : '…'}</dd>
-          <dt>Expires</dt>
-          <dd>{formatExpiry(session.expires_at)}</dd>
-        </dl>
-
+      <main className="page page-below-menu">
         {error && (
-          <p className="form-error" role="alert">
+          <p className="card form-error" role="alert">
             {error}
           </p>
         )}
 
-        <button type="button" className="secondary" onClick={handleLogout} disabled={submitting}>
-          {submitting ? 'Signing out…' : 'Sign out'}
-        </button>
-      </div>
-
-      {/* Venues are an owner's feature, so a player is never shown the section
-          at all — not an empty list and a form that would only 403. Players
-          get the booking screens in their place. */}
-      {user?.role === 'owner' && <Venues onUnauthorized={onSignedOut} />}
-      {user?.role === 'player' && <PlayerHome onUnauthorized={onSignedOut} />}
+        {section === 'account' && <Account session={session} user={user} />}
+        {section === 'venues' && user?.role === 'owner' && <Venues onUnauthorized={onSignedOut} />}
+        {section === 'book' && user?.role === 'player' && (
+          <Browse onBooked={() => setVersion((v) => v + 1)} onUnauthorized={onSignedOut} />
+        )}
+        {section === 'bookings' && user?.role === 'player' && (
+          <MyBookings version={version} onUnauthorized={onSignedOut} />
+        )}
+      </main>
     </>
   )
-}
-
-function accountLabel(user: User): string {
-  return user.role === 'owner' ? 'Court owner' : 'Player'
-}
-
-function formatExpiry(value: string): string {
-  const at = new Date(value)
-  if (Number.isNaN(at.getTime())) {
-    return value
-  }
-
-  return at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }

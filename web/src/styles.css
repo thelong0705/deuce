@@ -47,6 +47,103 @@ body {
   padding: 32px 16px;
 }
 
+/* Signed in the page starts under the bar rather than centring in the
+   viewport, so sections do not jump as their height changes. */
+.page-below-menu {
+  min-height: 0;
+  justify-content: flex-start;
+}
+
+.menubar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.menubar-inner {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.menubar .brand-mark {
+  font-size: 20px;
+}
+
+.menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1 1 auto;
+}
+
+button.menu-item {
+  margin: 0;
+  padding: 7px 12px;
+  font-size: 14px;
+  font-weight: 550;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+/* Excluding the current item is not just taste: :hover:not() out-specifies
+   the [aria-current] rule below, so without it hovering the active item
+   repaints it as an inactive one. */
+button.menu-item:hover:not(:disabled):not([aria-current='page']) {
+  background: var(--bg);
+  color: var(--text);
+  filter: none;
+}
+
+button.menu-item[aria-current='page'] {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.menubar-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.menubar-email {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+button.menu-signout {
+  margin: 0;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 550;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+}
+
+button.menu-signout:hover:not(:disabled) {
+  filter: none;
+  border-color: var(--muted);
+}
+
+@media (max-width: 560px) {
+  /* The email is the first thing worth dropping: the bar still says who is
+     signed in once Account is one tap away. */
+  .menubar-email {
+    display: none;
+  }
+}
+
 .brand {
   display: flex;
   flex-direction: column;
