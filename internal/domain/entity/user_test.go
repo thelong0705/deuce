@@ -33,6 +33,18 @@ func TestCreateUserInputValidate(t *testing.T) {
 			mutate: func(r *entity.CreateUserInput) { r.Role = entity.RoleOwner },
 		},
 		{
+			name:   "one-digit country code",
+			mutate: func(r *entity.CreateUserInput) { r.PhoneNumber = "+15551234567" },
+		},
+		{
+			name:   "the full fifteen digits E.164 allows",
+			mutate: func(r *entity.CreateUserInput) { r.PhoneNumber = "+849012345678901" },
+		},
+		{
+			name:   "the shortest E.164 allows",
+			mutate: func(r *entity.CreateUserInput) { r.PhoneNumber = "+84" },
+		},
+		{
 			name:    "empty email",
 			mutate:  func(r *entity.CreateUserInput) { r.Email = "" },
 			wantErr: entity.ErrInvalidEmail,
@@ -69,6 +81,42 @@ func TestCreateUserInputValidate(t *testing.T) {
 			name:    "phone that is only whitespace",
 			mutate:  func(r *entity.CreateUserInput) { r.PhoneNumber = "   " },
 			wantErr: entity.ErrPhoneRequired,
+		},
+		{
+			name:    "phone without a plus",
+			mutate:  func(r *entity.CreateUserInput) { r.PhoneNumber = "84901234567" },
+			wantErr: entity.ErrPhoneInvalid,
+		},
+		{
+			name:    "phone written the local way, with a trunk zero",
+			mutate:  func(r *entity.CreateUserInput) { r.PhoneNumber = "0901234567" },
+			wantErr: entity.ErrPhoneInvalid,
+		},
+		{
+			// Nothing normalises, so a number that is only readable is refused.
+			name:    "phone with spaces",
+			mutate:  func(r *entity.CreateUserInput) { r.PhoneNumber = "+84 90 123 4567" },
+			wantErr: entity.ErrPhoneInvalid,
+		},
+		{
+			name:    "phone with a country code starting at zero",
+			mutate:  func(r *entity.CreateUserInput) { r.PhoneNumber = "+0901234567" },
+			wantErr: entity.ErrPhoneInvalid,
+		},
+		{
+			name:    "phone of letters",
+			mutate:  func(r *entity.CreateUserInput) { r.PhoneNumber = "+84call-me" },
+			wantErr: entity.ErrPhoneInvalid,
+		},
+		{
+			name:    "phone longer than E.164 allows",
+			mutate:  func(r *entity.CreateUserInput) { r.PhoneNumber = "+8490123456789012" },
+			wantErr: entity.ErrPhoneInvalid,
+		},
+		{
+			name:    "phone of a plus and one digit",
+			mutate:  func(r *entity.CreateUserInput) { r.PhoneNumber = "+8" },
+			wantErr: entity.ErrPhoneInvalid,
 		},
 		{
 			name:    "unknown role",

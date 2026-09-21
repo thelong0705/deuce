@@ -6,6 +6,9 @@ export type Role = 'player' | 'owner'
 export type SignupInput = {
   email: string
   password: string
+  // countryISO picks the dialling code; phoneNumber is the national part as
+  // typed. The two are joined into E.164 only when the request goes out.
+  countryISO: string
   phoneNumber: string
   role: Role
 }
@@ -47,6 +50,19 @@ export function passwordByteLength(password: string): number {
 
 const emailPattern = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
+// nationalDigits keeps only the digits and drops one leading trunk zero, the
+// 0 in 0901234567 that a Vietnamese number is written with locally and never
+// carries internationally.
+export function nationalDigits(phoneNumber: string): string {
+  return phoneNumber.replace(/\D/g, '').replace(/^0/, '')
+}
+
+// toE164 is the only place the country code and the typed number are joined,
+// and the only shape the server is ever sent.
+export function toE164(dial: string, phoneNumber: string): string {
+  return `+${dial}${nationalDigits(phoneNumber)}`
+}
+
 export function validate(input: SignupInput): FieldErrors {
   const errors: FieldErrors = {}
 
@@ -61,8 +77,15 @@ export function validate(input: SignupInput): FieldErrors {
     errors.password = `Too long — ${MAX_PASSWORD_BYTES} characters maximum`
   }
 
+  const digits = nationalDigits(input.phoneNumber)
   if (input.phoneNumber.trim() === '') {
     errors.phoneNumber = 'Phone number is required'
+  } else if (/[^\d\s\-().]/.test(input.phoneNumber)) {
+    errors.phoneNumber = 'Digits only — the country code is already set'
+  } else if (digits.length < 4 || digits.length > 14) {
+    // E.164 allows fifteen digits including the country code, so the national
+    // part can never be longer than fourteen.
+    errors.phoneNumber = 'That does not look like a phone number'
   }
 
   if (input.role !== 'player' && input.role !== 'owner') {
