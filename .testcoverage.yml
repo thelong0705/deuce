@@ -7,8 +7,6 @@ threshold:
 
 exclude:
   paths:
-    # Mostly sqlc generated code
-    - ^internal/adapter/postgres/
     - ^cmd/
     # mockery output, in any package
     - /mocks/
