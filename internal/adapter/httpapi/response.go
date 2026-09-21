@@ -74,6 +74,8 @@ func statusFor(kind apperr.Kind) int {
 		return http.StatusNotFound
 	case apperr.KindConflict:
 		return http.StatusConflict
+	case apperr.KindUnauthorized:
+		return http.StatusUnauthorized
 	case apperr.KindForbidden:
 		return http.StatusForbidden
 	default:
