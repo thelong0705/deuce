@@ -11,8 +11,6 @@ import (
 	"github.com/thelong0705/deuce/internal/domain/entity"
 )
 
-// UserRegistrar is declared here, by the handler that uses it. usecase.User
-// satisfies it without either package importing the other's concrete types.
 type UserRegistrar interface {
 	Register(ctx context.Context, in entity.CreateUserInput) (*entity.User, error)
 }
