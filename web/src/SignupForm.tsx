@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 
+import { PhoneField } from './PhoneField'
 import { ApiError, signup } from './api'
 import type { CreatedUser } from './api'
+import { defaultCountry } from './countries'
 import { MAX_PASSWORD_BYTES, validate } from './validation'
 import type { FieldErrors, Role, SignupInput } from './validation'
 
 const empty: SignupInput = {
   email: '',
   password: '',
+  countryISO: defaultCountry.iso,
   phoneNumber: '',
   role: 'player',
 }
@@ -133,24 +136,12 @@ export function SignupForm({ onSignIn }: Props) {
         </p>
       )}
 
-      <label htmlFor="phone">
-        Phone number
-        <input
-          id="phone"
-          type="tel"
-          autoComplete="tel"
-          placeholder="+84901234567"
-          value={input.phoneNumber}
-          onChange={(e) => update({ phoneNumber: e.target.value })}
-          aria-invalid={Boolean(fieldErrors.phoneNumber)}
-          aria-describedby={fieldErrors.phoneNumber ? 'phone-error' : undefined}
-        />
-      </label>
-      {fieldErrors.phoneNumber && (
-        <p className="field-error" id="phone-error">
-          {fieldErrors.phoneNumber}
-        </p>
-      )}
+      <PhoneField
+        countryISO={input.countryISO}
+        phoneNumber={input.phoneNumber}
+        error={fieldErrors.phoneNumber}
+        onChange={update}
+      />
 
       <label htmlFor="role">
         Account type

@@ -2,6 +2,7 @@ package entity
 
 import (
 	"net/mail"
+	"regexp"
 	"strings"
 	"time"
 
@@ -43,10 +44,21 @@ var (
 	ErrPasswordTooShort = apperr.New(apperr.KindInvalid, "password_too_short", "password must be at least 8 characters")
 	ErrPasswordTooLong  = apperr.New(apperr.KindInvalid, "password_too_long", "password must be at most 72 bytes")
 	ErrPhoneRequired    = apperr.New(apperr.KindInvalid, "phone_required", "phone number is required")
+	ErrPhoneInvalid     = apperr.New(apperr.KindInvalid, "phone_invalid", "phone number must be in E.164 format, like +84901234567")
 	ErrInvalidRole      = apperr.New(apperr.KindInvalid, "invalid_role", `role must be "player" or "owner"`)
 	ErrEmailTaken       = apperr.New(apperr.KindConflict, "email_taken", "email already registered")
 	ErrUserNotFound     = apperr.New(apperr.KindNotFound, "user_not_found", "user not found")
 )
+
+// e164 is the storage format for a phone number: a plus, a country code that
+// cannot start with zero, and at most fifteen digits in total. It says nothing
+// about whether the number is assigned or reachable, only that it is written
+// the one way every part of the system can compare.
+//
+// Nothing is normalised here. A number with spaces or a local trunk zero is
+// rejected rather than repaired, so the caller that knows which country the
+// digits came from is the one that has to say.
+var e164 = regexp.MustCompile(`^\+[1-9]\d{1,14}$`)
 
 // CreateUserInput is what someone supplies to sign up.
 type CreateUserInput struct {
@@ -69,6 +81,9 @@ func (r CreateUserInput) Validate() error {
 	}
 	if strings.TrimSpace(r.PhoneNumber) == "" {
 		return ErrPhoneRequired
+	}
+	if !e164.MatchString(r.PhoneNumber) {
+		return ErrPhoneInvalid
 	}
 	if !r.Role.Valid() {
 		return ErrInvalidRole
