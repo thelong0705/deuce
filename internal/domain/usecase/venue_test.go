@@ -147,7 +147,7 @@ func TestVenueCreate(t *testing.T) {
 				tt.mutate(&in)
 			}
 
-			svc := usecase.NewVenue(creator, finder)
+			svc := usecase.NewVenue(creator, mocks.NewMockVenueLister(t), finder)
 			_, err := svc.Create(context.Background(), in)
 
 			if tt.wantErr != nil {
@@ -163,6 +163,69 @@ func TestVenueCreate(t *testing.T) {
 			if tt.wantStored != nil {
 				tt.wantStored(t, storedInput)
 			}
+		})
+	}
+}
+
+func TestVenueListByOwner(t *testing.T) {
+	boom := errors.New("boom")
+
+	tests := []struct {
+		name    string
+		ownerID uuid.UUID
+		setup   func(lister *mocks.MockVenueLister)
+		wantErr error
+		wantLen int
+	}{
+		{
+			name:    "returns the owner's venues",
+			ownerID: ownerID,
+			setup: func(lister *mocks.MockVenueLister) {
+				lister.EXPECT().ListVenuesByOwner(mock.Anything, ownerID).
+					Return([]entity.Venue{{Name: "Ace"}, {Name: "Deuce"}}, nil).Once()
+			},
+			wantLen: 2,
+		},
+		{
+			name:    "an owner with no venues returns an empty slice",
+			ownerID: ownerID,
+			setup: func(lister *mocks.MockVenueLister) {
+				lister.EXPECT().ListVenuesByOwner(mock.Anything, ownerID).
+					Return([]entity.Venue{}, nil).Once()
+			},
+		},
+		{
+			name:    "rejects a nil owner without querying",
+			ownerID: uuid.Nil,
+			setup:   func(*mocks.MockVenueLister) {},
+			wantErr: entity.ErrOwnerRequired,
+		},
+		{
+			name:    "propagates a storage failure",
+			ownerID: ownerID,
+			setup: func(lister *mocks.MockVenueLister) {
+				lister.EXPECT().ListVenuesByOwner(mock.Anything, ownerID).Return(nil, boom).Once()
+			},
+			wantErr: boom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lister := mocks.NewMockVenueLister(t)
+			tt.setup(lister)
+
+			svc := usecase.NewVenue(mocks.NewMockVenueCreator(t), lister, mocks.NewMockUserFinder(t))
+			got, err := svc.ListByOwner(context.Background(), tt.ownerID)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				lister.AssertNotCalled(t, "ListVenuesByOwner")
+				return
+			}
+
+			require.NoError(t, err)
+			require.Len(t, got, tt.wantLen)
 		})
 	}
 }

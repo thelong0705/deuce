@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 
 	"github.com/thelong0705/deuce/internal/domain/entity"
 )
@@ -21,17 +22,24 @@ type VenueCreator interface {
 	Create(ctx context.Context, in entity.CreateVenueInput) (*entity.Venue, error)
 }
 
-type Server struct {
-	users  UserRegister
-	venues VenueCreator
-	router *chi.Mux
+// VenueLister lists the venues owned by a user.
+type VenueLister interface {
+	ListByOwner(ctx context.Context, ownerID uuid.UUID) ([]entity.Venue, error)
 }
 
-func NewServer(users UserRegister, venues VenueCreator) *Server {
+type Server struct {
+	users        UserRegister
+	venueCreator VenueCreator
+	venueLister  VenueLister
+	router       *chi.Mux
+}
+
+func NewServer(users UserRegister, venueCreator VenueCreator, venueLister VenueLister) *Server {
 	s := &Server{
-		users:  users,
-		venues: venues,
-		router: chi.NewRouter(),
+		users:        users,
+		venueCreator: venueCreator,
+		venueLister:  venueLister,
+		router:       chi.NewRouter(),
 	}
 	s.routes()
 	return s
@@ -51,6 +59,7 @@ func (s *Server) routes() {
 	s.router.Get("/healthz", s.health)
 	s.router.Post("/users", s.createUser)
 	s.router.Post("/venues", s.createVenue)
+	s.router.Get("/venues", s.listVenues)
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
