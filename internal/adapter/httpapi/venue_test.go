@@ -18,7 +18,26 @@ import (
 var venueOwnerID = uuid.New()
 
 func validVenueBody() string {
-	return `{"owner_id":"` + venueOwnerID.String() + `","name":"Ace Tennis Club","city":"Hanoi","address":"12 Le Loi"}`
+	return `{"name":"Ace Tennis Club","city":"Hanoi","address":"12 Le Loi"}`
+}
+
+func venueOwner() *entity.User {
+	return &entity.User{
+		ID:       venueOwnerID,
+		Email:    "owner@example.com",
+		Role:     entity.RoleOwner,
+		IsActive: true,
+	}
+}
+
+// signedInOwner returns a user mock whose session resolves to the venue owner.
+func signedInOwner(t *testing.T) *mocks.MockUserUsecase {
+	t.Helper()
+
+	users := mocks.NewMockUserUsecase(t)
+	users.EXPECT().Authenticate(mock.Anything, rawToken).Return(venueOwner(), nil).Once()
+
+	return users
 }
 
 func createdVenue() *entity.Venue {
@@ -70,17 +89,17 @@ func TestCreateVenue(t *testing.T) {
 		},
 		{
 			name:       "rejects an unknown field",
-			body:       `{"owner_id":"` + venueOwnerID.String() + `","name":"A","city":"B","address":"C","courts":9}`,
+			body:       `{"name":"A","city":"B","address":"C","courts":9}`,
 			wantNoCall: true,
 			wantStatus: http.StatusBadRequest,
 			wantErrMsg: "invalid JSON body",
 		},
 		{
-			name:       "rejects an owner_id that is not a uuid",
-			body:       `{"owner_id":"not-a-uuid","name":"A","city":"B","address":"C"}`,
+			name:       "rejects an owner_id in the body",
+			body:       `{"owner_id":"` + uuid.New().String() + `","name":"A","city":"B","address":"C"}`,
 			wantNoCall: true,
 			wantStatus: http.StatusBadRequest,
-			wantErrMsg: "owner_id must be a valid uuid",
+			wantErrMsg: "invalid JSON body",
 		},
 		{
 			name: "a validation error becomes 400",
@@ -93,7 +112,9 @@ func TestCreateVenue(t *testing.T) {
 			wantErrMsg: entity.ErrVenueNameRequired.Error(),
 		},
 		{
-			name: "an unknown owner becomes 404",
+			// Reachable when the account is deleted between the session check
+			// and the write.
+			name: "an owner that no longer exists becomes 404",
 			body: validVenueBody(),
 			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().Create(mock.Anything, mock.Anything).
@@ -149,7 +170,7 @@ func TestCreateVenue(t *testing.T) {
 					Return(createdVenue(), nil).Once()
 			}
 
-			rec := do(t, mocks.NewMockUserUsecase(t), venues, http.MethodPost, "/venues", tt.body)
+			rec := doAuthed(t, signedInOwner(t), venues, http.MethodPost, "/venues", tt.body)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 			require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
@@ -171,7 +192,9 @@ func TestCreateVenue(t *testing.T) {
 	}
 }
 
-func TestCreateVenuePassesTheParsedOwner(t *testing.T) {
+// The owner comes from the session, so a caller cannot create a venue for
+// somebody else.
+func TestCreateVenueTakesTheOwnerFromTheSession(t *testing.T) {
 	venues := mocks.NewMockVenueUsecase(t)
 
 	venues.EXPECT().
@@ -181,7 +204,7 @@ func TestCreateVenuePassesTheParsedOwner(t *testing.T) {
 		Return(createdVenue(), nil).
 		Once()
 
-	rec := do(t, mocks.NewMockUserUsecase(t), venues, http.MethodPost, "/venues", validVenueBody())
+	rec := doAuthed(t, signedInOwner(t), venues, http.MethodPost, "/venues", validVenueBody())
 
 	require.Equal(t, http.StatusCreated, rec.Code)
 }
@@ -189,16 +212,13 @@ func TestCreateVenuePassesTheParsedOwner(t *testing.T) {
 func TestListVenues(t *testing.T) {
 	tests := []struct {
 		name       string
-		query      string
 		setup      func(venues *mocks.MockVenueUsecase)
-		wantNoCall bool
 		wantStatus int
 		wantErrMsg string
 		check      func(t *testing.T, body []byte)
 	}{
 		{
-			name:  "returns the owner's venues",
-			query: "?owner_id=" + venueOwnerID.String(),
+			name: "returns the signed-in owner's venues",
 			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().ListByOwner(mock.Anything, venueOwnerID).
 					Return([]entity.Venue{*createdVenue(), *createdVenue()}, nil).Once()
@@ -214,8 +234,7 @@ func TestListVenues(t *testing.T) {
 			},
 		},
 		{
-			name:  "an owner with no venues gets an empty array",
-			query: "?owner_id=" + venueOwnerID.String(),
+			name: "an owner with no venues gets an empty array",
 			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().ListByOwner(mock.Anything, venueOwnerID).
 					Return([]entity.Venue{}, nil).Once()
@@ -227,22 +246,7 @@ func TestListVenues(t *testing.T) {
 			},
 		},
 		{
-			name:       "a missing owner_id is rejected",
-			query:      "",
-			wantNoCall: true,
-			wantStatus: http.StatusBadRequest,
-			wantErrMsg: "owner_id must be a valid uuid",
-		},
-		{
-			name:       "an owner_id that is not a uuid is rejected",
-			query:      "?owner_id=nope",
-			wantNoCall: true,
-			wantStatus: http.StatusBadRequest,
-			wantErrMsg: "owner_id must be a valid uuid",
-		},
-		{
-			name:  "an unexpected error becomes 500 without leaking detail",
-			query: "?owner_id=" + venueOwnerID.String(),
+			name: "an unexpected error becomes 500 without leaking detail",
 			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().ListByOwner(mock.Anything, mock.Anything).
 					Return(nil, errors.New("pq: connection to 10.0.0.5 refused")).Once()
@@ -258,17 +262,11 @@ func TestListVenues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			venues := mocks.NewMockVenueUsecase(t)
-			if tt.setup != nil {
-				tt.setup(venues)
-			}
+			tt.setup(venues)
 
-			rec := do(t, mocks.NewMockUserUsecase(t), venues, http.MethodGet, "/venues"+tt.query, "")
+			rec := doAuthed(t, signedInOwner(t), venues, http.MethodGet, "/venues", "")
 
 			require.Equal(t, tt.wantStatus, rec.Code)
-
-			if tt.wantNoCall {
-				venues.AssertNotCalled(t, "ListByOwner")
-			}
 
 			if tt.wantErrMsg != "" {
 				var got errorBody
@@ -279,6 +277,33 @@ func TestListVenues(t *testing.T) {
 			if tt.check != nil {
 				tt.check(t, rec.Body.Bytes())
 			}
+		})
+	}
+}
+
+func TestVenueRoutesRequireASession(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		body   string
+	}{
+		{"create", http.MethodPost, validVenueBody()},
+		{"list", http.MethodGet, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			users := mocks.NewMockUserUsecase(t)
+			users.EXPECT().Authenticate(mock.Anything, "").
+				Return(nil, entity.ErrSessionInvalid).Once()
+
+			venues := mocks.NewMockVenueUsecase(t)
+
+			rec := do(t, users, venues, tt.method, "/venues", tt.body)
+
+			require.Equal(t, http.StatusUnauthorized, rec.Code)
+			venues.AssertNotCalled(t, "Create")
+			venues.AssertNotCalled(t, "ListByOwner")
 		})
 	}
 }
