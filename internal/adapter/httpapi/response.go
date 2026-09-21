@@ -8,9 +8,6 @@ import (
 	"strconv"
 )
 
-// writeJSON encodes into a buffer before touching the ResponseWriter. Encoding
-// straight to w would send the status line first, leaving no way to report a
-// failure -- and Encode streams, so a partial body may already be on the wire.
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	var buf bytes.Buffer
 
