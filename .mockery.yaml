@@ -12,7 +12,6 @@ packages:
     interfaces:
       UserCreator:
       CredentialFinder:
-      PasswordComparer:
       SessionStore:
       PasswordHasher:
 
@@ -23,7 +22,7 @@ packages:
       mockname: "Mock{{.InterfaceName}}"
       filename: "{{.InterfaceName | snakecase}}.go"
     interfaces:
-      UserRegister:
+      UserUsecase:
 
 # Silence v3 deprecation warnings by opting into the future defaults now.
 resolve-type-alias: false

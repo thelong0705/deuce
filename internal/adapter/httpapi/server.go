@@ -11,17 +11,19 @@ import (
 	"github.com/thelong0705/deuce/internal/domain/entity"
 )
 
-// UserRegister registers a new user.
-type UserRegister interface {
+// UserUsecase registers users and manages their sessions.
+type UserUsecase interface {
 	Register(ctx context.Context, in entity.CreateUserInput) (*entity.User, error)
+	Login(ctx context.Context, in entity.LoginInput) (string, *entity.Session, error)
+	Logout(ctx context.Context, token string) error
 }
 
 type Server struct {
-	users  UserRegister
+	users  UserUsecase
 	router *chi.Mux
 }
 
-func NewServer(users UserRegister) *Server {
+func NewServer(users UserUsecase) *Server {
 	s := &Server{
 		users:  users,
 		router: chi.NewRouter(),
@@ -43,6 +45,8 @@ func (s *Server) routes() {
 
 	s.router.Get("/healthz", s.health)
 	s.router.Post("/users", s.createUser)
+	s.router.Post("/sessions", s.login)
+	s.router.Delete("/sessions", s.logout)
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
