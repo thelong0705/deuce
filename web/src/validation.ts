@@ -30,7 +30,7 @@ export function validate(input: SignupInput): FieldErrors {
   if (bytes < MIN_PASSWORD_BYTES) {
     errors.password = `Must be at least ${MIN_PASSWORD_BYTES} characters`
   } else if (bytes > MAX_PASSWORD_BYTES) {
-    errors.password = `Must be at most ${MAX_PASSWORD_BYTES} bytes (currently ${bytes})`
+    errors.password = `Too long — ${MAX_PASSWORD_BYTES} characters maximum`
   }
 
   if (input.phoneNumber.trim() === '') {
