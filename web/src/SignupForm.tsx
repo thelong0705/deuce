@@ -6,7 +6,7 @@ import { PhoneField } from './PhoneField'
 import { ApiError, signup } from './api'
 import type { CreatedUser } from './api'
 import { defaultCountry } from './countries'
-import { MAX_PASSWORD_BYTES, validate } from './validation'
+import { MIN_PASSWORD_BYTES, validate } from './validation'
 import type { FieldErrors, Role, SignupInput } from './validation'
 
 const empty: SignupInput = {
@@ -122,7 +122,7 @@ export function SignupForm({ onSignIn }: Props) {
         autoComplete="new-password"
         value={input.password}
         error={fieldErrors.password}
-        hint={`${input.password.length} / ${MAX_PASSWORD_BYTES} characters`}
+        hint={`At least ${MIN_PASSWORD_BYTES} characters`}
         onChange={(password) => update({ password })}
       />
 
