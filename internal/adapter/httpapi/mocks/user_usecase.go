@@ -23,6 +23,65 @@ func (_m *MockUserUsecase) EXPECT() *MockUserUsecase_Expecter {
 	return &MockUserUsecase_Expecter{mock: &_m.Mock}
 }
 
+// Authenticate provides a mock function with given fields: ctx, token
+func (_m *MockUserUsecase) Authenticate(ctx context.Context, token string) (*entity.User, error) {
+	ret := _m.Called(ctx, token)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Authenticate")
+	}
+
+	var r0 *entity.User
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*entity.User, error)); ok {
+		return rf(ctx, token)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *entity.User); ok {
+		r0 = rf(ctx, token)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*entity.User)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, token)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockUserUsecase_Authenticate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Authenticate'
+type MockUserUsecase_Authenticate_Call struct {
+	*mock.Call
+}
+
+// Authenticate is a helper method to define mock.On call
+//   - ctx context.Context
+//   - token string
+func (_e *MockUserUsecase_Expecter) Authenticate(ctx interface{}, token interface{}) *MockUserUsecase_Authenticate_Call {
+	return &MockUserUsecase_Authenticate_Call{Call: _e.mock.On("Authenticate", ctx, token)}
+}
+
+func (_c *MockUserUsecase_Authenticate_Call) Run(run func(ctx context.Context, token string)) *MockUserUsecase_Authenticate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockUserUsecase_Authenticate_Call) Return(_a0 *entity.User, _a1 error) *MockUserUsecase_Authenticate_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockUserUsecase_Authenticate_Call) RunAndReturn(run func(context.Context, string) (*entity.User, error)) *MockUserUsecase_Authenticate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Login provides a mock function with given fields: ctx, in
 func (_m *MockUserUsecase) Login(ctx context.Context, in entity.LoginInput) (string, *entity.Session, error) {
 	ret := _m.Called(ctx, in)

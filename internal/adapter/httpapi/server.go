@@ -16,6 +16,7 @@ type UserUsecase interface {
 	Register(ctx context.Context, in entity.CreateUserInput) (*entity.User, error)
 	Login(ctx context.Context, in entity.LoginInput) (string, *entity.Session, error)
 	Logout(ctx context.Context, token string) error
+	Authenticate(ctx context.Context, token string) (*entity.User, error)
 }
 
 type Server struct {
@@ -47,6 +48,12 @@ func (s *Server) routes() {
 	s.router.Post("/users", s.createUser)
 	s.router.Post("/sessions", s.login)
 	s.router.Delete("/sessions", s.logout)
+
+	s.router.Group(func(r chi.Router) {
+		r.Use(s.requireAuth)
+
+		r.Get("/me", s.currentUser)
+	})
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
