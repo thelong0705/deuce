@@ -16,6 +16,7 @@ import (
 	"github.com/thelong0705/deuce/internal/adapter/httpapi"
 	"github.com/thelong0705/deuce/internal/adapter/httpapi/mocks"
 	"github.com/thelong0705/deuce/internal/domain/entity"
+	"github.com/thelong0705/deuce/internal/pkg/apperr"
 )
 
 const validBody = `{"email":"alice@example.com","password":"supersecret","phone_number":"+84901234567"}`
@@ -33,14 +34,14 @@ func registeredUser() *entity.User {
 }
 
 // do sends a request through the router and returns the recorded response.
-func do(t *testing.T, users httpapi.UserRegister, venueCreator httpapi.VenueCreator, venueLister httpapi.VenueLister, method, path, body string) *httptest.ResponseRecorder {
+func do(t *testing.T, users httpapi.UserUsecase, venues httpapi.VenueUsecase, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	rec := httptest.NewRecorder()
-	httpapi.NewServer(users, venueCreator, venueLister).Handler().ServeHTTP(rec, req)
+	httpapi.NewServer(users, venues).Handler().ServeHTTP(rec, req)
 
 	return rec
 }
@@ -50,11 +51,12 @@ func TestCreateUser(t *testing.T) {
 		name string
 		body string
 		// setup configures the mock; nil means a successful registration
-		setup func(users *mocks.MockUserRegister)
+		setup func(users *mocks.MockUserUsecase)
 		// wantNoCall asserts the use case was never reached
 		wantNoCall bool
 		wantStatus int
 		wantErrMsg string
+		wantCode   string
 		check      func(t *testing.T, body []byte)
 	}{
 		{
@@ -78,7 +80,7 @@ func TestCreateUser(t *testing.T) {
 		{
 			name: "passes the role through when given",
 			body: `{"email":"ace@club.com","password":"supersecret","phone_number":"+84901234567","role":"owner"}`,
-			setup: func(users *mocks.MockUserRegister) {
+			setup: func(users *mocks.MockUserUsecase) {
 				users.EXPECT().
 					Register(mock.Anything, mock.MatchedBy(func(in entity.CreateUserInput) bool {
 						return in.Role == entity.RoleOwner
@@ -94,6 +96,7 @@ func TestCreateUser(t *testing.T) {
 			wantNoCall: true,
 			wantStatus: http.StatusBadRequest,
 			wantErrMsg: "invalid JSON body",
+			wantCode:   "invalid_body",
 		},
 		{
 			name:       "rejects an unknown field",
@@ -101,36 +104,64 @@ func TestCreateUser(t *testing.T) {
 			wantNoCall: true,
 			wantStatus: http.StatusBadRequest,
 			wantErrMsg: "invalid JSON body",
+			wantCode:   "invalid_body",
 		},
 		{
 			name: "a validation error becomes 400",
 			body: validBody,
-			setup: func(users *mocks.MockUserRegister) {
+			setup: func(users *mocks.MockUserUsecase) {
 				users.EXPECT().Register(mock.Anything, mock.Anything).
 					Return(nil, entity.ErrPasswordTooShort).Once()
 			},
 			wantStatus: http.StatusBadRequest,
 			wantErrMsg: entity.ErrPasswordTooShort.Error(),
+			wantCode:   "password_too_short",
 		},
 		{
 			name: "a duplicate email becomes 409",
 			body: validBody,
-			setup: func(users *mocks.MockUserRegister) {
+			setup: func(users *mocks.MockUserUsecase) {
 				users.EXPECT().Register(mock.Anything, mock.Anything).
 					Return(nil, entity.ErrEmailTaken).Once()
 			},
 			wantStatus: http.StatusConflict,
 			wantErrMsg: entity.ErrEmailTaken.Error(),
+			wantCode:   "email_taken",
+		},
+		{
+			// The handler has never heard of this error. It maps correctly
+			// because the kind travels with it.
+			name: "an unknown domain error maps by kind",
+			body: validBody,
+			setup: func(users *mocks.MockUserUsecase) {
+				users.EXPECT().Register(mock.Anything, mock.Anything).
+					Return(nil, apperr.New(apperr.KindForbidden, "not_allowed", "not allowed here")).Once()
+			},
+			wantStatus: http.StatusForbidden,
+			wantErrMsg: "not allowed here",
+			wantCode:   "not_allowed",
+		},
+		{
+			name: "a not-found kind becomes 404",
+			body: validBody,
+			setup: func(users *mocks.MockUserUsecase) {
+				users.EXPECT().Register(mock.Anything, mock.Anything).
+					Return(nil, apperr.New(apperr.KindNotFound, "user_not_found", "user not found")).Once()
+			},
+			wantStatus: http.StatusNotFound,
+			wantErrMsg: "user not found",
+			wantCode:   "user_not_found",
 		},
 		{
 			name: "an unexpected error becomes 500 without leaking detail",
 			body: validBody,
-			setup: func(users *mocks.MockUserRegister) {
+			setup: func(users *mocks.MockUserUsecase) {
 				users.EXPECT().Register(mock.Anything, mock.Anything).
 					Return(nil, errors.New("pq: connection to 10.0.0.5 refused")).Once()
 			},
 			wantStatus: http.StatusInternalServerError,
-			wantErrMsg: "could not create user",
+			wantErrMsg: "internal error",
+			wantCode:   "internal_error",
 			check: func(t *testing.T, body []byte) {
 				require.NotContains(t, string(body), "10.0.0.5")
 			},
@@ -139,7 +170,7 @@ func TestCreateUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			users := mocks.NewMockUserRegister(t)
+			users := mocks.NewMockUserUsecase(t)
 
 			switch {
 			case tt.setup != nil:
@@ -149,7 +180,7 @@ func TestCreateUser(t *testing.T) {
 					Return(registeredUser(), nil).Once()
 			}
 
-			rec := do(t, users, mocks.NewMockVenueCreator(t), mocks.NewMockVenueLister(t), http.MethodPost, "/users", tt.body)
+			rec := do(t, users, mocks.NewMockVenueUsecase(t), http.MethodPost, "/users", tt.body)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 			require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
@@ -162,6 +193,7 @@ func TestCreateUser(t *testing.T) {
 				var got errorBody
 				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 				require.Equal(t, tt.wantErrMsg, got.Error)
+				require.Equal(t, tt.wantCode, got.Code)
 			}
 
 			if tt.check != nil {
@@ -172,18 +204,19 @@ func TestCreateUser(t *testing.T) {
 }
 
 type errorBody struct {
+	Code  string `json:"code"`
 	Error string `json:"error"`
 }
 
 func TestHealthz(t *testing.T) {
-	rec := do(t, mocks.NewMockUserRegister(t), mocks.NewMockVenueCreator(t), mocks.NewMockVenueLister(t), http.MethodGet, "/healthz", "")
+	rec := do(t, mocks.NewMockUserUsecase(t), mocks.NewMockVenueUsecase(t), http.MethodGet, "/healthz", "")
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.JSONEq(t, `{"status":"ok"}`, rec.Body.String())
 }
 
 func TestUnknownRouteIs404(t *testing.T) {
-	rec := do(t, mocks.NewMockUserRegister(t), mocks.NewMockVenueCreator(t), mocks.NewMockVenueLister(t), http.MethodGet, "/nope", "")
+	rec := do(t, mocks.NewMockUserUsecase(t), mocks.NewMockVenueUsecase(t), http.MethodGet, "/nope", "")
 
 	require.Equal(t, http.StatusNotFound, rec.Code)
 }

@@ -12,34 +12,30 @@ import (
 	"github.com/thelong0705/deuce/internal/domain/entity"
 )
 
-// UserRegister registers a new user.
-type UserRegister interface {
+// UserUsecase registers users and manages their sessions.
+type UserUsecase interface {
 	Register(ctx context.Context, in entity.CreateUserInput) (*entity.User, error)
+	Login(ctx context.Context, in entity.LoginInput) (string, *entity.Session, error)
+	Logout(ctx context.Context, token string) error
 }
 
-// VenueCreator creates a venue.
-type VenueCreator interface {
+// VenueUsecase creates and lists venues.
+type VenueUsecase interface {
 	Create(ctx context.Context, in entity.CreateVenueInput) (*entity.Venue, error)
-}
-
-// VenueLister lists the venues owned by a user.
-type VenueLister interface {
 	ListByOwner(ctx context.Context, ownerID uuid.UUID) ([]entity.Venue, error)
 }
 
 type Server struct {
-	users        UserRegister
-	venueCreator VenueCreator
-	venueLister  VenueLister
-	router       *chi.Mux
+	users  UserUsecase
+	venues VenueUsecase
+	router *chi.Mux
 }
 
-func NewServer(users UserRegister, venueCreator VenueCreator, venueLister VenueLister) *Server {
+func NewServer(users UserUsecase, venues VenueUsecase) *Server {
 	s := &Server{
-		users:        users,
-		venueCreator: venueCreator,
-		venueLister:  venueLister,
-		router:       chi.NewRouter(),
+		users:  users,
+		venues: venues,
+		router: chi.NewRouter(),
 	}
 	s.routes()
 	return s
@@ -58,6 +54,8 @@ func (s *Server) routes() {
 
 	s.router.Get("/healthz", s.health)
 	s.router.Post("/users", s.createUser)
+	s.router.Post("/sessions", s.login)
+	s.router.Delete("/sessions", s.logout)
 	s.router.Post("/venues", s.createVenue)
 	s.router.Get("/venues", s.listVenues)
 }

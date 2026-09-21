@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/thelong0705/deuce/internal/domain/entity"
 )
@@ -24,18 +25,34 @@ type UserCreator interface {
 	CreateUser(ctx context.Context, rec CreateUserRecord) (*entity.User, error)
 }
 
-// PasswordHasher keeps bcrypt out of both the domain and the use case.
+// PasswordHasher hashes a password and checks one against a hash.
 type PasswordHasher interface {
 	Hash(plain string) (string, error)
+	Compare(hash, plain string) error
 }
 
 type User struct {
 	userCreator UserCreator
 	hasher      PasswordHasher
+	credentials CredentialFinder
+	sessions    SessionStore
+	sessionTTL  time.Duration
 }
 
-func NewUser(userCreator UserCreator, hasher PasswordHasher) *User {
-	return &User{userCreator: userCreator, hasher: hasher}
+func NewUser(
+	userCreator UserCreator,
+	hasher PasswordHasher,
+	credentials CredentialFinder,
+	sessions SessionStore,
+	sessionTTL time.Duration,
+) *User {
+	return &User{
+		userCreator: userCreator,
+		hasher:      hasher,
+		credentials: credentials,
+		sessions:    sessions,
+		sessionTTL:  sessionTTL,
+	}
 }
 
 // Register validates a signup, hashes the password and persists the account.

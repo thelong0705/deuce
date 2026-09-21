@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	_ usecase.UserCreator = (*UserRepository)(nil)
-	_ usecase.UserFinder  = (*UserRepository)(nil)
+	_ usecase.UserCreator      = (*UserRepository)(nil)
+	_ usecase.UserFinder       = (*UserRepository)(nil)
+	_ usecase.CredentialFinder = (*UserRepository)(nil)
 )
 
 // UserRepository persists users in Postgres.
@@ -106,4 +107,16 @@ func (r *UserRepository) GetUser(ctx context.Context, id uuid.UUID) (*entity.Use
 	}
 
 	return toEntityUser(row)
+}
+
+func (r *UserRepository) GetCredentialsByEmail(ctx context.Context, email string) (uuid.UUID, string, error) {
+	row, err := r.q.GetCredentialsByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, "", entity.ErrUserNotFound
+		}
+		return uuid.Nil, "", fmt.Errorf("get credentials by email: %w", err)
+	}
+
+	return row.ID, row.PasswordHash, nil
 }

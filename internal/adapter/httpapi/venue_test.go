@@ -38,7 +38,7 @@ func TestCreateVenue(t *testing.T) {
 		name string
 		body string
 		// setup configures the mock; nil means a successful creation
-		setup func(venues *mocks.MockVenueCreator)
+		setup func(venues *mocks.MockVenueUsecase)
 		// wantNoCall asserts the use case was never reached
 		wantNoCall bool
 		wantStatus int
@@ -85,7 +85,7 @@ func TestCreateVenue(t *testing.T) {
 		{
 			name: "a validation error becomes 400",
 			body: validVenueBody(),
-			setup: func(venues *mocks.MockVenueCreator) {
+			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().Create(mock.Anything, mock.Anything).
 					Return(nil, entity.ErrVenueNameRequired).Once()
 			},
@@ -93,19 +93,19 @@ func TestCreateVenue(t *testing.T) {
 			wantErrMsg: entity.ErrVenueNameRequired.Error(),
 		},
 		{
-			name: "an unknown owner becomes 400",
+			name: "an unknown owner becomes 404",
 			body: validVenueBody(),
-			setup: func(venues *mocks.MockVenueCreator) {
+			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().Create(mock.Anything, mock.Anything).
 					Return(nil, entity.ErrUserNotFound).Once()
 			},
-			wantStatus: http.StatusBadRequest,
+			wantStatus: http.StatusNotFound,
 			wantErrMsg: entity.ErrUserNotFound.Error(),
 		},
 		{
 			name: "a player becomes 403",
 			body: validVenueBody(),
-			setup: func(venues *mocks.MockVenueCreator) {
+			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().Create(mock.Anything, mock.Anything).
 					Return(nil, entity.ErrNotAnOwner).Once()
 			},
@@ -115,7 +115,7 @@ func TestCreateVenue(t *testing.T) {
 		{
 			name: "a deactivated owner becomes 403",
 			body: validVenueBody(),
-			setup: func(venues *mocks.MockVenueCreator) {
+			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().Create(mock.Anything, mock.Anything).
 					Return(nil, entity.ErrOwnerInactive).Once()
 			},
@@ -125,12 +125,12 @@ func TestCreateVenue(t *testing.T) {
 		{
 			name: "an unexpected error becomes 500 without leaking detail",
 			body: validVenueBody(),
-			setup: func(venues *mocks.MockVenueCreator) {
+			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().Create(mock.Anything, mock.Anything).
 					Return(nil, errors.New("pq: connection to 10.0.0.5 refused")).Once()
 			},
 			wantStatus: http.StatusInternalServerError,
-			wantErrMsg: "could not create venue",
+			wantErrMsg: "internal error",
 			check: func(t *testing.T, body []byte) {
 				require.NotContains(t, string(body), "10.0.0.5")
 			},
@@ -139,7 +139,7 @@ func TestCreateVenue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			venues := mocks.NewMockVenueCreator(t)
+			venues := mocks.NewMockVenueUsecase(t)
 
 			switch {
 			case tt.setup != nil:
@@ -149,7 +149,7 @@ func TestCreateVenue(t *testing.T) {
 					Return(createdVenue(), nil).Once()
 			}
 
-			rec := do(t, mocks.NewMockUserRegister(t), venues, mocks.NewMockVenueLister(t), http.MethodPost, "/venues", tt.body)
+			rec := do(t, mocks.NewMockUserUsecase(t), venues, http.MethodPost, "/venues", tt.body)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 			require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
@@ -172,7 +172,7 @@ func TestCreateVenue(t *testing.T) {
 }
 
 func TestCreateVenuePassesTheParsedOwner(t *testing.T) {
-	venues := mocks.NewMockVenueCreator(t)
+	venues := mocks.NewMockVenueUsecase(t)
 
 	venues.EXPECT().
 		Create(mock.Anything, mock.MatchedBy(func(in entity.CreateVenueInput) bool {
@@ -181,7 +181,7 @@ func TestCreateVenuePassesTheParsedOwner(t *testing.T) {
 		Return(createdVenue(), nil).
 		Once()
 
-	rec := do(t, mocks.NewMockUserRegister(t), venues, mocks.NewMockVenueLister(t), http.MethodPost, "/venues", validVenueBody())
+	rec := do(t, mocks.NewMockUserUsecase(t), venues, http.MethodPost, "/venues", validVenueBody())
 
 	require.Equal(t, http.StatusCreated, rec.Code)
 }
@@ -190,7 +190,7 @@ func TestListVenues(t *testing.T) {
 	tests := []struct {
 		name       string
 		query      string
-		setup      func(venues *mocks.MockVenueLister)
+		setup      func(venues *mocks.MockVenueUsecase)
 		wantNoCall bool
 		wantStatus int
 		wantErrMsg string
@@ -199,7 +199,7 @@ func TestListVenues(t *testing.T) {
 		{
 			name:  "returns the owner's venues",
 			query: "?owner_id=" + venueOwnerID.String(),
-			setup: func(venues *mocks.MockVenueLister) {
+			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().ListByOwner(mock.Anything, venueOwnerID).
 					Return([]entity.Venue{*createdVenue(), *createdVenue()}, nil).Once()
 			},
@@ -216,7 +216,7 @@ func TestListVenues(t *testing.T) {
 		{
 			name:  "an owner with no venues gets an empty array",
 			query: "?owner_id=" + venueOwnerID.String(),
-			setup: func(venues *mocks.MockVenueLister) {
+			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().ListByOwner(mock.Anything, venueOwnerID).
 					Return([]entity.Venue{}, nil).Once()
 			},
@@ -243,12 +243,12 @@ func TestListVenues(t *testing.T) {
 		{
 			name:  "an unexpected error becomes 500 without leaking detail",
 			query: "?owner_id=" + venueOwnerID.String(),
-			setup: func(venues *mocks.MockVenueLister) {
+			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().ListByOwner(mock.Anything, mock.Anything).
 					Return(nil, errors.New("pq: connection to 10.0.0.5 refused")).Once()
 			},
 			wantStatus: http.StatusInternalServerError,
-			wantErrMsg: "could not list venues",
+			wantErrMsg: "internal error",
 			check: func(t *testing.T, body []byte) {
 				require.NotContains(t, string(body), "10.0.0.5")
 			},
@@ -257,12 +257,12 @@ func TestListVenues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			venues := mocks.NewMockVenueLister(t)
+			venues := mocks.NewMockVenueUsecase(t)
 			if tt.setup != nil {
 				tt.setup(venues)
 			}
 
-			rec := do(t, mocks.NewMockUserRegister(t), mocks.NewMockVenueCreator(t), venues, http.MethodGet, "/venues"+tt.query, "")
+			rec := do(t, mocks.NewMockUserUsecase(t), venues, http.MethodGet, "/venues"+tt.query, "")
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 

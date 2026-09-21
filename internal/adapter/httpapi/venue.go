@@ -2,14 +2,16 @@ package httpapi
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/thelong0705/deuce/internal/domain/entity"
+	"github.com/thelong0705/deuce/internal/pkg/apperr"
 )
+
+var errInvalidOwnerID = apperr.New(apperr.KindInvalid, "invalid_owner_id", "owner_id must be a valid uuid")
 
 type createVenueRequest struct {
 	OwnerID string `json:"owner_id"`
@@ -46,46 +48,28 @@ func (s *Server) createVenue(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		writeBody(w, http.StatusBadRequest, invalidBodyResponse)
 		return
 	}
 
 	ownerID, err := uuid.Parse(req.OwnerID)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "owner_id must be a valid uuid")
+		writeAppError(w, errInvalidOwnerID)
 		return
 	}
 
-	venue, err := s.venueCreator.Create(r.Context(), entity.CreateVenueInput{
+	venue, err := s.venues.Create(r.Context(), entity.CreateVenueInput{
 		OwnerID: ownerID,
 		Name:    req.Name,
 		City:    req.City,
 		Address: req.Address,
 	})
 	if err != nil {
-		writeCreateVenueError(w, err)
+		writeAppError(w, err)
 		return
 	}
 
 	writeJSON(w, http.StatusCreated, newVenueResponse(*venue))
-}
-
-func writeCreateVenueError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, entity.ErrNotAnOwner),
-		errors.Is(err, entity.ErrOwnerInactive):
-		writeError(w, http.StatusForbidden, err.Error())
-
-	case errors.Is(err, entity.ErrUserNotFound),
-		errors.Is(err, entity.ErrOwnerRequired),
-		errors.Is(err, entity.ErrVenueNameRequired),
-		errors.Is(err, entity.ErrVenueCityRequired),
-		errors.Is(err, entity.ErrVenueAddressRequired):
-		writeError(w, http.StatusBadRequest, err.Error())
-
-	default:
-		writeError(w, http.StatusInternalServerError, "could not create venue")
-	}
 }
 
 type venueListResponse struct {
@@ -95,17 +79,13 @@ type venueListResponse struct {
 func (s *Server) listVenues(w http.ResponseWriter, r *http.Request) {
 	ownerID, err := uuid.Parse(r.URL.Query().Get("owner_id"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "owner_id must be a valid uuid")
+		writeAppError(w, errInvalidOwnerID)
 		return
 	}
 
-	venues, err := s.venueLister.ListByOwner(r.Context(), ownerID)
+	venues, err := s.venues.ListByOwner(r.Context(), ownerID)
 	if err != nil {
-		if errors.Is(err, entity.ErrOwnerRequired) {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "could not list venues")
+		writeAppError(w, err)
 		return
 	}
 

@@ -26,6 +26,8 @@ func main() {
 	}
 }
 
+const sessionTTL = 7 * 24 * time.Hour
+
 func run() error {
 	var (
 		dsn  = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
@@ -47,13 +49,14 @@ func run() error {
 	}
 
 	var (
-		queries   = postgres.New(pool)
-		userRepo  = postgres.NewUserRepository(queries)
-		venueRepo = postgres.NewVenueRepository(queries)
-		hasher    = crypto.NewBcryptHasher()
-		userUC    = usecase.NewUser(userRepo, hasher)
-		venueUC   = usecase.NewVenue(venueRepo, venueRepo, userRepo)
-		api       = httpapi.NewServer(userUC, venueUC, venueUC)
+		queries     = postgres.New(pool)
+		userRepo    = postgres.NewUserRepository(queries)
+		venueRepo   = postgres.NewVenueRepository(queries)
+		sessionRepo = postgres.NewSessionRepository(queries)
+		hasher      = crypto.NewBcryptHasher()
+		userUC      = usecase.NewUser(userRepo, hasher, userRepo, sessionRepo, sessionTTL)
+		venueUC     = usecase.NewVenue(venueRepo, venueRepo, userRepo)
+		api         = httpapi.NewServer(userUC, venueUC)
 	)
 
 	srv := &http.Server{

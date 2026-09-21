@@ -11,6 +11,8 @@ packages:
       filename: "{{.InterfaceName | snakecase}}.go"
     interfaces:
       UserCreator:
+      CredentialFinder:
+      SessionStore:
       PasswordHasher:
       VenueCreator:
       VenueLister:
@@ -23,9 +25,8 @@ packages:
       mockname: "Mock{{.InterfaceName}}"
       filename: "{{.InterfaceName | snakecase}}.go"
     interfaces:
-      UserRegister:
-      VenueCreator:
-      VenueLister:
+      UserUsecase:
+      VenueUsecase:
 
 # Silence v3 deprecation warnings by opting into the future defaults now.
 resolve-type-alias: false
