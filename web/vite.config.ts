@@ -8,7 +8,7 @@ export default defineConfig({
     // Proxying keeps the API same-origin with the app, so the session cookie
     // is sent on every request without CORS or credentials wrangling.
     proxy: Object.fromEntries(
-      ['/users', '/sessions'].map((path) => [
+      ['/users', '/sessions', '/venues'].map((path) => [
         path,
         { target: process.env.API_URL ?? 'http://localhost:8080', changeOrigin: true },
       ]),

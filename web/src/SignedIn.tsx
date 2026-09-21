@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { Venues } from './Venues'
 import { ApiError, logout } from './api'
 import type { Session } from './api'
 
@@ -35,27 +36,31 @@ export function SignedIn({ session, onSignedOut }: Props) {
   }
 
   return (
-    <div className="card">
-      <h1>Signed in</h1>
-      <p className="lede">Your session is active.</p>
+    <>
+      <div className="card">
+        <h1>Signed in</h1>
+        <p className="lede">Your session is active.</p>
 
-      <dl className="summary">
-        <dt>User</dt>
-        <dd className="mono">{session.user_id}</dd>
-        <dt>Expires</dt>
-        <dd>{formatExpiry(session.expires_at)}</dd>
-      </dl>
+        <dl className="summary">
+          <dt>User</dt>
+          <dd className="mono">{session.user_id}</dd>
+          <dt>Expires</dt>
+          <dd>{formatExpiry(session.expires_at)}</dd>
+        </dl>
 
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
 
-      <button type="button" className="secondary" onClick={handleLogout} disabled={submitting}>
-        {submitting ? 'Signing out…' : 'Sign out'}
-      </button>
-    </div>
+        <button type="button" className="secondary" onClick={handleLogout} disabled={submitting}>
+          {submitting ? 'Signing out…' : 'Sign out'}
+        </button>
+      </div>
+
+      <Venues onUnauthorized={onSignedOut} />
+    </>
   )
 }
 
