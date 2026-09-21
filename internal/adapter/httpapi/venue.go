@@ -8,13 +8,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/thelong0705/deuce/internal/domain/entity"
-	"github.com/thelong0705/deuce/internal/pkg/apperr"
 )
 
-var errInvalidOwnerID = apperr.New(apperr.KindInvalid, "invalid_owner_id", "owner_id must be a valid uuid")
-
 type createVenueRequest struct {
-	OwnerID string `json:"owner_id"`
 	Name    string `json:"name"`
 	City    string `json:"city"`
 	Address string `json:"address"`
@@ -43,6 +39,12 @@ func newVenueResponse(v entity.Venue) venueResponse {
 }
 
 func (s *Server) createVenue(w http.ResponseWriter, r *http.Request) {
+	owner, ok := UserFromContext(r.Context())
+	if !ok {
+		writeInternalError(w)
+		return
+	}
+
 	var req createVenueRequest
 
 	dec := json.NewDecoder(r.Body)
@@ -52,14 +54,8 @@ func (s *Server) createVenue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ownerID, err := uuid.Parse(req.OwnerID)
-	if err != nil {
-		writeAppError(w, errInvalidOwnerID)
-		return
-	}
-
 	venue, err := s.venues.Create(r.Context(), entity.CreateVenueInput{
-		OwnerID: ownerID,
+		OwnerID: owner.ID,
 		Name:    req.Name,
 		City:    req.City,
 		Address: req.Address,
@@ -77,13 +73,13 @@ type venueListResponse struct {
 }
 
 func (s *Server) listVenues(w http.ResponseWriter, r *http.Request) {
-	ownerID, err := uuid.Parse(r.URL.Query().Get("owner_id"))
-	if err != nil {
-		writeAppError(w, errInvalidOwnerID)
+	owner, ok := UserFromContext(r.Context())
+	if !ok {
+		writeInternalError(w)
 		return
 	}
 
-	venues, err := s.venues.ListByOwner(r.Context(), ownerID)
+	venues, err := s.venues.ListByOwner(r.Context(), owner.ID)
 	if err != nil {
 		writeAppError(w, err)
 		return

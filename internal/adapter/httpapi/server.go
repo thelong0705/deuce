@@ -57,13 +57,12 @@ func (s *Server) routes() {
 	s.router.Post("/users", s.createUser)
 	s.router.Post("/sessions", s.login)
 	s.router.Delete("/sessions", s.logout)
-	s.router.Post("/venues", s.createVenue)
-	s.router.Get("/venues", s.listVenues)
-
 	s.router.Group(func(r chi.Router) {
 		r.Use(s.requireAuth)
 
 		r.Get("/me", s.currentUser)
+		r.Post("/venues", s.createVenue)
+		r.Get("/venues", s.listVenues)
 	})
 }
 

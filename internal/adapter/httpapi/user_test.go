@@ -37,8 +37,28 @@ func registeredUser() *entity.User {
 func do(t *testing.T, users httpapi.UserUsecase, venues httpapi.VenueUsecase, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
+	return send(t, users, venues, newRequest(method, path, body))
+}
+
+// doAuthed is do with a session cookie attached.
+func doAuthed(t *testing.T, users httpapi.UserUsecase, venues httpapi.VenueUsecase, method, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := newRequest(method, path, body)
+	req.AddCookie(&http.Cookie{Name: sessionName, Value: rawToken})
+
+	return send(t, users, venues, req)
+}
+
+func newRequest(method, path, body string) *http.Request {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+
+	return req
+}
+
+func send(t *testing.T, users httpapi.UserUsecase, venues httpapi.VenueUsecase, req *http.Request) *httptest.ResponseRecorder {
+	t.Helper()
 
 	rec := httptest.NewRecorder()
 	httpapi.NewServer(users, venues).Handler().ServeHTTP(rec, req)
