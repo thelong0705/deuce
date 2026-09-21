@@ -11,6 +11,9 @@ packages:
       filename: "{{.InterfaceName | snakecase}}.go"
     interfaces:
       UserCreator:
+      CredentialFinder:
+      PasswordComparer:
+      SessionStore:
       PasswordHasher:
 
   github.com/thelong0705/deuce/internal/adapter/httpapi:
