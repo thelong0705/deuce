@@ -33,7 +33,7 @@ func newUserResponse(u entity.User) userResponse {
 		Email:       u.Email,
 		DisplayName: u.DisplayName,
 		PhoneNumber: u.PhoneNumber,
-		Role:        string(u.Role),
+		Role:        u.Role.String(),
 		CreatedAt:   u.CreatedAt,
 	}
 }
