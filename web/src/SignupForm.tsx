@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 
 import { ApiError, signup } from './api'
 import type { CreatedUser } from './api'
-import { MAX_PASSWORD_BYTES, passwordByteLength, validate } from './validation'
+import { MAX_PASSWORD_BYTES, validate } from './validation'
 import type { FieldErrors, Role, SignupInput } from './validation'
 
 const empty: SignupInput = {
@@ -79,8 +79,6 @@ export function SignupForm() {
     )
   }
 
-  const passwordBytes = passwordByteLength(input.password)
-
   return (
     <form className="card" onSubmit={handleSubmit} noValidate>
       <h1>Create your account</h1>
@@ -122,7 +120,7 @@ export function SignupForm() {
         </p>
       ) : (
         <p className="hint" id="password-hint">
-          {passwordBytes} / {MAX_PASSWORD_BYTES} bytes
+          {input.password.length} / {MAX_PASSWORD_BYTES} characters
         </p>
       )}
 
