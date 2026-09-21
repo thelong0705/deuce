@@ -22,6 +22,7 @@ migrate = docker run --rm \
 	-path=/migration -database "$(1)"
 
 .PHONY: db-start db-down db-wait db-psql db-psql-test db-test-create \
+        db-reset db-test-reset \
         migrate-up migrate-down migrate-drop migrate-version \
         migrate-test-up migrate-test-drop \
         sqlc-gen build test test-cover mocks \
@@ -56,6 +57,24 @@ db-test-create:
 		"SELECT 1 FROM pg_database WHERE datname = '$(TEST_DB_NAME)'" | grep -q 1 \
 		|| $(COMPOSE) exec -T postgres createdb -U $(DB_USER) $(TEST_DB_NAME)
 	@echo "test database $(TEST_DB_NAME) ready"
+
+# reset-db recreates a database and migrates it. It drops the database rather
+# than its tables, because "migrate drop" only removes tables: the user_role
+# enum would survive and the replay would fail on CREATE TYPE.
+define reset-db
+	$(COMPOSE) exec -T postgres dropdb -U $(DB_USER) --if-exists --force $(1)
+	$(COMPOSE) exec -T postgres createdb -U $(DB_USER) $(1)
+endef
+
+db-reset:
+	$(call reset-db,$(DB_NAME))
+	@$(MAKE) migrate-up
+	@echo "$(DB_NAME) is empty and migrated"
+
+db-test-reset:
+	$(call reset-db,$(TEST_DB_NAME))
+	@$(MAKE) migrate-test-up
+	@echo "$(TEST_DB_NAME) is empty and migrated"
 
 migrate-up:
 	$(call migrate,$(DB_URL)) up
