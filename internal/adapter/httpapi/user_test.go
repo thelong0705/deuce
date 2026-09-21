@@ -16,6 +16,7 @@ import (
 	"github.com/thelong0705/deuce/internal/adapter/httpapi"
 	"github.com/thelong0705/deuce/internal/adapter/httpapi/mocks"
 	"github.com/thelong0705/deuce/internal/domain/entity"
+	"github.com/thelong0705/deuce/internal/pkg/apperr"
 )
 
 const validBody = `{"email":"alice@example.com","password":"supersecret","phone_number":"+84901234567"}`
@@ -55,6 +56,7 @@ func TestCreateUser(t *testing.T) {
 		wantNoCall bool
 		wantStatus int
 		wantErrMsg string
+		wantCode   string
 		check      func(t *testing.T, body []byte)
 	}{
 		{
@@ -94,6 +96,7 @@ func TestCreateUser(t *testing.T) {
 			wantNoCall: true,
 			wantStatus: http.StatusBadRequest,
 			wantErrMsg: "invalid JSON body",
+			wantCode:   "invalid_body",
 		},
 		{
 			name:       "rejects an unknown field",
@@ -101,6 +104,7 @@ func TestCreateUser(t *testing.T) {
 			wantNoCall: true,
 			wantStatus: http.StatusBadRequest,
 			wantErrMsg: "invalid JSON body",
+			wantCode:   "invalid_body",
 		},
 		{
 			name: "a validation error becomes 400",
@@ -111,6 +115,7 @@ func TestCreateUser(t *testing.T) {
 			},
 			wantStatus: http.StatusBadRequest,
 			wantErrMsg: entity.ErrPasswordTooShort.Error(),
+			wantCode:   "password_too_short",
 		},
 		{
 			name: "a duplicate email becomes 409",
@@ -121,6 +126,31 @@ func TestCreateUser(t *testing.T) {
 			},
 			wantStatus: http.StatusConflict,
 			wantErrMsg: entity.ErrEmailTaken.Error(),
+			wantCode:   "email_taken",
+		},
+		{
+			// The handler has never heard of this error. It maps correctly
+			// because the kind travels with it.
+			name: "an unknown domain error maps by kind",
+			body: validBody,
+			setup: func(users *mocks.MockUserRegister) {
+				users.EXPECT().Register(mock.Anything, mock.Anything).
+					Return(nil, apperr.New(apperr.KindForbidden, "not_allowed", "not allowed here")).Once()
+			},
+			wantStatus: http.StatusForbidden,
+			wantErrMsg: "not allowed here",
+			wantCode:   "not_allowed",
+		},
+		{
+			name: "a not-found kind becomes 404",
+			body: validBody,
+			setup: func(users *mocks.MockUserRegister) {
+				users.EXPECT().Register(mock.Anything, mock.Anything).
+					Return(nil, apperr.New(apperr.KindNotFound, "user_not_found", "user not found")).Once()
+			},
+			wantStatus: http.StatusNotFound,
+			wantErrMsg: "user not found",
+			wantCode:   "user_not_found",
 		},
 		{
 			name: "an unexpected error becomes 500 without leaking detail",
@@ -130,7 +160,8 @@ func TestCreateUser(t *testing.T) {
 					Return(nil, errors.New("pq: connection to 10.0.0.5 refused")).Once()
 			},
 			wantStatus: http.StatusInternalServerError,
-			wantErrMsg: "could not create user",
+			wantErrMsg: "internal error",
+			wantCode:   "internal_error",
 			check: func(t *testing.T, body []byte) {
 				require.NotContains(t, string(body), "10.0.0.5")
 			},
@@ -162,6 +193,7 @@ func TestCreateUser(t *testing.T) {
 				var got errorBody
 				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 				require.Equal(t, tt.wantErrMsg, got.Error)
+				require.Equal(t, tt.wantCode, got.Code)
 			}
 
 			if tt.check != nil {
@@ -172,6 +204,7 @@ func TestCreateUser(t *testing.T) {
 }
 
 type errorBody struct {
+	Code  string `json:"code"`
 	Error string `json:"error"`
 }
 

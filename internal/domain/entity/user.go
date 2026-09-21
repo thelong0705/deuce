@@ -1,12 +1,13 @@
 package entity
 
 import (
-	"errors"
 	"net/mail"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/thelong0705/deuce/internal/pkg/apperr"
 )
 
 type Role string
@@ -38,12 +39,12 @@ const (
 )
 
 var (
-	ErrInvalidEmail     = errors.New("email must be a valid address")
-	ErrPasswordTooShort = errors.New("password must be at least 8 characters")
-	ErrPasswordTooLong  = errors.New("password must be at most 72 bytes")
-	ErrPhoneRequired    = errors.New("phone number is required")
-	ErrInvalidRole      = errors.New(`role must be "player" or "owner"`)
-	ErrEmailTaken       = errors.New("email already registered")
+	ErrInvalidEmail     = apperr.New(apperr.KindInvalid, "invalid_email", "email must be a valid address")
+	ErrPasswordTooShort = apperr.New(apperr.KindInvalid, "password_too_short", "password must be at least 8 characters")
+	ErrPasswordTooLong  = apperr.New(apperr.KindInvalid, "password_too_long", "password must be at most 72 bytes")
+	ErrPhoneRequired    = apperr.New(apperr.KindInvalid, "phone_required", "phone number is required")
+	ErrInvalidRole      = apperr.New(apperr.KindInvalid, "invalid_role", `role must be "player" or "owner"`)
+	ErrEmailTaken       = apperr.New(apperr.KindConflict, "email_taken", "email already registered")
 )
 
 // CreateUserInput is what someone supplies to sign up.
