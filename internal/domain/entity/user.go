@@ -45,6 +45,7 @@ var (
 	ErrPhoneRequired    = apperr.New(apperr.KindInvalid, "phone_required", "phone number is required")
 	ErrInvalidRole      = apperr.New(apperr.KindInvalid, "invalid_role", `role must be "player" or "owner"`)
 	ErrEmailTaken       = apperr.New(apperr.KindConflict, "email_taken", "email already registered")
+	ErrUserNotFound     = apperr.New(apperr.KindNotFound, "user_not_found", "user not found")
 )
 
 // CreateUserInput is what someone supplies to sign up.

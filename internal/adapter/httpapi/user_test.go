@@ -34,7 +34,7 @@ func registeredUser() *entity.User {
 }
 
 // do sends a request through the router and returns the recorded response.
-func do(t *testing.T, users httpapi.UserRegister, method, path, body string) *httptest.ResponseRecorder {
+func do(t *testing.T, users httpapi.UserUsecase, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -51,7 +51,7 @@ func TestCreateUser(t *testing.T) {
 		name string
 		body string
 		// setup configures the mock; nil means a successful registration
-		setup func(users *mocks.MockUserRegister)
+		setup func(users *mocks.MockUserUsecase)
 		// wantNoCall asserts the use case was never reached
 		wantNoCall bool
 		wantStatus int
@@ -80,7 +80,7 @@ func TestCreateUser(t *testing.T) {
 		{
 			name: "passes the role through when given",
 			body: `{"email":"ace@club.com","password":"supersecret","phone_number":"+84901234567","role":"owner"}`,
-			setup: func(users *mocks.MockUserRegister) {
+			setup: func(users *mocks.MockUserUsecase) {
 				users.EXPECT().
 					Register(mock.Anything, mock.MatchedBy(func(in entity.CreateUserInput) bool {
 						return in.Role == entity.RoleOwner
@@ -109,7 +109,7 @@ func TestCreateUser(t *testing.T) {
 		{
 			name: "a validation error becomes 400",
 			body: validBody,
-			setup: func(users *mocks.MockUserRegister) {
+			setup: func(users *mocks.MockUserUsecase) {
 				users.EXPECT().Register(mock.Anything, mock.Anything).
 					Return(nil, entity.ErrPasswordTooShort).Once()
 			},
@@ -120,7 +120,7 @@ func TestCreateUser(t *testing.T) {
 		{
 			name: "a duplicate email becomes 409",
 			body: validBody,
-			setup: func(users *mocks.MockUserRegister) {
+			setup: func(users *mocks.MockUserUsecase) {
 				users.EXPECT().Register(mock.Anything, mock.Anything).
 					Return(nil, entity.ErrEmailTaken).Once()
 			},
@@ -133,7 +133,7 @@ func TestCreateUser(t *testing.T) {
 			// because the kind travels with it.
 			name: "an unknown domain error maps by kind",
 			body: validBody,
-			setup: func(users *mocks.MockUserRegister) {
+			setup: func(users *mocks.MockUserUsecase) {
 				users.EXPECT().Register(mock.Anything, mock.Anything).
 					Return(nil, apperr.New(apperr.KindForbidden, "not_allowed", "not allowed here")).Once()
 			},
@@ -144,7 +144,7 @@ func TestCreateUser(t *testing.T) {
 		{
 			name: "a not-found kind becomes 404",
 			body: validBody,
-			setup: func(users *mocks.MockUserRegister) {
+			setup: func(users *mocks.MockUserUsecase) {
 				users.EXPECT().Register(mock.Anything, mock.Anything).
 					Return(nil, apperr.New(apperr.KindNotFound, "user_not_found", "user not found")).Once()
 			},
@@ -155,7 +155,7 @@ func TestCreateUser(t *testing.T) {
 		{
 			name: "an unexpected error becomes 500 without leaking detail",
 			body: validBody,
-			setup: func(users *mocks.MockUserRegister) {
+			setup: func(users *mocks.MockUserUsecase) {
 				users.EXPECT().Register(mock.Anything, mock.Anything).
 					Return(nil, errors.New("pq: connection to 10.0.0.5 refused")).Once()
 			},
@@ -170,7 +170,7 @@ func TestCreateUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			users := mocks.NewMockUserRegister(t)
+			users := mocks.NewMockUserUsecase(t)
 
 			switch {
 			case tt.setup != nil:
@@ -209,14 +209,14 @@ type errorBody struct {
 }
 
 func TestHealthz(t *testing.T) {
-	rec := do(t, mocks.NewMockUserRegister(t), http.MethodGet, "/healthz", "")
+	rec := do(t, mocks.NewMockUserUsecase(t), http.MethodGet, "/healthz", "")
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.JSONEq(t, `{"status":"ok"}`, rec.Body.String())
 }
 
 func TestUnknownRouteIs404(t *testing.T) {
-	rec := do(t, mocks.NewMockUserRegister(t), http.MethodGet, "/nope", "")
+	rec := do(t, mocks.NewMockUserUsecase(t), http.MethodGet, "/nope", "")
 
 	require.Equal(t, http.StatusNotFound, rec.Code)
 }

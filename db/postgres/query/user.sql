@@ -19,3 +19,7 @@ UPDATE users
 SET display_name = $2
 WHERE id = $1
 RETURNING *;
+
+-- name: GetCredentialsByEmail :one
+SELECT id, password_hash FROM users
+WHERE email = $1 LIMIT 1;

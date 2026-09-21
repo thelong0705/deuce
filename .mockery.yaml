@@ -11,6 +11,8 @@ packages:
       filename: "{{.InterfaceName | snakecase}}.go"
     interfaces:
       UserCreator:
+      CredentialFinder:
+      SessionStore:
       PasswordHasher:
 
   github.com/thelong0705/deuce/internal/adapter/httpapi:
@@ -20,7 +22,7 @@ packages:
       mockname: "Mock{{.InterfaceName}}"
       filename: "{{.InterfaceName | snakecase}}.go"
     interfaces:
-      UserRegister:
+      UserUsecase:
 
 # Silence v3 deprecation warnings by opting into the future defaults now.
 resolve-type-alias: false
