@@ -1,5 +1,3 @@
-// Package httpapi exposes the use cases over HTTP. It is named httpapi rather
-// than http so that net/http does not shadow the package inside its own files.
 package httpapi
 
 import (
