@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/thelong0705/deuce/internal/adapter/httpapi"
 	"github.com/thelong0705/deuce/internal/adapter/httpapi/mocks"
 	"github.com/thelong0705/deuce/internal/domain/entity"
 )
@@ -102,7 +101,7 @@ func TestRequireAuth(t *testing.T) {
 			}
 
 			rec := httptest.NewRecorder()
-			httpapi.NewServer(users, mocks.NewMockVenueUsecase(t)).Handler().ServeHTTP(rec, req)
+			deps{users: users}.handler(t).ServeHTTP(rec, req)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 
@@ -135,7 +134,7 @@ func TestUnprotectedRoutesSkipAuth(t *testing.T) {
 
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			rec := httptest.NewRecorder()
-			httpapi.NewServer(users, mocks.NewMockVenueUsecase(t)).Handler().ServeHTTP(rec, req)
+			deps{users: users}.handler(t).ServeHTTP(rec, req)
 
 			require.Equal(t, http.StatusOK, rec.Code)
 			users.AssertNotCalled(t, "Authenticate")
