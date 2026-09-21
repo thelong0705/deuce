@@ -16,7 +16,7 @@ MIGRATE := docker run --rm \
 
 .PHONY: db-start db-down db-wait db-psql \
         migrate-up migrate-down migrate-drop migrate-version \
-        sqlc-gen test test-cover mocks \
+        sqlc-gen build test test-cover mocks \
         lint fmt fmt-check
 
 db-start:
@@ -52,6 +52,9 @@ sqlc-gen:
 
 COVERAGE_TOOL := github.com/vladopajic/go-test-coverage/v2@v2.19.0
 
+build:
+	go build -v ./...
+
 test:
 	go test -race -v -coverprofile=coverage.out ./...
 
@@ -60,14 +63,12 @@ cover-check:
 
 test-cover: test cover-check
 
-# Rules and exclusions live in .golangci.yml
 GOLANGCI_IMAGE := golangci/golangci-lint:v2.13.2
 GOLANGCI := docker run --rm -v "$(PWD):/app" -w /app $(GOLANGCI_IMAGE) golangci-lint
 
 lint:
 	$(GOLANGCI) run
 
-# Rewrites files in place.
 fmt:
 	$(GOLANGCI) fmt
 
