@@ -15,9 +15,17 @@ export type LoginInput = {
   password: string
 }
 
+export type VenueInput = {
+  name: string
+  city: string
+  address: string
+}
+
 export type FieldErrors = Partial<Record<keyof SignupInput, string>>
 
 export type LoginFieldErrors = Partial<Record<keyof LoginInput, string>>
+
+export type VenueFieldErrors = Partial<Record<keyof VenueInput, string>>
 
 // Go measures passwords with len(), which counts bytes. A password of accented
 // or Vietnamese characters can pass a .length check here and still be rejected
@@ -66,6 +74,27 @@ export function validateLogin(input: LoginInput): LoginFieldErrors {
 
   if (input.password === '') {
     errors.password = 'Enter your password'
+  }
+
+  return errors
+}
+
+// Mirrors CreateVenueInput.Validate, which trims before checking. It reports
+// only the first broken rule; this reports all of them so the form can mark
+// every empty field at once.
+export function validateVenue(input: VenueInput): VenueFieldErrors {
+  const errors: VenueFieldErrors = {}
+
+  if (input.name.trim() === '') {
+    errors.name = 'Venue name is required'
+  }
+
+  if (input.city.trim() === '') {
+    errors.city = 'City is required'
+  }
+
+  if (input.address.trim() === '') {
+    errors.address = 'Address is required'
   }
 
   return errors

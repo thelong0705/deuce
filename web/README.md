@@ -1,14 +1,14 @@
 # deuce web
 
-Signup and sign-in interface. Vite + React + TypeScript.
+Signup, sign-in and venue registration. Vite + React + TypeScript.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Opens on http://localhost:5173 and proxies `/users` and `/sessions` to
-`http://localhost:8080`. Override the backend with
+Opens on http://localhost:5173 and proxies `/users`, `/sessions` and `/venues`
+to `http://localhost:8080`. Override the backend with
 `API_URL=http://host:port npm run dev`.
 
 ```bash
@@ -35,6 +35,17 @@ POST /sessions
 DELETE /sessions
 
 204 -> Set-Cookie: deuce_session=; Max-Age=0
+
+POST /venues            (session cookie required)
+{ "name": "...", "city": "...", "address": "..." }
+
+201 -> { "id", "owner_id", "name", "city", "address", "is_active", "created_at" }
+401 -> { "code": "session_invalid", "error": "..." }
+403 -> { "code": "not_an_owner", "error": "..." }
+
+GET /venues             (session cookie required)
+
+200 -> { "venues": [ ... ] }
 ```
 
 Client-side validation mirrors `internal/domain/entity`: a valid email, a
@@ -55,6 +66,18 @@ flash — it is a hint, not a credential, and a 401 drops it.
 Registering does not start a session. After signup the form hands the email to
 the sign-in tab and the user logs in.
 
+## Venues
+
+The signed-in view lists the venues the user owns and offers a form to add
+one. Nothing in the session says whether the account is a player or an owner,
+so the form is offered to everyone; a player's `POST /venues` comes back 403
+`not_an_owner` and the form says so in plain words. Once the session carries a
+role, the form can be hidden instead.
+
+Neither call names an owner. Both venue routes sit behind the auth middleware,
+so the server takes the owner from the session cookie — the client cannot ask
+for someone else's venues by editing a query string.
+
 ### Safari on plain HTTP
 
 The cookie is set with `Secure`. Chrome and Firefox treat `http://localhost` as
@@ -64,6 +87,9 @@ for local development, or serve the API over HTTPS.
 
 ## Not wired up yet
 
-There is no `GET /users/me`, so a reload trusts the stored hint until a request
-comes back 401. Once the auth middleware lands, that check should happen on
-mount instead.
+`GET /me` exists but nothing calls it. A reload still trusts the stored hint
+until some request comes back 401 — on the signed-in view that happens
+immediately, because loading the venue list is the first thing it does. Calling
+`/me` on mount would confirm the session directly and, since it returns the
+role, let the venue form be hidden from players instead of letting them find
+out by submitting it.

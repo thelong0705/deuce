@@ -1,4 +1,4 @@
-import type { LoginInput, Role, SignupInput } from './validation'
+import type { LoginInput, Role, SignupInput, VenueInput } from './validation'
 
 export type CreatedUser = {
   id: string
@@ -58,6 +58,40 @@ export async function login(input: LoginInput): Promise<Session> {
 
 export async function logout(): Promise<void> {
   await request('/sessions', { method: 'DELETE' })
+}
+
+export type Venue = {
+  id: string
+  owner_id: string
+  name: string
+  city: string
+  address: string
+  is_active: boolean
+  created_at: string
+}
+
+// The owner is whoever the session cookie belongs to, so neither call names it.
+export async function createVenue(input: VenueInput): Promise<Venue> {
+  const response = await request('/venues', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: input.name.trim(),
+      city: input.city.trim(),
+      address: input.address.trim(),
+    }),
+  })
+
+  return (await response.json()) as Venue
+}
+
+export async function listVenues(): Promise<Venue[]> {
+  const response = await request('/venues', {
+    method: 'GET',
+  })
+
+  const body = (await response.json()) as { venues?: Venue[] }
+  return body.venues ?? []
 }
 
 async function request(path: string, init: RequestInit): Promise<Response> {
