@@ -1,22 +1,33 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 )
 
+// writeJSON encodes into a buffer before touching the ResponseWriter. Encoding
+// straight to w would send the status line first, leaving no way to report a
+// failure -- and Encode streams, so a partial body may already be on the wire.
 func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+	var buf bytes.Buffer
 
-	if v == nil {
-		return
+	if v != nil {
+		if err := json.NewEncoder(&buf).Encode(v); err != nil {
+			slog.Error("encode json response", "error", err)
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		// Status and headers are already on the wire, so there is no way left
-		// to tell the client. Log it and move on.
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
+	w.WriteHeader(status)
+
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		// Usually the client disconnected. Nothing left to tell them.
 		slog.Error("write json response", "error", err)
 	}
 }
