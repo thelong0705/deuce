@@ -16,14 +16,21 @@ type UserRegister interface {
 	Register(ctx context.Context, in entity.CreateUserInput) (*entity.User, error)
 }
 
+// VenueCreator creates a venue.
+type VenueCreator interface {
+	Create(ctx context.Context, in entity.CreateVenueInput) (*entity.Venue, error)
+}
+
 type Server struct {
 	users  UserRegister
+	venues VenueCreator
 	router *chi.Mux
 }
 
-func NewServer(users UserRegister) *Server {
+func NewServer(users UserRegister, venues VenueCreator) *Server {
 	s := &Server{
 		users:  users,
+		venues: venues,
 		router: chi.NewRouter(),
 	}
 	s.routes()
@@ -43,6 +50,7 @@ func (s *Server) routes() {
 
 	s.router.Get("/healthz", s.health)
 	s.router.Post("/users", s.createUser)
+	s.router.Post("/venues", s.createVenue)
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {

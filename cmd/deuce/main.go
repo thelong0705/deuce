@@ -47,10 +47,13 @@ func run() error {
 	}
 
 	var (
-		userRepo = postgres.NewUserRepository(postgres.New(pool))
-		hasher   = crypto.NewBcryptHasher()
-		userUC   = usecase.NewUser(userRepo, hasher)
-		api      = httpapi.NewServer(userUC)
+		queries   = postgres.New(pool)
+		userRepo  = postgres.NewUserRepository(queries)
+		venueRepo = postgres.NewVenueRepository(queries)
+		hasher    = crypto.NewBcryptHasher()
+		userUC    = usecase.NewUser(userRepo, hasher)
+		venueUC   = usecase.NewVenue(venueRepo, userRepo)
+		api       = httpapi.NewServer(userUC, venueUC)
 	)
 
 	srv := &http.Server{
