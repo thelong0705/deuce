@@ -26,6 +26,12 @@ export function App() {
     setTab('login')
   }, [])
 
+  // Signed in, the brand moves into the menu bar and SignedIn owns the whole
+  // page, so there is no shell to share with the signed-out screens.
+  if (session) {
+    return <SignedIn session={session} onSignedOut={signOut} />
+  }
+
   return (
     <main className="page">
       <header className="brand">
@@ -33,41 +39,35 @@ export function App() {
         <span className="brand-sub">tennis court booking</span>
       </header>
 
-      {session ? (
-        <SignedIn session={session} onSignedOut={signOut} />
-      ) : (
-        <>
-          <nav className="tabs" aria-label="Account">
-            <button
-              type="button"
-              className="tab"
-              aria-current={tab === 'login'}
-              onClick={() => setTab('login')}
-            >
-              Sign in
-            </button>
-            <button
-              type="button"
-              className="tab"
-              aria-current={tab === 'signup'}
-              onClick={() => setTab('signup')}
-            >
-              Create account
-            </button>
-          </nav>
+      <nav className="tabs" aria-label="Account">
+        <button
+          type="button"
+          className="tab"
+          aria-current={tab === 'login'}
+          onClick={() => setTab('login')}
+        >
+          Sign in
+        </button>
+        <button
+          type="button"
+          className="tab"
+          aria-current={tab === 'signup'}
+          onClick={() => setTab('signup')}
+        >
+          Create account
+        </button>
+      </nav>
 
-          {tab === 'login' ? (
-            // Remounting on email change lets a fresh signup prefill the field.
-            <LoginForm key={email} initialEmail={email} onSignedIn={signIn} />
-          ) : (
-            <SignupForm
-              onSignIn={(created) => {
-                setEmail(created)
-                setTab('login')
-              }}
-            />
-          )}
-        </>
+      {tab === 'login' ? (
+        // Remounting on email change lets a fresh signup prefill the field.
+        <LoginForm key={email} initialEmail={email} onSignedIn={signIn} />
+      ) : (
+        <SignupForm
+          onSignIn={(created) => {
+            setEmail(created)
+            setTab('login')
+          }}
+        />
       )}
     </main>
   )
