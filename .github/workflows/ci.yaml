@@ -11,8 +11,6 @@ on:
 
 jobs:
 
-  # Runs independently of Test: no database, and a formatting mistake should be
-  # reported even when the tests are failing for an unrelated reason.
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -29,6 +27,20 @@ jobs:
 
       - name: Lint
         run: make lint
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Build
+        run: make build
 
   test:
     name: Test
@@ -58,12 +70,8 @@ jobs:
       - name: Run migrations
         run: make migrate-up MIGRATE_NETWORK=host
 
-      - name: Build
-        run: go build -v ./...
-
       - name: Test
         run: make test
 
-      # Fails the job when a package falls below the .testcoverage.yml threshold.
       - name: Coverage
         run: make cover-check
