@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { PlayerHome } from './PlayerHome'
 import { Venues } from './Venues'
 import { ApiError, logout, me } from './api'
 import type { Session, User } from './api'
@@ -89,8 +90,10 @@ export function SignedIn({ session, onSignedOut }: Props) {
       </div>
 
       {/* Venues are an owner's feature, so a player is never shown the section
-          at all — not an empty list and a form that would only 403. */}
+          at all — not an empty list and a form that would only 403. Players
+          get the booking screens in their place. */}
       {user?.role === 'owner' && <Venues onUnauthorized={onSignedOut} />}
+      {user?.role === 'player' && <PlayerHome onUnauthorized={onSignedOut} />}
     </>
   )
 }

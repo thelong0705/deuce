@@ -135,6 +135,75 @@ export async function createCourt(venueID: string, input: CourtInput): Promise<C
   return (await response.json()) as Court
 }
 
+// --- Booking -------------------------------------------------------------
+//
+// None of the endpoints below exist on the server yet. They are the contract
+// this UI is written against; web/README.md spells it out. Until they land,
+// every call here comes back 404 and the screens say so.
+
+// searchVenues browses every owner's venues, unlike GET /venues, which only
+// ever returns the caller's own.
+export async function searchVenues(city: string): Promise<Venue[]> {
+  const response = await request(`/venues/search?city=${encodeURIComponent(city.trim())}`, {
+    method: 'GET',
+  })
+
+  const body = (await response.json()) as { venues?: Venue[] }
+  return body.venues ?? []
+}
+
+export async function listCourts(venueID: string): Promise<Court[]> {
+  const response = await request(`/venues/${encodeURIComponent(venueID)}/courts`, {
+    method: 'GET',
+  })
+
+  const body = (await response.json()) as { courts?: Court[] }
+  return body.courts ?? []
+}
+
+export type Slot = {
+  // starts_at is an instant, and the client never builds one: it books by
+  // echoing back a value the server offered. That keeps the whole question of
+  // which timezone an hour belongs to on the server, where the venue is.
+  starts_at: string
+  available: boolean
+}
+
+export async function listAvailability(courtID: string, date: string): Promise<Slot[]> {
+  const response = await request(
+    `/courts/${encodeURIComponent(courtID)}/availability?date=${encodeURIComponent(date)}`,
+    { method: 'GET' },
+  )
+
+  const body = (await response.json()) as { slots?: Slot[] }
+  return body.slots ?? []
+}
+
+export type Booking = {
+  id: string
+  starts_at: string
+  created_at: string
+  court: { id: string; name: string; price_per_hour: number }
+  venue: { id: string; name: string; city: string; address: string }
+}
+
+export async function createBooking(courtID: string, startsAt: string): Promise<Booking> {
+  const response = await request('/bookings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ court_id: courtID, starts_at: startsAt }),
+  })
+
+  return (await response.json()) as Booking
+}
+
+export async function listBookings(): Promise<Booking[]> {
+  const response = await request('/bookings', { method: 'GET' })
+
+  const body = (await response.json()) as { bookings?: Booking[] }
+  return body.bookings ?? []
+}
+
 async function request(path: string, init: RequestInit): Promise<Response> {
   let response: Response
   try {

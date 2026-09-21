@@ -99,10 +99,73 @@ closing hours, and a price per hour. The hour selects are bounded at the
 source — 00:00 to 23:00 for opening, 01:00 to 24:00 for closing — so the only
 ordering rule left to state is open before close.
 
-**There is no endpoint to read courts back.** Only `POST` exists, so the list
-under each venue holds what was added in this session and starts empty on
-every reload. A `GET /venues/{venueID}/courts` would fix that, and the list
-would then work like the venue list does.
+**There is no endpoint to read courts back** for an owner. Only `POST` exists,
+so the list under each venue holds what was added in this session and starts
+empty on every reload. The `GET /venues/{venueID}/courts` proposed below would
+fix that too, and the list would then work like the venue list does.
+
+## Booking — written against a contract that does not exist yet
+
+A player sees the booking screens where an owner sees venues: search a city,
+open a venue, pick a court, pick an hour, book. **None of the endpoints below
+are implemented**, so every one of them returns 404 today and the screens say
+so. This is the same way the signup form started.
+
+```
+GET /venues/search?city=...            (session cookie required)
+
+200 -> { "venues": [ { venue fields } ] }
+```
+
+Distinct from `GET /venues`, which is owner-scoped and only ever returns the
+caller's own. Browsing has to see everybody's.
+
+```
+GET /venues/{venueID}/courts           (session cookie required)
+
+200 -> { "courts": [ { court fields } ] }
+
+GET /courts/{courtID}/availability?date=YYYY-MM-DD
+
+200 -> { "slots": [ { "starts_at": "2026-09-22T06:00:00+07:00",
+                      "available": true } ] }
+```
+
+One entry per bookable hour between the court's `open_hour` and `close_hour`,
+with `available` false where an uncancelled booking already exists.
+
+```
+POST /bookings                         (session cookie required)
+{ "court_id": "...", "starts_at": "2026-09-22T06:00:00+07:00" }
+
+201 -> { "id", "starts_at", "created_at",
+         "court": { "id", "name", "price_per_hour" },
+         "venue": { "id", "name", "city", "address" } }
+400 -> { "code": "slot_in_past" | "beyond_horizon" | "outside_opening_hours" }
+403 -> { "code": "court_inactive" }
+404 -> { "code": "court_not_found" }
+409 -> { "code": "slot_taken" }
+
+GET /bookings                          (session cookie required)
+
+200 -> { "bookings": [ ... same shape ... ] }
+```
+
+`slot_taken` is the one the `bookings (court_id, starts_at) WHERE cancelled_at
+IS NULL` index already enforces; the UI reloads the times and says someone
+just took it.
+
+### Why the client never builds a timestamp
+
+`starts_at` goes out exactly as the availability response gave it. A venue has
+no timezone column, so which real instant "06:00" means is a question only the
+server can answer — having the browser construct one from its own clock would
+get it wrong for anyone travelling or for a venue in another zone. The date
+picker sends a plain `YYYY-MM-DD`; everything finer round-trips.
+
+The date input is bounded to today through fourteen days out, matching the
+booking horizon. The server still has to enforce it, along with the minimum
+lead time, which the UI does not attempt to police.
 
 ### Safari on plain HTTP
 
