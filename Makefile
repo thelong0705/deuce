@@ -17,7 +17,8 @@ MIGRATE := docker run --rm \
 .PHONY: db-start db-down db-wait db-psql \
         migrate-up migrate-down migrate-drop migrate-version \
         sqlc-gen build test test-cover mocks \
-        lint fmt fmt-check
+        lint fmt fmt-check \
+        server web web-install
 
 db-start:
 	$(COMPOSE) up -d
@@ -54,6 +55,15 @@ COVERAGE_TOOL := github.com/vladopajic/go-test-coverage/v2@v2.19.0
 
 build:
 	go build -v ./...
+
+server:
+	go run ./cmd/deuce
+
+web-install:
+	npm --prefix web install
+
+web:
+	npm --prefix web run dev
 
 test:
 	go test -race -v -coverprofile=coverage.out ./...

@@ -176,6 +176,45 @@ button.secondary {
   color: var(--text);
 }
 
+button.quiet {
+  margin-top: 8px;
+  border-color: transparent;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.tab {
+  flex: 1;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 550;
+  background: transparent;
+  color: var(--muted);
+}
+
+.tab[aria-current='true'] {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
 .summary {
   display: grid;
   grid-template-columns: auto 1fr;

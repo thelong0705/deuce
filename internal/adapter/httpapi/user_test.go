@@ -34,14 +34,14 @@ func registeredUser() *entity.User {
 }
 
 // do sends a request through the router and returns the recorded response.
-func do(t *testing.T, users httpapi.UserUsecase, method, path, body string) *httptest.ResponseRecorder {
+func do(t *testing.T, users httpapi.UserUsecase, venues httpapi.VenueUsecase, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	rec := httptest.NewRecorder()
-	httpapi.NewServer(users).Handler().ServeHTTP(rec, req)
+	httpapi.NewServer(users, venues).Handler().ServeHTTP(rec, req)
 
 	return rec
 }
@@ -180,7 +180,7 @@ func TestCreateUser(t *testing.T) {
 					Return(registeredUser(), nil).Once()
 			}
 
-			rec := do(t, users, http.MethodPost, "/users", tt.body)
+			rec := do(t, users, mocks.NewMockVenueUsecase(t), http.MethodPost, "/users", tt.body)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 			require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
@@ -209,14 +209,14 @@ type errorBody struct {
 }
 
 func TestHealthz(t *testing.T) {
-	rec := do(t, mocks.NewMockUserUsecase(t), http.MethodGet, "/healthz", "")
+	rec := do(t, mocks.NewMockUserUsecase(t), mocks.NewMockVenueUsecase(t), http.MethodGet, "/healthz", "")
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.JSONEq(t, `{"status":"ok"}`, rec.Body.String())
 }
 
 func TestUnknownRouteIs404(t *testing.T) {
-	rec := do(t, mocks.NewMockUserUsecase(t), http.MethodGet, "/nope", "")
+	rec := do(t, mocks.NewMockUserUsecase(t), mocks.NewMockVenueUsecase(t), http.MethodGet, "/nope", "")
 
 	require.Equal(t, http.StatusNotFound, rec.Code)
 }

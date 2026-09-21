@@ -12,6 +12,11 @@ coverage.html
 .claude/
 .DS_Store
 
+# frontend
+node_modules/
+dist/
+.vite/
+
 # local env overrides
 .env
 .env.local

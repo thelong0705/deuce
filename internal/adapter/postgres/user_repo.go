@@ -15,6 +15,7 @@ import (
 
 var (
 	_ usecase.UserCreator      = (*UserRepository)(nil)
+	_ usecase.UserFinder       = (*UserRepository)(nil)
 	_ usecase.CredentialFinder = (*UserRepository)(nil)
 )
 
@@ -94,6 +95,18 @@ func toEntityRole(r UserRole) (entity.Role, error) {
 	default:
 		return "", fmt.Errorf("unknown role %q from database", r)
 	}
+}
+
+func (r *UserRepository) GetUser(ctx context.Context, id uuid.UUID) (*entity.User, error) {
+	row, err := r.q.GetUser(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, entity.ErrUserNotFound
+		}
+		return nil, fmt.Errorf("get user: %w", err)
+	}
+
+	return toEntityUser(row)
 }
 
 func (r *UserRepository) GetCredentialsByEmail(ctx context.Context, email string) (uuid.UUID, string, error) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 
 	"github.com/thelong0705/deuce/internal/domain/entity"
 )
@@ -19,14 +20,22 @@ type UserUsecase interface {
 	Authenticate(ctx context.Context, token string) (*entity.User, error)
 }
 
+// VenueUsecase creates and lists venues.
+type VenueUsecase interface {
+	Create(ctx context.Context, in entity.CreateVenueInput) (*entity.Venue, error)
+	ListByOwner(ctx context.Context, ownerID uuid.UUID) ([]entity.Venue, error)
+}
+
 type Server struct {
 	users  UserUsecase
+	venues VenueUsecase
 	router *chi.Mux
 }
 
-func NewServer(users UserUsecase) *Server {
+func NewServer(users UserUsecase, venues VenueUsecase) *Server {
 	s := &Server{
 		users:  users,
+		venues: venues,
 		router: chi.NewRouter(),
 	}
 	s.routes()
@@ -48,6 +57,8 @@ func (s *Server) routes() {
 	s.router.Post("/users", s.createUser)
 	s.router.Post("/sessions", s.login)
 	s.router.Delete("/sessions", s.logout)
+	s.router.Post("/venues", s.createVenue)
+	s.router.Get("/venues", s.listVenues)
 
 	s.router.Group(func(r chi.Router) {
 		r.Use(s.requireAuth)

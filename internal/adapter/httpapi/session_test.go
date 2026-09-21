@@ -146,7 +146,7 @@ func TestLogin(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			rec := httptest.NewRecorder()
-			httpapi.NewServer(login).Handler().ServeHTTP(rec, req)
+			httpapi.NewServer(login, mocks.NewMockVenueUsecase(t)).Handler().ServeHTTP(rec, req)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 
@@ -184,7 +184,7 @@ func TestLoginPassesTheRequestContext(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "203.0.113.9")
 
 	rec := httptest.NewRecorder()
-	httpapi.NewServer(login).Handler().ServeHTTP(rec, req)
+	httpapi.NewServer(login, mocks.NewMockVenueUsecase(t)).Handler().ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusCreated, rec.Code)
 }
@@ -244,7 +244,7 @@ func TestLogout(t *testing.T) {
 			}
 
 			rec := httptest.NewRecorder()
-			httpapi.NewServer(logout).Handler().ServeHTTP(rec, req)
+			httpapi.NewServer(logout, mocks.NewMockVenueUsecase(t)).Handler().ServeHTTP(rec, req)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 

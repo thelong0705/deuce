@@ -102,7 +102,7 @@ func TestRequireAuth(t *testing.T) {
 			}
 
 			rec := httptest.NewRecorder()
-			httpapi.NewServer(users).Handler().ServeHTTP(rec, req)
+			httpapi.NewServer(users, mocks.NewMockVenueUsecase(t)).Handler().ServeHTTP(rec, req)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 
@@ -135,7 +135,7 @@ func TestUnprotectedRoutesSkipAuth(t *testing.T) {
 
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			rec := httptest.NewRecorder()
-			httpapi.NewServer(users).Handler().ServeHTTP(rec, req)
+			httpapi.NewServer(users, mocks.NewMockVenueUsecase(t)).Handler().ServeHTTP(rec, req)
 
 			require.Equal(t, http.StatusOK, rec.Code)
 			users.AssertNotCalled(t, "Authenticate")

@@ -25,6 +25,8 @@ var (
 	ErrVenueNameRequired    = apperr.New(apperr.KindInvalid, "venue_name_required", "venue name is required")
 	ErrVenueCityRequired    = apperr.New(apperr.KindInvalid, "venue_city_required", "venue city is required")
 	ErrVenueAddressRequired = apperr.New(apperr.KindInvalid, "venue_address_required", "venue address is required")
+	ErrNotAnOwner           = apperr.New(apperr.KindForbidden, "not_an_owner", "only an owner can register a venue")
+	ErrOwnerInactive        = apperr.New(apperr.KindForbidden, "owner_inactive", "owner account is not active")
 )
 
 // CreateVenueInput is what an owner supplies to register a venue.

@@ -14,6 +14,8 @@ packages:
       CredentialFinder:
       SessionStore:
       PasswordHasher:
+      VenueRepo:
+      UserFinder:
 
   github.com/thelong0705/deuce/internal/adapter/httpapi:
     config:
@@ -23,6 +25,7 @@ packages:
       filename: "{{.InterfaceName | snakecase}}.go"
     interfaces:
       UserUsecase:
+      VenueUsecase:
 
 # Silence v3 deprecation warnings by opting into the future defaults now.
 resolve-type-alias: false

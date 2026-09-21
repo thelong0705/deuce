@@ -28,3 +28,8 @@ UPDATE venues
 SET is_active = false
 WHERE id = $1
 RETURNING *;
+
+-- name: ListVenuesByOwner :many
+SELECT * FROM venues
+WHERE owner_id = $1
+ORDER BY name;
