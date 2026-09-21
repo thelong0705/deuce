@@ -105,3 +105,13 @@ func clientIP(r *http.Request) string {
 
 	return r.RemoteAddr
 }
+
+func (s *Server) currentUser(w http.ResponseWriter, r *http.Request) {
+	user, ok := UserFromContext(r.Context())
+	if !ok {
+		writeInternalError(w)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newUserResponse(*user))
+}
