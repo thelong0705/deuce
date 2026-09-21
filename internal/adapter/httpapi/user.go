@@ -18,9 +18,6 @@ type createUserRequest struct {
 	Role        string `json:"role,omitempty"`
 }
 
-// userResponse is a separate type from entity.User so the wire format can stay
-// stable while the entity changes, and so a field added to the entity is never
-// exposed by accident.
 type userResponse struct {
 	ID          uuid.UUID `json:"id"`
 	Email       string    `json:"email"`
