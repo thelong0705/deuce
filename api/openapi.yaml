@@ -1,0 +1,635 @@
+openapi: 3.1.0
+
+info:
+  title: deuce
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+  description: |
+    Tennis court booking.
+
+    Players book hour-long slots; owners register venues and courts. Everything
+    past sign-in is authenticated with a server-side session: `POST /sessions`
+    sets an httpOnly cookie and the browser sends it back on its own.
+
+    Errors share one shape — a machine-readable `code` and a human `error` — and
+    the status follows from the kind of failure: 400 invalid, 401 not signed in,
+    403 not allowed, 404 missing, 409 conflict.
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: users
+    description: Sign-up and the current account
+  - name: sessions
+    description: Sign in and out
+  - name: venues
+    description: Sites an owner registers
+  - name: courts
+    description: Playable courts at a venue
+  - name: bookings
+    description: Hour-long slots on a court
+  - name: ops
+    description: Liveness
+
+paths:
+  /healthz:
+    get:
+      tags: [ops]
+      summary: Liveness probe
+      operationId: health
+      security: []
+      responses:
+        "200":
+          description: The server is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    const: ok
+
+  /openapi.yaml:
+    get:
+      tags: [ops]
+      summary: This specification
+      operationId: getOpenAPISpec
+      security: []
+      responses:
+        "200":
+          description: The specification the running server was built from
+          content:
+            application/yaml:
+              schema:
+                type: string
+
+  /docs:
+    get:
+      tags: [ops]
+      summary: Swagger UI for this specification
+      operationId: getDocs
+      security: []
+      responses:
+        "200":
+          description: An HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /users:
+    post:
+      tags: [users]
+      summary: Register an account
+      operationId: createUser
+      description: |
+        The display name is seeded from the email's local part, so signup stays
+        short. A player and an owner are different accounts: the role cannot be
+        changed afterwards.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: The account was created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/Invalid"
+        "409":
+          description: The email is already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: email_taken
+                error: email already registered
+
+  /sessions:
+    post:
+      tags: [sessions]
+      summary: Sign in
+      operationId: login
+      description: |
+        Sets the `deuce_session` cookie: httpOnly, Secure, SameSite=Lax. The
+        token is never in the response body, so scripts on the page cannot read
+        it.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "201":
+          description: The session was started
+          headers:
+            Set-Cookie:
+              description: The session cookie
+              schema:
+                type: string
+                examples:
+                  - deuce_session=opaque-token; Path=/; HttpOnly; Secure; SameSite=Lax
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/Invalid"
+        "401":
+          description: The email or the password is wrong
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: invalid_credentials
+                error: email or password is incorrect
+    delete:
+      tags: [sessions]
+      summary: Sign out
+      operationId: logout
+      description: |
+        Deletes the session and expires the cookie. Signing out without a
+        session is still a 204, so a client can always reach a signed-out state.
+      security: []
+      responses:
+        "204":
+          description: The session is over
+          headers:
+            Set-Cookie:
+              description: The expired cookie
+              schema:
+                type: string
+                examples:
+                  - deuce_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax
+
+  /me:
+    get:
+      tags: [users]
+      summary: The signed-in account
+      operationId: getCurrentUser
+      responses:
+        "200":
+          description: The account the session belongs to
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /venues:
+    post:
+      tags: [venues]
+      summary: Register a venue
+      operationId: createVenue
+      description: |
+        The owner is the signed-in account. The timezone is what the courts'
+        opening hours are read in, so it decides which local hour a booking
+        falls into.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVenueRequest"
+      responses:
+        "201":
+          description: The venue was registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Venue"
+        "400":
+          $ref: "#/components/responses/Invalid"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The account is a player, or it is deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: not_an_owner
+                error: only an owner can register a venue
+        "404":
+          $ref: "#/components/responses/NotFound"
+    get:
+      tags: [venues]
+      summary: List the signed-in owner's venues
+      operationId: listVenues
+      description: Deactivated venues are included.
+      responses:
+        "200":
+          description: The owner's venues, by name
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [venues]
+                properties:
+                  venues:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Venue"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /venues/{venueID}/courts:
+    post:
+      tags: [courts]
+      summary: Register a court at a venue
+      operationId: createCourt
+      parameters:
+        - $ref: "#/components/parameters/VenueID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCourtRequest"
+      responses:
+        "201":
+          description: The court was registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Court"
+        "400":
+          $ref: "#/components/responses/Invalid"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The venue belongs to somebody else, or it is deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: not_venue_owner
+                error: only the venue owner can add a court
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The venue already has a court with that name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: court_name_taken
+                error: the venue already has a court with that name
+
+  /courts/{courtID}/bookings:
+    post:
+      tags: [bookings]
+      summary: Book a slot
+      operationId: createBooking
+      description: |
+        The player is the signed-in account and the slot runs one hour from
+        `starts_at`.
+
+        `starts_at` keeps the offset you send it with: `2026-09-23T16:00:00+07:00`
+        and `2026-09-23T09:00:00Z` are the same moment, and the venue's timezone
+        decides which local hour that is. So a client never has to know where the
+        court is in order to book it.
+
+        Whether the slot is free is settled by a unique index rather than by a
+        check beforehand, so two players going for the same slot cannot both
+        succeed — the second gets a 409.
+      parameters:
+        - $ref: "#/components/parameters/CourtID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingRequest"
+      responses:
+        "201":
+          description: The slot is held
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "400":
+          description: |
+            The slot does not start on the hour, has already started, is more
+            than two weeks ahead, or falls outside the court's opening hours.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: slot_outside_opening_hours
+                error: the court is closed at that hour
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The account is an owner, or it is deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: not_a_player
+                error: only a player can book a court
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Somebody else got the slot first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: slot_taken
+                error: that slot is already taken
+
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: deuce_session
+      description: |
+        Set by `POST /sessions`. It is httpOnly, so a browser sends it
+        automatically and scripts cannot read it. "Authorize" in Swagger UI has
+        no effect on it for the same reason — sign in through `POST /sessions`
+        and the cookie travels on its own.
+
+  parameters:
+    VenueID:
+      name: venueID
+      in: path
+      required: true
+      description: The venue
+      schema:
+        type: string
+        format: uuid
+
+    CourtID:
+      name: courtID
+      in: path
+      required: true
+      description: The court
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Invalid:
+      description: The request was rejected before anything was written
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: invalid_body
+            error: invalid JSON body
+
+    Unauthorized:
+      description: No session, or one that has expired
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: session_invalid
+            error: session is invalid or has expired
+
+    NotFound:
+      description: Nothing here
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: court_not_found
+            error: court not found
+
+  schemas:
+    Error:
+      type: object
+      required: [code, error]
+      properties:
+        code:
+          type: string
+          description: Stable and machine-readable; branch on this, not on the message.
+          examples: [slot_taken]
+        error:
+          type: string
+          description: For a person to read. It may be reworded at any time.
+          examples: [that slot is already taken]
+
+    Role:
+      type: string
+      enum: [player, owner]
+
+    CreateUserRequest:
+      type: object
+      required: [email, password, phone_number, role]
+      properties:
+        email:
+          type: string
+          format: email
+          examples: [alice@example.com]
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+          description: At most 72 bytes, which is what bcrypt reads.
+        phone_number:
+          type: string
+          examples: ["+84901234567"]
+        role:
+          $ref: "#/components/schemas/Role"
+
+    User:
+      type: object
+      required: [id, email, display_name, phone_number, role, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+          description: Seeded from the email's local part at signup.
+        phone_number:
+          type: string
+        role:
+          $ref: "#/components/schemas/Role"
+        created_at:
+          type: string
+          format: date-time
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    Session:
+      type: object
+      required: [user_id, expires_at]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        expires_at:
+          type: string
+          format: date-time
+      description: The token is in the cookie and nowhere else.
+
+    CreateVenueRequest:
+      type: object
+      required: [name, city, address, timezone]
+      properties:
+        name:
+          type: string
+          examples: [Ace Tennis Club]
+        city:
+          type: string
+          examples: [Hanoi]
+        address:
+          type: string
+          examples: [12 Le Loi]
+        timezone:
+          type: string
+          description: An IANA name. "Local" is rejected — it would mean the server's timezone, not the venue's.
+          examples: [Asia/Ho_Chi_Minh]
+
+    Venue:
+      type: object
+      required: [id, owner_id, name, city, address, timezone, is_active, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        city:
+          type: string
+        address:
+          type: string
+        timezone:
+          type: string
+          examples: [Asia/Ho_Chi_Minh]
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    CreateCourtRequest:
+      type: object
+      required: [name, open_hour, close_hour, price_per_hour]
+      properties:
+        name:
+          type: string
+          description: Unique within the venue.
+          examples: [Court 1]
+        open_hour:
+          type: integer
+          minimum: 0
+          maximum: 23
+          examples: [6]
+        close_hour:
+          type: integer
+          minimum: 1
+          maximum: 24
+          description: Must be after open_hour. The last bookable slot starts an hour before it.
+          examples: [22]
+        price_per_hour:
+          type: integer
+          minimum: 0
+          description: In the smallest currency unit. Zero is a free court.
+          examples: [120000]
+
+    Court:
+      type: object
+      required: [id, venue_id, name, open_hour, close_hour, price_per_hour, is_active, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        venue_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        open_hour:
+          type: integer
+        close_hour:
+          type: integer
+        price_per_hour:
+          type: integer
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    CreateBookingRequest:
+      type: object
+      required: [starts_at]
+      properties:
+        starts_at:
+          type: string
+          format: date-time
+          description: RFC 3339, on the hour, from now to two weeks ahead.
+          examples: ["2026-09-23T16:00:00+07:00"]
+
+    Booking:
+      type: object
+      required: [id, court_id, player_id, starts_at, ends_at, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        court_id:
+          type: string
+          format: uuid
+        player_id:
+          type: string
+          format: uuid
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+          description: One hour after starts_at.
+        created_at:
+          type: string
+          format: date-time
+
+security:
+  - session: []

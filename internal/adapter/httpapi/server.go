@@ -68,6 +68,8 @@ func (s *Server) routes() {
 	s.router.Use(middleware.Timeout(30 * time.Second))
 
 	s.router.Get("/healthz", s.health)
+	s.router.Get("/openapi.yaml", s.openAPI)
+	s.router.Get("/docs", s.docs)
 	s.router.Post("/users", s.createUser)
 	s.router.Post("/sessions", s.login)
 	s.router.Delete("/sessions", s.logout)
