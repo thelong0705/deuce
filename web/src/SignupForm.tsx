@@ -13,7 +13,13 @@ const empty: SignupInput = {
   role: 'player',
 }
 
-export function SignupForm() {
+type Props = {
+  // onSignIn hands the new account's email to the sign-in form. Registering
+  // does not start a session, so the user still has to log in.
+  onSignIn: (email: string) => void
+}
+
+export function SignupForm({ onSignIn }: Props) {
   const [input, setInput] = useState<SignupInput>(empty)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
@@ -65,9 +71,12 @@ export function SignupForm() {
           <dt>Account</dt>
           <dd>{created.role === 'owner' ? 'Court owner' : 'Player'}</dd>
         </dl>
+        <button type="button" onClick={() => onSignIn(created.email)}>
+          Sign in
+        </button>
         <button
           type="button"
-          className="secondary"
+          className="secondary quiet"
           onClick={() => {
             setCreated(null)
             setInput(empty)

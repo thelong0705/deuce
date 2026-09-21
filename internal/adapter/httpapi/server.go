@@ -17,6 +17,7 @@ type UserUsecase interface {
 	Register(ctx context.Context, in entity.CreateUserInput) (*entity.User, error)
 	Login(ctx context.Context, in entity.LoginInput) (string, *entity.Session, error)
 	Logout(ctx context.Context, token string) error
+	Authenticate(ctx context.Context, token string) (*entity.User, error)
 }
 
 // VenueUsecase creates and lists venues.
@@ -58,6 +59,12 @@ func (s *Server) routes() {
 	s.router.Delete("/sessions", s.logout)
 	s.router.Post("/venues", s.createVenue)
 	s.router.Get("/venues", s.listVenues)
+
+	s.router.Group(func(r chi.Router) {
+		r.Use(s.requireAuth)
+
+		r.Get("/me", s.currentUser)
+	})
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
