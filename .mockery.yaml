@@ -13,6 +13,7 @@ packages:
       UserCreator:
       PasswordHasher:
       VenueCreator:
+      VenueLister:
       UserFinder:
 
   github.com/thelong0705/deuce/internal/adapter/httpapi:
@@ -24,6 +25,7 @@ packages:
     interfaces:
       UserRegister:
       VenueCreator:
+      VenueLister:
 
 # Silence v3 deprecation warnings by opting into the future defaults now.
 resolve-type-alias: false

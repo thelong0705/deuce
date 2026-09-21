@@ -56,7 +56,7 @@ func (s *Server) createVenue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	venue, err := s.venues.Create(r.Context(), entity.CreateVenueInput{
+	venue, err := s.venueCreator.Create(r.Context(), entity.CreateVenueInput{
 		OwnerID: ownerID,
 		Name:    req.Name,
 		City:    req.City,
@@ -86,4 +86,33 @@ func writeCreateVenueError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusInternalServerError, "could not create venue")
 	}
+}
+
+type venueListResponse struct {
+	Venues []venueResponse `json:"venues"`
+}
+
+func (s *Server) listVenues(w http.ResponseWriter, r *http.Request) {
+	ownerID, err := uuid.Parse(r.URL.Query().Get("owner_id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "owner_id must be a valid uuid")
+		return
+	}
+
+	venues, err := s.venueLister.ListByOwner(r.Context(), ownerID)
+	if err != nil {
+		if errors.Is(err, entity.ErrOwnerRequired) {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "could not list venues")
+		return
+	}
+
+	out := make([]venueResponse, 0, len(venues))
+	for _, v := range venues {
+		out = append(out, newVenueResponse(v))
+	}
+
+	writeJSON(w, http.StatusOK, venueListResponse{Venues: out})
 }

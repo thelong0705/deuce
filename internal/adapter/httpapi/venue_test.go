@@ -149,7 +149,7 @@ func TestCreateVenue(t *testing.T) {
 					Return(createdVenue(), nil).Once()
 			}
 
-			rec := do(t, mocks.NewMockUserRegister(t), venues, http.MethodPost, "/venues", tt.body)
+			rec := do(t, mocks.NewMockUserRegister(t), venues, mocks.NewMockVenueLister(t), http.MethodPost, "/venues", tt.body)
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 			require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
@@ -181,7 +181,104 @@ func TestCreateVenuePassesTheParsedOwner(t *testing.T) {
 		Return(createdVenue(), nil).
 		Once()
 
-	rec := do(t, mocks.NewMockUserRegister(t), venues, http.MethodPost, "/venues", validVenueBody())
+	rec := do(t, mocks.NewMockUserRegister(t), venues, mocks.NewMockVenueLister(t), http.MethodPost, "/venues", validVenueBody())
 
 	require.Equal(t, http.StatusCreated, rec.Code)
+}
+
+func TestListVenues(t *testing.T) {
+	tests := []struct {
+		name       string
+		query      string
+		setup      func(venues *mocks.MockVenueLister)
+		wantNoCall bool
+		wantStatus int
+		wantErrMsg string
+		check      func(t *testing.T, body []byte)
+	}{
+		{
+			name:  "returns the owner's venues",
+			query: "?owner_id=" + venueOwnerID.String(),
+			setup: func(venues *mocks.MockVenueLister) {
+				venues.EXPECT().ListByOwner(mock.Anything, venueOwnerID).
+					Return([]entity.Venue{*createdVenue(), *createdVenue()}, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body []byte) {
+				var got struct {
+					Venues []map[string]any `json:"venues"`
+				}
+				require.NoError(t, json.Unmarshal(body, &got))
+				require.Len(t, got.Venues, 2)
+				require.Equal(t, "Ace Tennis Club", got.Venues[0]["name"])
+			},
+		},
+		{
+			name:  "an owner with no venues gets an empty array",
+			query: "?owner_id=" + venueOwnerID.String(),
+			setup: func(venues *mocks.MockVenueLister) {
+				venues.EXPECT().ListByOwner(mock.Anything, venueOwnerID).
+					Return([]entity.Venue{}, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body []byte) {
+				// null would break clients that iterate the result
+				require.Contains(t, string(body), `"venues":[]`)
+			},
+		},
+		{
+			name:       "a missing owner_id is rejected",
+			query:      "",
+			wantNoCall: true,
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: "owner_id must be a valid uuid",
+		},
+		{
+			name:       "an owner_id that is not a uuid is rejected",
+			query:      "?owner_id=nope",
+			wantNoCall: true,
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: "owner_id must be a valid uuid",
+		},
+		{
+			name:  "an unexpected error becomes 500 without leaking detail",
+			query: "?owner_id=" + venueOwnerID.String(),
+			setup: func(venues *mocks.MockVenueLister) {
+				venues.EXPECT().ListByOwner(mock.Anything, mock.Anything).
+					Return(nil, errors.New("pq: connection to 10.0.0.5 refused")).Once()
+			},
+			wantStatus: http.StatusInternalServerError,
+			wantErrMsg: "could not list venues",
+			check: func(t *testing.T, body []byte) {
+				require.NotContains(t, string(body), "10.0.0.5")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			venues := mocks.NewMockVenueLister(t)
+			if tt.setup != nil {
+				tt.setup(venues)
+			}
+
+			rec := do(t, mocks.NewMockUserRegister(t), mocks.NewMockVenueCreator(t), venues, http.MethodGet, "/venues"+tt.query, "")
+
+			require.Equal(t, tt.wantStatus, rec.Code)
+
+			if tt.wantNoCall {
+				venues.AssertNotCalled(t, "ListByOwner")
+			}
+
+			if tt.wantErrMsg != "" {
+				var got errorBody
+				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+				require.Equal(t, tt.wantErrMsg, got.Error)
+			}
+
+			if tt.check != nil {
+				tt.check(t, rec.Body.Bytes())
+			}
+		})
+	}
 }

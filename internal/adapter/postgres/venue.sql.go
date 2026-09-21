@@ -127,6 +127,41 @@ func (q *Queries) ListVenues(ctx context.Context) ([]Venue, error) {
 	return items, nil
 }
 
+const listVenuesByOwner = `-- name: ListVenuesByOwner :many
+SELECT id, owner_id, name, city, address, is_active, created_at, updated_at FROM venues
+WHERE owner_id = $1
+ORDER BY name
+`
+
+func (q *Queries) ListVenuesByOwner(ctx context.Context, ownerID uuid.UUID) ([]Venue, error) {
+	rows, err := q.db.Query(ctx, listVenuesByOwner, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Venue{}
+	for rows.Next() {
+		var i Venue
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Name,
+			&i.City,
+			&i.Address,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateVenue = `-- name: UpdateVenue :one
 UPDATE venues
 SET name    = $2,

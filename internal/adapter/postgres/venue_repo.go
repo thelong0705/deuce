@@ -4,11 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/thelong0705/deuce/internal/domain/entity"
 	"github.com/thelong0705/deuce/internal/domain/usecase"
 )
 
-var _ usecase.VenueCreator = (*VenueRepository)(nil)
+var (
+	_ usecase.VenueCreator = (*VenueRepository)(nil)
+	_ usecase.VenueLister  = (*VenueRepository)(nil)
+)
 
 // VenueRepository persists venues in Postgres.
 type VenueRepository struct {
@@ -43,4 +48,18 @@ func toEntityVenue(v Venue) *entity.Venue {
 		IsActive:  v.IsActive,
 		CreatedAt: v.CreatedAt.Time,
 	}
+}
+
+func (r *VenueRepository) ListVenuesByOwner(ctx context.Context, ownerID uuid.UUID) ([]entity.Venue, error) {
+	rows, err := r.q.ListVenuesByOwner(ctx, ownerID)
+	if err != nil {
+		return nil, fmt.Errorf("list venues by owner: %w", err)
+	}
+
+	venues := make([]entity.Venue, 0, len(rows))
+	for _, row := range rows {
+		venues = append(venues, *toEntityVenue(row))
+	}
+
+	return venues, nil
 }

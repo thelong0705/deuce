@@ -115,3 +115,44 @@ func TestUserRepositoryGetUser(t *testing.T) {
 		})
 	}
 }
+
+func TestVenueRepositoryListVenuesByOwner(t *testing.T) {
+	repo := NewVenueRepository(testQueries)
+	ctx := context.Background()
+
+	owner := createRandomOwner(t)
+	other := createRandomOwner(t)
+
+	first, err := repo.CreateVenue(ctx, entity.CreateVenueInput{
+		OwnerID: owner, Name: "Ace Club", City: "Hanoi", Address: "1 A St",
+	})
+	require.NoError(t, err)
+
+	second, err := repo.CreateVenue(ctx, entity.CreateVenueInput{
+		OwnerID: owner, Name: "Baseline Club", City: "Hanoi", Address: "2 B St",
+	})
+	require.NoError(t, err)
+
+	_, err = repo.CreateVenue(ctx, entity.CreateVenueInput{
+		OwnerID: other, Name: "Someone Else", City: "Hanoi", Address: "3 C St",
+	})
+	require.NoError(t, err)
+
+	got, err := repo.ListVenuesByOwner(ctx, owner)
+	require.NoError(t, err)
+
+	require.Len(t, got, 2, "another owner's venue must not appear")
+	// The query orders by name.
+	require.Equal(t, first.ID, got[0].ID)
+	require.Equal(t, second.ID, got[1].ID)
+}
+
+func TestVenueRepositoryListVenuesByOwnerWhenNone(t *testing.T) {
+	repo := NewVenueRepository(testQueries)
+
+	got, err := repo.ListVenuesByOwner(context.Background(), createRandomOwner(t))
+	require.NoError(t, err)
+
+	require.NotNil(t, got, "an empty result must marshal as [] rather than null")
+	require.Empty(t, got)
+}
