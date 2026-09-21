@@ -35,7 +35,7 @@ export function PhoneField({ countryISO, phoneNumber, error, onChange }: Props) 
           type="tel"
           autoComplete="tel-national"
           inputMode="numeric"
-          placeholder="Nhập số điện thoại"
+          placeholder="Enter phone number"
           value={phoneNumber}
           onChange={(e) => onChange({ phoneNumber: e.target.value })}
           aria-invalid={Boolean(error)}
