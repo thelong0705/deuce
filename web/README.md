@@ -46,6 +46,14 @@ POST /venues            (session cookie required)
 GET /venues             (session cookie required)
 
 200 -> { "venues": [ ... ] }
+
+POST /venues/{venueID}/courts          (session cookie required)
+{ "name": "...", "open_hour": 6, "close_hour": 22, "price_per_hour": 150 }
+
+201 -> { "id", "venue_id", "name", "open_hour", "close_hour",
+         "price_per_hour", "is_active", "created_at" }
+403 -> { "code": "not_venue_owner", "error": "..." }
+409 -> { "code": "court_name_taken", "error": "..." }
 ```
 
 Client-side validation mirrors `internal/domain/entity`: a valid email, a
@@ -77,6 +85,24 @@ role, the form can be hidden instead.
 Neither call names an owner. Both venue routes sit behind the auth middleware,
 so the server takes the owner from the session cookie — the client cannot ask
 for someone else's venues by editing a query string.
+
+Which of the two an account sees is decided by `GET /me`: the venues section
+is rendered only for an owner. A player is not shown a form whose only
+possible answer is 403. `VenueForm` still handles `not_an_owner` anyway — a
+role can change while a session is open, and this is presentation, not
+enforcement.
+
+## Courts
+
+Each venue can expand an inline form to add a court: a name, opening and
+closing hours, and a price per hour. The hour selects are bounded at the
+source — 00:00 to 23:00 for opening, 01:00 to 24:00 for closing — so the only
+ordering rule left to state is open before close.
+
+**There is no endpoint to read courts back.** Only `POST` exists, so the list
+under each venue holds what was added in this session and starts empty on
+every reload. A `GET /venues/{venueID}/courts` would fix that, and the list
+would then work like the venue list does.
 
 ### Safari on plain HTTP
 

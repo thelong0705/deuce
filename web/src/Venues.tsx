@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { VenueForm } from './VenueForm'
+import { VenueRow } from './VenueRow'
 import { ApiError, listVenues } from './api'
 import type { Venue } from './api'
 
@@ -44,13 +45,7 @@ export function Venues({ onUnauthorized }: Props) {
       ) : (
         <ul className="venues">
           {venues.map((venue) => (
-            <li key={venue.id}>
-              <span className="venue-name">{venue.name}</span>
-              {!venue.is_active && <span className="badge">Inactive</span>}
-              <span className="venue-where">
-                {venue.city} &middot; {venue.address}
-              </span>
-            </li>
+            <VenueRow key={venue.id} venue={venue} onUnauthorized={onUnauthorized} />
           ))}
         </ul>
       )}

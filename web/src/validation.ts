@@ -27,6 +27,17 @@ export type LoginFieldErrors = Partial<Record<keyof LoginInput, string>>
 
 export type VenueFieldErrors = Partial<Record<keyof VenueInput, string>>
 
+// Hours and price are held as text so the form owns the raw input; they are
+// parsed once, in validateCourt.
+export type CourtInput = {
+  name: string
+  openHour: string
+  closeHour: string
+  pricePerHour: string
+}
+
+export type CourtFieldErrors = Partial<Record<keyof CourtInput, string>>
+
 // Go measures passwords with len(), which counts bytes. A password of accented
 // or Vietnamese characters can pass a .length check here and still be rejected
 // by the server, so count bytes the same way it does.
@@ -95,6 +106,31 @@ export function validateVenue(input: VenueInput): VenueFieldErrors {
 
   if (input.address.trim() === '') {
     errors.address = 'Address is required'
+  }
+
+  return errors
+}
+
+// Mirrors CreateCourtInput.Validate. The hour selects already keep both values
+// in range, so the only ordering rule left to state is open before close.
+export function validateCourt(input: CourtInput): CourtFieldErrors {
+  const errors: CourtFieldErrors = {}
+
+  if (input.name.trim() === '') {
+    errors.name = 'Court name is required'
+  }
+
+  const open = Number(input.openHour)
+  const close = Number(input.closeHour)
+  if (open >= close) {
+    errors.closeHour = 'Closing hour must be after opening hour'
+  }
+
+  const price = Number(input.pricePerHour)
+  if (input.pricePerHour.trim() === '' || !Number.isInteger(price)) {
+    errors.pricePerHour = 'Enter a whole number'
+  } else if (price < 0) {
+    errors.pricePerHour = 'Price cannot be negative'
   }
 
   return errors
