@@ -46,13 +46,11 @@ func run() error {
 		return fmt.Errorf("connect to db: %w", err)
 	}
 
-	// The only place that knows about every layer: adapters are constructed
-	// here and handed to the use case as the ports it declared.
 	var (
-		users  = postgres.NewUserRepository(postgres.New(pool))
-		hasher = crypto.NewBcryptHasher()
-		userUC = usecase.NewUser(users, hasher)
-		api    = httpapi.NewServer(userUC)
+		userRepo = postgres.NewUserRepository(postgres.New(pool))
+		hasher   = crypto.NewBcryptHasher()
+		userUC   = usecase.NewUser(userRepo, hasher)
+		api      = httpapi.NewServer(userUC)
 	)
 
 	srv := &http.Server{
