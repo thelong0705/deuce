@@ -1,4 +1,4 @@
-import type { LoginInput, Role, SignupInput, VenueInput } from './validation'
+import type { CourtInput, LoginInput, Role, SignupInput, VenueInput } from './validation'
 
 // The shape /users and /me both return.
 export type User = {
@@ -105,6 +105,34 @@ export async function listVenues(): Promise<Venue[]> {
 
   const body = (await response.json()) as { venues?: Venue[] }
   return body.venues ?? []
+}
+
+export type Court = {
+  id: string
+  venue_id: string
+  name: string
+  open_hour: number
+  close_hour: number
+  price_per_hour: number
+  is_active: boolean
+  created_at: string
+}
+
+// The hours and the price are numbers on the wire; the form holds them as text
+// until validation has had a look.
+export async function createCourt(venueID: string, input: CourtInput): Promise<Court> {
+  const response = await request(`/venues/${encodeURIComponent(venueID)}/courts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: input.name.trim(),
+      open_hour: Number(input.openHour),
+      close_hour: Number(input.closeHour),
+      price_per_hour: Number(input.pricePerHour),
+    }),
+  })
+
+  return (await response.json()) as Court
 }
 
 async function request(path: string, init: RequestInit): Promise<Response> {
