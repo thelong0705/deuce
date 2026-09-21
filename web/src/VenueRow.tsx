@@ -19,7 +19,7 @@ export function VenueRow({ venue, onUnauthorized }: Props) {
       <span className="venue-name">{venue.name}</span>
       {!venue.is_active && <span className="badge">Inactive</span>}
       <span className="venue-where">
-        {venue.city} &middot; {venue.address}
+        {venue.city} &middot; {venue.address} &middot; {venue.timezone}
       </span>
 
       {courts.length > 0 && (

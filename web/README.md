@@ -37,9 +37,11 @@ DELETE /sessions
 204 -> Set-Cookie: deuce_session=; Max-Age=0
 
 POST /venues            (session cookie required)
-{ "name": "...", "city": "...", "address": "..." }
+{ "name": "...", "city": "...", "address": "...", "timezone": "Asia/Ho_Chi_Minh" }
 
-201 -> { "id", "owner_id", "name", "city", "address", "is_active", "created_at" }
+201 -> { "id", "owner_id", "name", "city", "address", "timezone",
+         "is_active", "created_at" }
+400 -> { "code": "venue_timezone_invalid", "error": "..." }
 401 -> { "code": "session_invalid", "error": "..." }
 403 -> { "code": "not_an_owner", "error": "..." }
 
@@ -99,17 +101,47 @@ closing hours, and a price per hour. The hour selects are bounded at the
 source — 00:00 to 23:00 for opening, 01:00 to 24:00 for closing — so the only
 ordering rule left to state is open before close.
 
+Those hours are read in the venue's timezone, which is why registering a venue
+asks for one. The select is filled from `Intl.supportedValuesOf('timeZone')`
+and defaults to the browser's own zone, since an owner is nearly always
+registering a venue where they are sitting. Where the browser will not
+enumerate zones, a short list stands in and the browser's own zone is added to
+it, so the default is never missing from its own list.
+
 **There is no endpoint to read courts back** for an owner. Only `POST` exists,
 so the list under each venue holds what was added in this session and starts
 empty on every reload. The `GET /venues/{venueID}/courts` proposed below would
 fix that too, and the list would then work like the venue list does.
 
-## Booking — written against a contract that does not exist yet
+## Booking
 
 A player sees the booking screens where an owner sees venues: search a city,
-open a venue, pick a court, pick an hour, book. **None of the endpoints below
-are implemented**, so every one of them returns 404 today and the screens say
-so. This is the same way the signup form started.
+open a venue, pick a court, pick an hour, book.
+
+**Only the booking itself is implemented.** Everything a player needs to reach
+one — browsing, listing courts, availability, and their own bookings — is
+still a proposal, returns 404 today, and the screens say so. This is the same
+way the signup form started.
+
+```
+POST /courts/{courtID}/bookings        (implemented)
+{ "starts_at": "2026-09-22T06:00:00+07:00" }
+
+201 -> { "id", "court_id", "player_id", "starts_at", "ends_at", "created_at" }
+400 -> { "code": "slot_not_on_the_hour" | "slot_in_the_past"
+                | "slot_too_far_ahead" | "slot_outside_opening_hours"
+                | "invalid_starts_at" }
+403 -> { "code": "court_inactive" | "not_a_player" | "player_inactive" }
+404 -> { "code": "court_not_found" }
+409 -> { "code": "slot_taken" }
+```
+
+The court is named by the path, so the body is only the hour, and the response
+does not repeat the court beyond its id. `slot_taken` is the one the
+`bookings (court_id, starts_at) WHERE cancelled_at IS NULL` index enforces;
+the UI reloads the times and says someone just took it.
+
+### Still proposed
 
 ```
 GET /venues/search?city=...            (session cookie required)
@@ -135,25 +167,16 @@ One entry per bookable hour between the court's `open_hour` and `close_hour`,
 with `available` false where an uncancelled booking already exists.
 
 ```
-POST /bookings                         (session cookie required)
-{ "court_id": "...", "starts_at": "2026-09-22T06:00:00+07:00" }
-
-201 -> { "id", "starts_at", "created_at",
-         "court": { "id", "name", "price_per_hour" },
-         "venue": { "id", "name", "city", "address" } }
-400 -> { "code": "slot_in_past" | "beyond_horizon" | "outside_opening_hours" }
-403 -> { "code": "court_inactive" }
-404 -> { "code": "court_not_found" }
-409 -> { "code": "slot_taken" }
-
 GET /bookings                          (session cookie required)
 
-200 -> { "bookings": [ ... same shape ... ] }
+200 -> { "bookings": [ { booking fields,
+                         "court": { "name", "price_per_hour" },
+                         "venue": { "id", "name", "city" } } ] }
 ```
 
-`slot_taken` is the one the `bookings (court_id, starts_at) WHERE cancelled_at
-IS NULL` index already enforces; the UI reloads the times and says someone
-just took it.
+The booking fields are the ones `POST` returns. The court and venue names are
+added because a list of court ids tells a player nothing, and resolving them
+in the client would be one request per row.
 
 ### Why the client never builds a timestamp
 

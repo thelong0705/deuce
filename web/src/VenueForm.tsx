@@ -3,10 +3,19 @@ import type { FormEvent } from 'react'
 
 import { ApiError, createVenue } from './api'
 import type { Venue } from './api'
+import { browserTimezone, supportedTimezones } from './timezones'
 import { validateVenue } from './validation'
 import type { VenueFieldErrors, VenueInput } from './validation'
 
-const empty: VenueInput = { name: '', city: '', address: '' }
+const empty: VenueInput = {
+  name: '',
+  city: '',
+  address: '',
+  timezone: browserTimezone(),
+}
+
+// Read once: the list is long and does not change while the page is open.
+const timezones = supportedTimezones()
 
 type Props = {
   onCreated: (venue: Venue) => void
@@ -103,6 +112,32 @@ export function VenueForm({ onCreated, onUnauthorized }: Props) {
       {fieldErrors.address && (
         <p className="field-error" id="venue-address-error">
           {fieldErrors.address}
+        </p>
+      )}
+
+      <label htmlFor="venue-timezone">
+        Timezone
+        <select
+          id="venue-timezone"
+          value={input.timezone}
+          onChange={(e) => update({ timezone: e.target.value })}
+          aria-invalid={Boolean(fieldErrors.timezone)}
+          aria-describedby={fieldErrors.timezone ? 'venue-timezone-error' : 'venue-timezone-hint'}
+        >
+          {timezones.map((zone) => (
+            <option key={zone} value={zone}>
+              {zone}
+            </option>
+          ))}
+        </select>
+      </label>
+      {fieldErrors.timezone ? (
+        <p className="field-error" id="venue-timezone-error">
+          {fieldErrors.timezone}
+        </p>
+      ) : (
+        <p className="hint" id="venue-timezone-hint">
+          Court opening hours are read in this zone.
         </p>
       )}
 

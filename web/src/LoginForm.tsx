@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 
+import { PasswordField } from './PasswordField'
 import { ApiError, login } from './api'
 import type { Session } from './api'
 import { validateLogin } from './validation'
@@ -76,23 +77,14 @@ export function LoginForm({ initialEmail = '', onSignedIn }: Props) {
         </p>
       )}
 
-      <label htmlFor="login-password">
-        Password
-        <input
-          id="login-password"
-          type="password"
-          autoComplete="current-password"
-          value={input.password}
-          onChange={(e) => update({ password: e.target.value })}
-          aria-invalid={Boolean(fieldErrors.password)}
-          aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
-        />
-      </label>
-      {fieldErrors.password && (
-        <p className="field-error" id="login-password-error">
-          {fieldErrors.password}
-        </p>
-      )}
+      <PasswordField
+        id="login-password"
+        label="Password"
+        autoComplete="current-password"
+        value={input.password}
+        error={fieldErrors.password}
+        onChange={(password) => update({ password })}
+      />
 
       {formError && (
         <p className="form-error" role="alert">
