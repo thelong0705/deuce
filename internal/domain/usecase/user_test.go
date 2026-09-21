@@ -113,7 +113,7 @@ func TestRegister(t *testing.T) {
 				hasher.EXPECT().Hash(mock.Anything).Return("hashed", nil).Once()
 				creator.EXPECT().
 					CreateUser(mock.Anything, mock.Anything).
-					Return(entity.User{}, entity.ErrEmailTaken).
+					Return(nil, entity.ErrEmailTaken).
 					Once()
 			},
 			wantErr: entity.ErrEmailTaken,
@@ -137,7 +137,7 @@ func TestRegister(t *testing.T) {
 					Run(func(_ context.Context, rec usecase.CreateUserRecord) {
 						storedRec = rec
 					}).
-					Return(entity.User{Email: "alice@example.com"}, nil).
+					Return(&entity.User{Email: "alice@example.com"}, nil).
 					Once()
 			}
 

@@ -21,7 +21,7 @@ type CreateUserRecord struct {
 
 // UserCreator creates a user.
 type UserCreator interface {
-	CreateUser(ctx context.Context, rec CreateUserRecord) (entity.User, error)
+	CreateUser(ctx context.Context, rec CreateUserRecord) (*entity.User, error)
 }
 
 // PasswordHasher keeps bcrypt out of both the domain and the use case.
@@ -39,18 +39,18 @@ func NewUser(userCreator UserCreator, hasher PasswordHasher) *User {
 }
 
 // Register validates a signup, hashes the password and persists the account.
-func (s *User) Register(ctx context.Context, in entity.CreateUserInput) (entity.User, error) {
+func (s *User) Register(ctx context.Context, in entity.CreateUserInput) (*entity.User, error) {
 	if in.Role == "" {
 		in.Role = entity.RolePlayer
 	}
 
 	if err := in.Validate(); err != nil {
-		return entity.User{}, err
+		return nil, err
 	}
 
 	hash, err := s.hasher.Hash(in.Password)
 	if err != nil {
-		return entity.User{}, fmt.Errorf("hash password: %w", err)
+		return nil, fmt.Errorf("hash password: %w", err)
 	}
 
 	return s.userCreator.CreateUser(ctx, CreateUserRecord{

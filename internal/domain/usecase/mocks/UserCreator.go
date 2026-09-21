@@ -25,22 +25,24 @@ func (_m *MockUserCreator) EXPECT() *MockUserCreator_Expecter {
 }
 
 // CreateUser provides a mock function with given fields: ctx, rec
-func (_m *MockUserCreator) CreateUser(ctx context.Context, rec usecase.CreateUserRecord) (entity.User, error) {
+func (_m *MockUserCreator) CreateUser(ctx context.Context, rec usecase.CreateUserRecord) (*entity.User, error) {
 	ret := _m.Called(ctx, rec)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateUser")
 	}
 
-	var r0 entity.User
+	var r0 *entity.User
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, usecase.CreateUserRecord) (entity.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, usecase.CreateUserRecord) (*entity.User, error)); ok {
 		return rf(ctx, rec)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, usecase.CreateUserRecord) entity.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, usecase.CreateUserRecord) *entity.User); ok {
 		r0 = rf(ctx, rec)
 	} else {
-		r0 = ret.Get(0).(entity.User)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*entity.User)
+		}
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, usecase.CreateUserRecord) error); ok {
@@ -71,12 +73,12 @@ func (_c *MockUserCreator_CreateUser_Call) Run(run func(ctx context.Context, rec
 	return _c
 }
 
-func (_c *MockUserCreator_CreateUser_Call) Return(_a0 entity.User, _a1 error) *MockUserCreator_CreateUser_Call {
+func (_c *MockUserCreator_CreateUser_Call) Return(_a0 *entity.User, _a1 error) *MockUserCreator_CreateUser_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockUserCreator_CreateUser_Call) RunAndReturn(run func(context.Context, usecase.CreateUserRecord) (entity.User, error)) *MockUserCreator_CreateUser_Call {
+func (_c *MockUserCreator_CreateUser_Call) RunAndReturn(run func(context.Context, usecase.CreateUserRecord) (*entity.User, error)) *MockUserCreator_CreateUser_Call {
 	_c.Call.Return(run)
 	return _c
 }
