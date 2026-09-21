@@ -51,6 +51,23 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const getCredentialsByEmail = `-- name: GetCredentialsByEmail :one
+SELECT id, password_hash FROM users
+WHERE email = $1 LIMIT 1
+`
+
+type GetCredentialsByEmailRow struct {
+	ID           uuid.UUID `json:"id"`
+	PasswordHash string    `json:"password_hash"`
+}
+
+func (q *Queries) GetCredentialsByEmail(ctx context.Context, email string) (GetCredentialsByEmailRow, error) {
+	row := q.db.QueryRow(ctx, getCredentialsByEmail, email)
+	var i GetCredentialsByEmailRow
+	err := row.Scan(&i.ID, &i.PasswordHash)
+	return i, err
+}
+
 const getUser = `-- name: GetUser :one
 SELECT id, email, password_hash, display_name, phone_number, role, is_active, created_at, updated_at FROM users
 WHERE id = $1 LIMIT 1
