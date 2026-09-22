@@ -168,6 +168,65 @@ func (_c *MockBookingRepo_ConfirmBooking_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
+// GetBooking provides a mock function with given fields: ctx, bookingID
+func (_m *MockBookingRepo) GetBooking(ctx context.Context, bookingID uuid.UUID) (*entity.Booking, error) {
+	ret := _m.Called(ctx, bookingID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetBooking")
+	}
+
+	var r0 *entity.Booking
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*entity.Booking, error)); ok {
+		return rf(ctx, bookingID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) *entity.Booking); ok {
+		r0 = rf(ctx, bookingID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*entity.Booking)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, bookingID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockBookingRepo_GetBooking_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetBooking'
+type MockBookingRepo_GetBooking_Call struct {
+	*mock.Call
+}
+
+// GetBooking is a helper method to define mock.On call
+//   - ctx context.Context
+//   - bookingID uuid.UUID
+func (_e *MockBookingRepo_Expecter) GetBooking(ctx interface{}, bookingID interface{}) *MockBookingRepo_GetBooking_Call {
+	return &MockBookingRepo_GetBooking_Call{Call: _e.mock.On("GetBooking", ctx, bookingID)}
+}
+
+func (_c *MockBookingRepo_GetBooking_Call) Run(run func(ctx context.Context, bookingID uuid.UUID)) *MockBookingRepo_GetBooking_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *MockBookingRepo_GetBooking_Call) Return(_a0 *entity.Booking, _a1 error) *MockBookingRepo_GetBooking_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockBookingRepo_GetBooking_Call) RunAndReturn(run func(context.Context, uuid.UUID) (*entity.Booking, error)) *MockBookingRepo_GetBooking_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetBookingByPayment provides a mock function with given fields: ctx, paymentIntentID
 func (_m *MockBookingRepo) GetBookingByPayment(ctx context.Context, paymentIntentID string) (*entity.Booking, error) {
 	ret := _m.Called(ctx, paymentIntentID)

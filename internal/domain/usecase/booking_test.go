@@ -661,3 +661,123 @@ func TestBookingHandlePaymentEvent(t *testing.T) {
 		})
 	}
 }
+
+func TestBookingResumePayment(t *testing.T) {
+	boom := errors.New("boom")
+	bookingID := uuid.New()
+
+	// held is a slot this player still owes money on.
+	held := func() *entity.Booking {
+		expires := time.Now().Add(10 * time.Minute)
+		return &entity.Booking{
+			ID:              bookingID,
+			PlayerID:        bookingPlayerID,
+			CourtID:         bookingCourtID,
+			Status:          entity.StatusPendingPayment,
+			HoldExpiresAt:   &expires,
+			PaymentIntentID: "pi_1",
+		}
+	}
+
+	tests := []struct {
+		name     string
+		playerID uuid.UUID
+		setup    func(m bookingMocks)
+		wantErr  error
+	}{
+		{
+			name:     "hands back the secret for a standing hold",
+			playerID: bookingPlayerID,
+			setup: func(m bookingMocks) {
+				m.bookings.EXPECT().GetBooking(mock.Anything, bookingID).Return(held(), nil).Once()
+				m.payments.EXPECT().GetPayment(mock.Anything, "pi_1").
+					Return(&entity.Payment{IntentID: "pi_1", ClientSecret: "pi_1_secret"}, nil).Once()
+			},
+		},
+		{
+			// Not forbidden: whether it exists is not theirs to learn.
+			name:     "somebody else's booking is not found",
+			playerID: uuid.New(),
+			setup: func(m bookingMocks) {
+				m.bookings.EXPECT().GetBooking(mock.Anything, bookingID).Return(held(), nil).Once()
+			},
+			wantErr: entity.ErrBookingNotFound,
+		},
+		{
+			name:     "an unknown booking is not found",
+			playerID: bookingPlayerID,
+			setup: func(m bookingMocks) {
+				m.bookings.EXPECT().GetBooking(mock.Anything, bookingID).
+					Return(nil, entity.ErrBookingNotFound).Once()
+			},
+			wantErr: entity.ErrBookingNotFound,
+		},
+		{
+			name:     "a booking already paid for is refused",
+			playerID: bookingPlayerID,
+			setup: func(m bookingMocks) {
+				booking := held()
+				booking.Status = entity.StatusConfirmed
+				m.bookings.EXPECT().GetBooking(mock.Anything, bookingID).Return(booking, nil).Once()
+			},
+			wantErr: entity.ErrAlreadyPaid,
+		},
+		{
+			// No fresh payment is opened: the slot is gone.
+			name:     "a lapsed hold is refused",
+			playerID: bookingPlayerID,
+			setup: func(m bookingMocks) {
+				booking := held()
+				expired := time.Now().Add(-time.Minute)
+				booking.HoldExpiresAt = &expired
+				m.bookings.EXPECT().GetBooking(mock.Anything, bookingID).Return(booking, nil).Once()
+			},
+			wantErr: entity.ErrHoldLapsed,
+		},
+		{
+			name:     "a cancelled booking is refused",
+			playerID: bookingPlayerID,
+			setup: func(m bookingMocks) {
+				booking := held()
+				cancelled := time.Now()
+				booking.CancelledAt = &cancelled
+				m.bookings.EXPECT().GetBooking(mock.Anything, bookingID).Return(booking, nil).Once()
+			},
+			wantErr: entity.ErrHoldLapsed,
+		},
+		{
+			name:     "an empty player is refused without a lookup",
+			playerID: uuid.Nil,
+			setup:    func(bookingMocks) {},
+			wantErr:  entity.ErrPlayerRequired,
+		},
+		{
+			name:     "propagates a gateway failure",
+			playerID: bookingPlayerID,
+			setup: func(m bookingMocks) {
+				m.bookings.EXPECT().GetBooking(mock.Anything, bookingID).Return(held(), nil).Once()
+				m.payments.EXPECT().GetPayment(mock.Anything, mock.Anything).Return(nil, boom).Once()
+			},
+			wantErr: boom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newBookingMocks(t)
+			tt.setup(m)
+
+			got, err := m.svc().ResumePayment(context.Background(), tt.playerID, bookingID)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				require.Nil(t, got)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, "pi_1_secret", got.ClientSecret)
+			require.Equal(t, bookingID, got.Booking.ID)
+		})
+	}
+}

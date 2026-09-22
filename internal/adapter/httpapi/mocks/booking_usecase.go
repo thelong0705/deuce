@@ -252,6 +252,66 @@ func (_c *MockBookingUsecase_ListForPlayer_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// ResumePayment provides a mock function with given fields: ctx, playerID, bookingID
+func (_m *MockBookingUsecase) ResumePayment(ctx context.Context, playerID uuid.UUID, bookingID uuid.UUID) (*entity.HeldBooking, error) {
+	ret := _m.Called(ctx, playerID, bookingID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ResumePayment")
+	}
+
+	var r0 *entity.HeldBooking
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (*entity.HeldBooking, error)); ok {
+		return rf(ctx, playerID, bookingID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) *entity.HeldBooking); ok {
+		r0 = rf(ctx, playerID, bookingID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*entity.HeldBooking)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, playerID, bookingID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockBookingUsecase_ResumePayment_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ResumePayment'
+type MockBookingUsecase_ResumePayment_Call struct {
+	*mock.Call
+}
+
+// ResumePayment is a helper method to define mock.On call
+//   - ctx context.Context
+//   - playerID uuid.UUID
+//   - bookingID uuid.UUID
+func (_e *MockBookingUsecase_Expecter) ResumePayment(ctx interface{}, playerID interface{}, bookingID interface{}) *MockBookingUsecase_ResumePayment_Call {
+	return &MockBookingUsecase_ResumePayment_Call{Call: _e.mock.On("ResumePayment", ctx, playerID, bookingID)}
+}
+
+func (_c *MockBookingUsecase_ResumePayment_Call) Run(run func(ctx context.Context, playerID uuid.UUID, bookingID uuid.UUID)) *MockBookingUsecase_ResumePayment_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *MockBookingUsecase_ResumePayment_Call) Return(_a0 *entity.HeldBooking, _a1 error) *MockBookingUsecase_ResumePayment_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockBookingUsecase_ResumePayment_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) (*entity.HeldBooking, error)) *MockBookingUsecase_ResumePayment_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockBookingUsecase creates a new instance of MockBookingUsecase. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockBookingUsecase(t interface {

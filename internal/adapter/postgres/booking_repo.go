@@ -226,6 +226,18 @@ func (r *BookingRepository) GetBookingByPayment(ctx context.Context, paymentInte
 	return toEntityBooking(row)
 }
 
+func (r *BookingRepository) GetBooking(ctx context.Context, id uuid.UUID) (*entity.Booking, error) {
+	row, err := r.q.GetBooking(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, entity.ErrBookingNotFound
+		}
+		return nil, fmt.Errorf("get booking: %w", err)
+	}
+
+	return toEntityBooking(row)
+}
+
 var _ usecase.PaymentEventLog = (*BookingRepository)(nil)
 
 // RecordEvent reports whether this is the first time the event has been seen.

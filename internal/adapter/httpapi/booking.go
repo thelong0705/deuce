@@ -208,3 +208,35 @@ func (s *Server) listBookings(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, bookingListResponse{Bookings: out})
 }
+
+var errInvalidBookingID = apperr.New(apperr.KindInvalid, "invalid_booking_id", "booking id must be a valid uuid")
+
+// resumePayment hands back the secret for a payment already opened, for a
+// player who walked away from one.
+//
+// POST rather than GET because the response carries a payment secret, and a
+// GET is the one a proxy or a history is liable to keep.
+func (s *Server) resumePayment(w http.ResponseWriter, r *http.Request) {
+	player, ok := UserFromContext(r.Context())
+	if !ok {
+		writeInternalError(w)
+		return
+	}
+
+	bookingID, err := uuid.Parse(chi.URLParam(r, "bookingID"))
+	if err != nil {
+		writeAppError(w, errInvalidBookingID)
+		return
+	}
+
+	held, err := s.bookings.ResumePayment(r.Context(), player.ID, bookingID)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, heldBookingResponse{
+		bookingResponse: newBookingResponse(held.Booking),
+		ClientSecret:    held.ClientSecret,
+	})
+}
