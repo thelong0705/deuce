@@ -1011,7 +1011,7 @@ components:
 
     Booking:
       type: object
-      required: [id, court_id, player_id, starts_at, ends_at, status, amount, created_at]
+      required: [id, court_id, player_id, starts_at, ends_at, status, amount, hold_expires_at, created_at]
       properties:
         id:
           type: string
@@ -1042,6 +1042,13 @@ components:
             What the slot cost when it was held, in the smallest unit of the
             court's currency. The court's price may change afterwards; this
             does not.
+        hold_expires_at:
+          type: [string, "null"]
+          format: date-time
+          description: |
+            When an unpaid slot goes back, and null once it is paid for. A
+            client counting down should count to this rather than to its own
+            reckoning of fifteen minutes.
         created_at:
           type: string
           format: date-time

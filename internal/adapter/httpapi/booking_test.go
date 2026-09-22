@@ -31,15 +31,17 @@ func validBookingBody() string {
 
 func createdBooking() *entity.Booking {
 	amount := 300000
+	holdExpiresAt := bookedSlot().Add(-time.Hour)
 
 	return &entity.Booking{
-		ID:        uuid.New(),
-		CourtID:   bookingCourtID,
-		PlayerID:  venueOwnerID,
-		StartsAt:  bookedSlot(),
-		Status:    entity.StatusPendingPayment,
-		Amount:    &amount,
-		CreatedAt: time.Now(),
+		ID:            uuid.New(),
+		CourtID:       bookingCourtID,
+		PlayerID:      venueOwnerID,
+		StartsAt:      bookedSlot(),
+		Status:        entity.StatusPendingPayment,
+		Amount:        &amount,
+		HoldExpiresAt: &holdExpiresAt,
+		CreatedAt:     time.Now(),
 	}
 }
 
@@ -85,6 +87,10 @@ func TestCreateBooking(t *testing.T) {
 				// would settle it.
 				require.Equal(t, "pending_payment", got["status"])
 				require.Equal(t, float64(300000), got["amount"])
+
+				// The deadline a client counts down to is the server's, not
+				// one worked out from a duration the client hardcodes.
+				require.NotEmpty(t, got["hold_expires_at"])
 
 				startsAt, err := time.Parse(time.RFC3339, got["starts_at"].(string))
 				require.NoError(t, err)
