@@ -18,7 +18,7 @@ MIGRATE := docker run --rm \
 	$(MIGRATE_IMAGE) \
 	-path=/migration -database "$(DB_URL)"
 
-.PHONY: db-start db-down db-wait db-psql db-test-create db-reset \
+.PHONY: db-start db-down db-wait db-psql seed db-test-create db-reset \
         redis-start redis-down redis-wait redis-cli dev \
         migrate-up migrate-down migrate-version \
         sqlc-gen build test test-cover mocks \
@@ -40,6 +40,10 @@ db-wait:
 
 db-psql:
 	$(COMPOSE) exec -it postgres psql -U $(DB_USER) -d $(DB_NAME)
+
+seed:
+	$(COMPOSE) exec -T postgres psql -v ON_ERROR_STOP=1 -U $(DB_USER) -d $(DB_NAME) \
+		< db/postgres/seed.sql
 
 db-test-create:
 	@$(COMPOSE) exec -T postgres createdb -U $(DB_USER) $(TEST_DB_NAME) 2>/dev/null \

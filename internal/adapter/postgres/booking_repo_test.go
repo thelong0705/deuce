@@ -23,6 +23,7 @@ func createRandomCourt(t *testing.T) Court {
 		OpenHour:     0,
 		CloseHour:    24,
 		PricePerHour: 120000,
+		Currency:     CurrencyVND,
 	})
 	require.NoError(t, err)
 

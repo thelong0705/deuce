@@ -140,6 +140,7 @@ type playerBookingResponse struct {
 type playerBookingCourt struct {
 	Name         string `json:"name"`
 	PricePerHour int    `json:"price_per_hour"`
+	Currency     string `json:"currency"`
 }
 
 type playerBookingVenue struct {
@@ -172,6 +173,7 @@ func (s *Server) listBookings(w http.ResponseWriter, r *http.Request) {
 			Court: playerBookingCourt{
 				Name:         b.Court.Name,
 				PricePerHour: b.Court.PricePerHour,
+				Currency:     b.Court.Currency.String(),
 			},
 			Venue: playerBookingVenue{
 				ID:   b.Venue.ID,

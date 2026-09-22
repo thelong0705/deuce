@@ -12,6 +12,47 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Currency string
+
+const (
+	CurrencyVND Currency = "VND"
+)
+
+func (e *Currency) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = Currency(s)
+	case string:
+		*e = Currency(s)
+	default:
+		return fmt.Errorf("unsupported scan type for Currency: %T", src)
+	}
+	return nil
+}
+
+type NullCurrency struct {
+	Currency Currency `json:"currency"`
+	Valid    bool     `json:"valid"` // Valid is true if Currency is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCurrency) Scan(value interface{}) error {
+	if value == nil {
+		ns.Currency, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.Currency.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCurrency) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.Currency), nil
+}
+
 type UserRole string
 
 const (
@@ -80,6 +121,7 @@ type Court struct {
 	IsActive     bool               `json:"is_active"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	Currency     Currency           `json:"currency"`
 }
 
 type Session struct {

@@ -828,9 +828,17 @@ components:
           type: string
           format: date-time
 
+    Currency:
+      type: string
+      enum: [VND]
+      description: |
+        What the court's price is quoted in. Only Vietnamese dong is supported
+        so far; the field exists so a price is never stored without one.
+      examples: [VND]
+
     CreateCourtRequest:
       type: object
-      required: [name, open_hour, close_hour, price_per_hour]
+      required: [name, open_hour, close_hour, price_per_hour, currency]
       properties:
         name:
           type: string
@@ -850,12 +858,14 @@ components:
         price_per_hour:
           type: integer
           minimum: 0
-          description: In the smallest currency unit. Zero is a free court.
+          description: In the smallest unit of the currency. Zero is a free court.
           examples: [120000]
+        currency:
+          $ref: "#/components/schemas/Currency"
 
     Court:
       type: object
-      required: [id, venue_id, name, open_hour, close_hour, price_per_hour, is_active, created_at]
+      required: [id, venue_id, name, open_hour, close_hour, price_per_hour, currency, is_active, created_at]
       properties:
         id:
           type: string
@@ -871,6 +881,8 @@ components:
           type: integer
         price_per_hour:
           type: integer
+        currency:
+          $ref: "#/components/schemas/Currency"
         is_active:
           type: boolean
         created_at:
@@ -910,12 +922,14 @@ components:
           properties:
             court:
               type: object
-              required: [name, price_per_hour]
+              required: [name, price_per_hour, currency]
               properties:
                 name:
                   type: string
                 price_per_hour:
                   type: integer
+                currency:
+                  $ref: "#/components/schemas/Currency"
             venue:
               type: object
               required: [id, name, city]

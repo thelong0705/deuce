@@ -22,7 +22,7 @@ func courtsPath() string {
 }
 
 func validCourtBody() string {
-	return `{"name":"Court 1","open_hour":6,"close_hour":22,"price_per_hour":120000}`
+	return `{"name":"Court 1","open_hour":6,"close_hour":22,"price_per_hour":120000,"currency":"VND"}`
 }
 
 func createdCourt() *entity.Court {
@@ -33,6 +33,7 @@ func createdCourt() *entity.Court {
 		OpenHour:     6,
 		CloseHour:    22,
 		PricePerHour: 120000,
+		Currency:     entity.CurrencyVND,
 		IsActive:     true,
 		CreatedAt:    time.Now(),
 	}
@@ -65,9 +66,33 @@ func TestCreateCourt(t *testing.T) {
 				require.Equal(t, float64(6), got["open_hour"])
 				require.Equal(t, float64(22), got["close_hour"])
 				require.Equal(t, float64(120000), got["price_per_hour"])
+				require.Equal(t, "VND", got["currency"])
 				require.Equal(t, true, got["is_active"])
 				require.NotEmpty(t, got["id"])
 			},
+		},
+		{
+			name: "passes the currency through to the use case",
+			body: validCourtBody(),
+			setup: func(courts *mocks.MockCourtUsecase) {
+				courts.EXPECT().
+					Create(mock.Anything, mock.MatchedBy(func(in entity.CreateCourtInput) bool {
+						return in.Currency == entity.CurrencyVND
+					})).
+					Return(createdCourt(), nil).Once()
+			},
+			wantStatus: http.StatusCreated,
+		},
+		{
+			// The handler does not police the value; the domain does.
+			name: "an unsupported currency is refused by the domain",
+			body: `{"name":"Court 1","open_hour":6,"close_hour":22,"price_per_hour":120000,"currency":"USD"}`,
+			setup: func(courts *mocks.MockCourtUsecase) {
+				courts.EXPECT().Create(mock.Anything, mock.Anything).
+					Return(nil, entity.ErrCurrencyInvalid).Once()
+			},
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: entity.ErrCurrencyInvalid.Error(),
 		},
 		{
 			name:       "rejects a venue id that is not a uuid",

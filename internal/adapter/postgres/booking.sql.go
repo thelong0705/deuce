@@ -44,7 +44,7 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 }
 
 const getCourtVenue = `-- name: GetCourtVenue :one
-SELECT courts.id, courts.venue_id, courts.name, courts.open_hour, courts.close_hour, courts.price_per_hour, courts.is_active, courts.created_at, courts.updated_at, venues.id, venues.owner_id, venues.name, venues.city, venues.address, venues.is_active, venues.created_at, venues.updated_at, venues.timezone
+SELECT courts.id, courts.venue_id, courts.name, courts.open_hour, courts.close_hour, courts.price_per_hour, courts.is_active, courts.created_at, courts.updated_at, courts.currency, venues.id, venues.owner_id, venues.name, venues.city, venues.address, venues.is_active, venues.created_at, venues.updated_at, venues.timezone
 FROM courts
 JOIN venues ON venues.id = courts.venue_id
 WHERE courts.id = $1
@@ -68,6 +68,7 @@ func (q *Queries) GetCourtVenue(ctx context.Context, id uuid.UUID) (GetCourtVenu
 		&i.Court.IsActive,
 		&i.Court.CreatedAt,
 		&i.Court.UpdatedAt,
+		&i.Court.Currency,
 		&i.Venue.ID,
 		&i.Venue.OwnerID,
 		&i.Venue.Name,
@@ -157,7 +158,7 @@ func (q *Queries) ListBookedSlotsForCourts(ctx context.Context, arg ListBookedSl
 }
 
 const listPlayerBookings = `-- name: ListPlayerBookings :many
-SELECT bookings.id, bookings.court_id, bookings.player_id, bookings.is_block, bookings.starts_at, bookings.cancelled_at, bookings.created_at, bookings.updated_at, courts.id, courts.venue_id, courts.name, courts.open_hour, courts.close_hour, courts.price_per_hour, courts.is_active, courts.created_at, courts.updated_at, venues.id, venues.owner_id, venues.name, venues.city, venues.address, venues.is_active, venues.created_at, venues.updated_at, venues.timezone
+SELECT bookings.id, bookings.court_id, bookings.player_id, bookings.is_block, bookings.starts_at, bookings.cancelled_at, bookings.created_at, bookings.updated_at, courts.id, courts.venue_id, courts.name, courts.open_hour, courts.close_hour, courts.price_per_hour, courts.is_active, courts.created_at, courts.updated_at, courts.currency, venues.id, venues.owner_id, venues.name, venues.city, venues.address, venues.is_active, venues.created_at, venues.updated_at, venues.timezone
 FROM bookings
 JOIN courts ON courts.id = bookings.court_id
 JOIN venues ON venues.id = courts.venue_id
@@ -205,6 +206,7 @@ func (q *Queries) ListPlayerBookings(ctx context.Context, arg ListPlayerBookings
 			&i.Court.IsActive,
 			&i.Court.CreatedAt,
 			&i.Court.UpdatedAt,
+			&i.Court.Currency,
 			&i.Venue.ID,
 			&i.Venue.OwnerID,
 			&i.Venue.Name,

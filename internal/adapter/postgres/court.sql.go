@@ -13,11 +13,11 @@ import (
 
 const createCourt = `-- name: CreateCourt :one
 INSERT INTO courts (
-    venue_id, name, open_hour, close_hour, price_per_hour
+    venue_id, name, open_hour, close_hour, price_per_hour, currency
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4, $5, $6
 )
-RETURNING id, venue_id, name, open_hour, close_hour, price_per_hour, is_active, created_at, updated_at
+RETURNING id, venue_id, name, open_hour, close_hour, price_per_hour, is_active, created_at, updated_at, currency
 `
 
 type CreateCourtParams struct {
@@ -26,6 +26,7 @@ type CreateCourtParams struct {
 	OpenHour     int16     `json:"open_hour"`
 	CloseHour    int16     `json:"close_hour"`
 	PricePerHour int32     `json:"price_per_hour"`
+	Currency     Currency  `json:"currency"`
 }
 
 func (q *Queries) CreateCourt(ctx context.Context, arg CreateCourtParams) (Court, error) {
@@ -35,6 +36,7 @@ func (q *Queries) CreateCourt(ctx context.Context, arg CreateCourtParams) (Court
 		arg.OpenHour,
 		arg.CloseHour,
 		arg.PricePerHour,
+		arg.Currency,
 	)
 	var i Court
 	err := row.Scan(
@@ -47,12 +49,13 @@ func (q *Queries) CreateCourt(ctx context.Context, arg CreateCourtParams) (Court
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Currency,
 	)
 	return i, err
 }
 
 const listCourtsByVenue = `-- name: ListCourtsByVenue :many
-SELECT id, venue_id, name, open_hour, close_hour, price_per_hour, is_active, created_at, updated_at FROM courts
+SELECT id, venue_id, name, open_hour, close_hour, price_per_hour, is_active, created_at, updated_at, currency FROM courts
 WHERE venue_id = $1 AND is_active
 ORDER BY name
 `
@@ -76,6 +79,7 @@ func (q *Queries) ListCourtsByVenue(ctx context.Context, venueID uuid.UUID) ([]C
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Currency,
 		); err != nil {
 			return nil, err
 		}
@@ -88,7 +92,7 @@ func (q *Queries) ListCourtsByVenue(ctx context.Context, venueID uuid.UUID) ([]C
 }
 
 const searchCourts = `-- name: SearchCourts :many
-SELECT courts.id, courts.venue_id, courts.name, courts.open_hour, courts.close_hour, courts.price_per_hour, courts.is_active, courts.created_at, courts.updated_at, venues.id, venues.owner_id, venues.name, venues.city, venues.address, venues.is_active, venues.created_at, venues.updated_at, venues.timezone
+SELECT courts.id, courts.venue_id, courts.name, courts.open_hour, courts.close_hour, courts.price_per_hour, courts.is_active, courts.created_at, courts.updated_at, courts.currency, venues.id, venues.owner_id, venues.name, venues.city, venues.address, venues.is_active, venues.created_at, venues.updated_at, venues.timezone
 FROM courts
 JOIN venues ON venues.id = courts.venue_id
 WHERE venues.city = $1
@@ -121,6 +125,7 @@ func (q *Queries) SearchCourts(ctx context.Context, city string) ([]SearchCourts
 			&i.Court.IsActive,
 			&i.Court.CreatedAt,
 			&i.Court.UpdatedAt,
+			&i.Court.Currency,
 			&i.Venue.ID,
 			&i.Venue.OwnerID,
 			&i.Venue.Name,
