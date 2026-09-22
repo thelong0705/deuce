@@ -27,10 +27,11 @@ type VenueUsecase interface {
 	Search(ctx context.Context, city string) ([]entity.Venue, error)
 }
 
-// CourtUsecase registers and lists the courts at a venue.
+// CourtUsecase registers, lists and searches courts.
 type CourtUsecase interface {
 	Create(ctx context.Context, in entity.CreateCourtInput) (*entity.Court, error)
 	ListByVenue(ctx context.Context, venueID uuid.UUID) ([]entity.Court, error)
+	Search(ctx context.Context, in entity.CourtSearch) ([]entity.CourtAvailability, error)
 }
 
 // CityUsecase reads the cities deuce operates in.
@@ -101,6 +102,7 @@ func (s *Server) routes() {
 
 		r.Get("/venues/search", s.searchVenues)
 		r.Get("/venues/{venueID}/courts", s.listCourts)
+		r.Get("/courts/search", s.searchCourts)
 		r.Get("/courts/{courtID}/availability", s.courtAvailability)
 		r.Get("/bookings", s.listBookings)
 		r.Get("/cities", s.listCities)

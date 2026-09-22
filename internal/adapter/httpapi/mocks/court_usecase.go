@@ -143,6 +143,65 @@ func (_c *MockCourtUsecase_ListByVenue_Call) RunAndReturn(run func(context.Conte
 	return _c
 }
 
+// Search provides a mock function with given fields: ctx, in
+func (_m *MockCourtUsecase) Search(ctx context.Context, in entity.CourtSearch) ([]entity.CourtAvailability, error) {
+	ret := _m.Called(ctx, in)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Search")
+	}
+
+	var r0 []entity.CourtAvailability
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, entity.CourtSearch) ([]entity.CourtAvailability, error)); ok {
+		return rf(ctx, in)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, entity.CourtSearch) []entity.CourtAvailability); ok {
+		r0 = rf(ctx, in)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]entity.CourtAvailability)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, entity.CourtSearch) error); ok {
+		r1 = rf(ctx, in)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockCourtUsecase_Search_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Search'
+type MockCourtUsecase_Search_Call struct {
+	*mock.Call
+}
+
+// Search is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in entity.CourtSearch
+func (_e *MockCourtUsecase_Expecter) Search(ctx interface{}, in interface{}) *MockCourtUsecase_Search_Call {
+	return &MockCourtUsecase_Search_Call{Call: _e.mock.On("Search", ctx, in)}
+}
+
+func (_c *MockCourtUsecase_Search_Call) Run(run func(ctx context.Context, in entity.CourtSearch)) *MockCourtUsecase_Search_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(entity.CourtSearch))
+	})
+	return _c
+}
+
+func (_c *MockCourtUsecase_Search_Call) Return(_a0 []entity.CourtAvailability, _a1 error) *MockCourtUsecase_Search_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockCourtUsecase_Search_Call) RunAndReturn(run func(context.Context, entity.CourtSearch) ([]entity.CourtAvailability, error)) *MockCourtUsecase_Search_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockCourtUsecase creates a new instance of MockCourtUsecase. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockCourtUsecase(t interface {

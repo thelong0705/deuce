@@ -432,6 +432,85 @@ paths:
                 code: slot_taken
                 error: that slot is already taken
 
+  /courts/search:
+    get:
+      tags: [courts]
+      summary: Courts with a free slot in a city
+      operationId: searchCourts
+      description: |
+        Where a player can play: the active courts in a city that still have a
+        free window on a date, between two hours of the day, and which windows
+        those are.
+
+        `from_hour` and `to_hour` bound the **local** start of a window, read in
+        each venue's own timezone, so one search can span venues in different
+        zones and still mean what was asked. A window starting at `to_hour` is
+        excluded, since it would run past the hour asked for. Omitting either
+        searches the whole day; the court's own opening hours narrow it.
+
+        A court with nothing free is left out rather than returned with an empty
+        list: the question is where a booking can be taken.
+
+        This is a snapshot, not a hold, exactly as for court availability.
+      parameters:
+        - name: city
+          in: query
+          required: true
+          schema:
+            type: string
+          example: Hanoi
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: A calendar date, read in each venue's timezone.
+          example: "2026-09-25"
+        - name: from_hour
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 23
+            default: 0
+          example: 18
+        - name: to_hour
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 24
+            default: 24
+          example: 22
+      responses:
+        "200":
+          description: The courts with something free, by venue then court
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [courts]
+                properties:
+                  courts:
+                    type: array
+                    items:
+                      type: object
+                      required: [court, venue, slots]
+                      properties:
+                        court:
+                          $ref: "#/components/schemas/Court"
+                        venue:
+                          $ref: "#/components/schemas/Venue"
+                        slots:
+                          type: array
+                          items:
+                            $ref: "#/components/schemas/Slot"
+        "400":
+          $ref: "#/components/responses/Invalid"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /courts/{courtID}/availability:
     get:
       tags: [bookings]

@@ -303,3 +303,187 @@ func TestListCourts(t *testing.T) {
 		})
 	}
 }
+
+func searchResult() entity.CourtAvailability {
+	at := time.Date(2026, 9, 25, 18, 0, 0, 0, time.UTC)
+
+	return entity.CourtAvailability{
+		Court: *createdCourt(),
+		Venue: *createdVenue(),
+		Slots: []entity.Slot{
+			{StartsAt: at, Available: true},
+			{StartsAt: at.Add(entity.SlotDuration), Available: true},
+		},
+	}
+}
+
+func TestSearchCourts(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+		setup func(courts *mocks.MockCourtUsecase)
+		// wantNoCall asserts the use case was never reached
+		wantNoCall bool
+		wantStatus int
+		wantErrMsg string
+		check      func(t *testing.T, body []byte)
+	}{
+		{
+			name:  "returns the courts with something free",
+			query: "?city=Hanoi&date=2026-09-25&from_hour=18&to_hour=22",
+			setup: func(courts *mocks.MockCourtUsecase) {
+				courts.EXPECT().Search(mock.Anything, mock.Anything).
+					Return([]entity.CourtAvailability{searchResult()}, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body []byte) {
+				var got struct {
+					Courts []struct {
+						Court map[string]any   `json:"court"`
+						Venue map[string]any   `json:"venue"`
+						Slots []map[string]any `json:"slots"`
+					} `json:"courts"`
+				}
+				require.NoError(t, json.Unmarshal(body, &got))
+
+				require.Len(t, got.Courts, 1)
+				require.Equal(t, "Court 1", got.Courts[0].Court["name"])
+				// The venue travels with the court; its name alone says nothing.
+				require.Equal(t, "Ace Tennis Club", got.Courts[0].Venue["name"])
+				require.Len(t, got.Courts[0].Slots, 2)
+				require.Equal(t, true, got.Courts[0].Slots[0]["available"])
+				require.NotEmpty(t, got.Courts[0].Slots[0]["ends_at"])
+			},
+		},
+		{
+			name:  "a city with nothing free gets an empty array",
+			query: "?city=Hanoi&date=2026-09-25",
+			setup: func(courts *mocks.MockCourtUsecase) {
+				courts.EXPECT().Search(mock.Anything, mock.Anything).
+					Return([]entity.CourtAvailability{}, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body []byte) {
+				// null would break clients that iterate the result.
+				require.Contains(t, string(body), `"courts":[]`)
+			},
+		},
+		{
+			name:       "a missing date is rejected",
+			query:      "?city=Hanoi",
+			wantNoCall: true,
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: "date must be YYYY-MM-DD",
+		},
+		{
+			name:       "a date that is not a date is rejected",
+			query:      "?city=Hanoi&date=friday",
+			wantNoCall: true,
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: "date must be YYYY-MM-DD",
+		},
+		{
+			name:       "an hour that is not a number is rejected",
+			query:      "?city=Hanoi&date=2026-09-25&from_hour=evening",
+			wantNoCall: true,
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: "from_hour and to_hour must be whole hours between 0 and 24",
+		},
+		{
+			name:  "a missing city becomes 400",
+			query: "?date=2026-09-25",
+			setup: func(courts *mocks.MockCourtUsecase) {
+				courts.EXPECT().Search(mock.Anything, mock.Anything).
+					Return(nil, entity.ErrSearchCityRequired).Once()
+			},
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: entity.ErrSearchCityRequired.Error(),
+		},
+		{
+			name:  "an impossible window becomes 400",
+			query: "?city=Hanoi&date=2026-09-25&from_hour=22&to_hour=6",
+			setup: func(courts *mocks.MockCourtUsecase) {
+				courts.EXPECT().Search(mock.Anything, mock.Anything).
+					Return(nil, entity.ErrSearchHoursInvalid).Once()
+			},
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: entity.ErrSearchHoursInvalid.Error(),
+		},
+		{
+			name:  "an unexpected error becomes 500 without leaking detail",
+			query: "?city=Hanoi&date=2026-09-25",
+			setup: func(courts *mocks.MockCourtUsecase) {
+				courts.EXPECT().Search(mock.Anything, mock.Anything).
+					Return(nil, errors.New("pq: connection to 10.0.0.5 refused")).Once()
+			},
+			wantStatus: http.StatusInternalServerError,
+			wantErrMsg: "internal error",
+			check: func(t *testing.T, body []byte) {
+				require.NotContains(t, string(body), "10.0.0.5")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			courts := mocks.NewMockCourtUsecase(t)
+			if tt.setup != nil {
+				tt.setup(courts)
+			}
+
+			rec := doAuthed(t, deps{users: signedInOwner(t), courts: courts},
+				http.MethodGet, "/courts/search"+tt.query, "")
+
+			require.Equal(t, tt.wantStatus, rec.Code)
+
+			if tt.wantNoCall {
+				courts.AssertNotCalled(t, "Search")
+			}
+
+			if tt.wantErrMsg != "" {
+				var got errorBody
+				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+				require.Equal(t, tt.wantErrMsg, got.Error)
+			}
+
+			if tt.check != nil {
+				tt.check(t, rec.Body.Bytes())
+			}
+		})
+	}
+}
+
+// An absent window is the whole day, so a player who only names a date gets
+// everything the court is open for.
+func TestSearchCourtsDefaultsToTheWholeDay(t *testing.T) {
+	courts := mocks.NewMockCourtUsecase(t)
+
+	courts.EXPECT().
+		Search(mock.Anything, mock.MatchedBy(func(in entity.CourtSearch) bool {
+			return in.City == "Hanoi" &&
+				in.FromHour == 0 &&
+				in.ToHour == 24 &&
+				in.Date.Format(time.DateOnly) == "2026-09-25"
+		})).
+		Return([]entity.CourtAvailability{}, nil).
+		Once()
+
+	rec := doAuthed(t, deps{users: signedInOwner(t), courts: courts},
+		http.MethodGet, "/courts/search?city=Hanoi&date=2026-09-25", "")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestSearchCourtsRequiresASession(t *testing.T) {
+	users := mocks.NewMockUserUsecase(t)
+	users.EXPECT().Authenticate(mock.Anything, "").
+		Return(nil, entity.ErrSessionInvalid).Once()
+
+	courts := mocks.NewMockCourtUsecase(t)
+
+	rec := do(t, deps{users: users, courts: courts},
+		http.MethodGet, "/courts/search?city=Hanoi&date=2026-09-25", "")
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	courts.AssertNotCalled(t, "Search")
+}
