@@ -30,9 +30,8 @@ type SessionStore interface {
 	DeleteSession(ctx context.Context, tokenHash string) error
 }
 
-// SessionCache remembers session lookups. A miss and a failure are the same
-// thing to a caller, so it reports neither: every one falls through to the
-// SessionStore, and the cache never decides whether a request succeeds.
+// SessionCache remembers session lookups. It reports no errors: a failure is a
+// miss, so it can never decide whether a request succeeds.
 type SessionCache interface {
 	GetSessionUser(ctx context.Context, tokenHash string) (*entity.Session, *entity.User, bool)
 	PutSessionUser(ctx context.Context, tokenHash string, session *entity.Session, user *entity.User)
@@ -76,11 +75,9 @@ func (s *User) Login(ctx context.Context, in entity.LoginInput) (string, *entity
 	return raw, session, nil
 }
 
-// Authenticate returns the user behind a session token.
-//
-// The cache is consulted first and filled on a miss, but it decides nothing:
-// expiry and the account being active are checked on the way out, so a cached
-// session that has since lapsed is still refused.
+// Authenticate returns the user behind a session token. Expiry and the account
+// being active are checked after the lookup, so a cached session that has since
+// lapsed is still refused.
 func (s *User) Authenticate(ctx context.Context, token string) (*entity.User, error) {
 	if token == "" {
 		return nil, entity.ErrSessionInvalid
@@ -94,8 +91,8 @@ func (s *User) Authenticate(ctx context.Context, token string) (*entity.User, er
 
 		session, user, err = s.sessions.GetSessionUser(ctx, tokenHash)
 		if err != nil {
-			// A rejection is not remembered: refusing an unknown token again is
-			// cheap, and holding the absence would have to be undone at login.
+			// Rejections are not cached: holding one would have to be undone at
+			// login.
 			return nil, err
 		}
 
@@ -121,8 +118,8 @@ func (s *User) Logout(ctx context.Context, token string) error {
 
 	tokenHash := hashSessionToken(token)
 
-	// Evicted before the row goes. The other order would leave the session
-	// usable from the cache if this step failed.
+	// Evicted before the row goes, or a failure here would leave the session
+	// usable from the cache.
 	s.cache.DeleteSession(ctx, tokenHash)
 
 	return s.sessions.DeleteSession(ctx, tokenHash)

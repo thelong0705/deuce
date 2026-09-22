@@ -15,20 +15,14 @@ import (
 
 var _ usecase.SessionCache = (*SessionCache)(nil)
 
-// SessionCache remembers session lookups in Redis.
-//
-// When to read, write and evict is the use case's business; this only decides
-// how an entry is stored and for how long. Every failure here is swallowed and
-// logged, because the use case reads through on a miss and a cache must not be
-// able to fail a request.
+// SessionCache remembers session lookups in Redis. Every failure is logged and
+// reported as a miss, so the use case reads through rather than failing.
 type SessionCache struct {
 	rdb *goredis.Client
 	ttl time.Duration
 }
 
-// Options is how the cache expects its client to be configured: a cache that
-// stalls is worse than no cache, so a slow or unreachable Redis gives up
-// quickly and the request reads through instead of waiting.
+// Options gives up quickly, because a cache that stalls is worse than no cache.
 func Options(addr string) *goredis.Options {
 	return &goredis.Options{
 		Addr:         addr,
@@ -43,8 +37,6 @@ func NewSessionCache(rdb *goredis.Client, ttl time.Duration) *SessionCache {
 	return &SessionCache{rdb: rdb, ttl: ttl}
 }
 
-// cachedSession is what an entry holds. The raw token is not in it, and not in
-// the key either: the key is already the token's hash.
 type cachedSession struct {
 	Session entity.Session `json:"session"`
 	User    entity.User    `json:"user"`
@@ -54,9 +46,6 @@ func sessionKey(tokenHash string) string {
 	return "session:" + tokenHash
 }
 
-// GetSessionUser reports false for a miss, an unreadable entry and an
-// unreachable Redis alike. The caller reads through in every one of those
-// cases, so a cache problem slows a request down rather than failing it.
 func (c *SessionCache) GetSessionUser(ctx context.Context, tokenHash string) (*entity.Session, *entity.User, bool) {
 	raw, err := c.rdb.Get(ctx, sessionKey(tokenHash)).Bytes()
 	if err != nil {
@@ -76,8 +65,8 @@ func (c *SessionCache) GetSessionUser(ctx context.Context, tokenHash string) (*e
 }
 
 func (c *SessionCache) PutSessionUser(ctx context.Context, tokenHash string, session *entity.Session, user *entity.User) {
-	// An entry must not outlive the session it describes, or expiry would stop
-	// being enforced for as long as it lingered.
+	// An entry must not outlive the session, or expiry would go unenforced for
+	// as long as it lingered.
 	ttl := c.ttl
 	if until := time.Until(session.ExpiresAt); until < ttl {
 		ttl = until
