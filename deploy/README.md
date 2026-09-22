@@ -1,7 +1,8 @@
 # Deploying deuce
 
-`gke.yaml` is the whole deployment and its header has the commands. This file is
-what does not fit in a comment: what it costs, and what is still missing.
+`gke.yaml` is the whole deployment. `STEPS.md` walks through deploying it from
+nothing, with a note on what each command is for. This file is the shape of it:
+what runs where, what it costs, and what is still missing.
 
 ## What runs where
 
