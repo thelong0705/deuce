@@ -465,3 +465,103 @@ func TestBookingRepositoryCancelBookingFreesTheSlot(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, first.ID, again.ID)
 }
+
+func TestBookingRepositoryConfirmBooking(t *testing.T) {
+	repo := NewBookingRepository(testQueries)
+	ctx := context.Background()
+
+	booking, err := hold(t, repo, validBookSlotInput(t))
+	require.NoError(t, err)
+	require.Equal(t, entity.StatusPendingPayment, booking.Status)
+
+	intent := "pi_confirm_" + gofakeit.LetterN(12)
+	require.NoError(t, repo.AttachPayment(ctx, booking.ID, intent))
+	require.NoError(t, repo.ConfirmBooking(ctx, booking.ID))
+
+	got, err := repo.GetBookingByPayment(ctx, intent)
+	require.NoError(t, err)
+
+	require.Equal(t, booking.ID, got.ID)
+	require.Equal(t, entity.StatusConfirmed, got.Status)
+	// Nothing is owed any more, so there is nothing left to expire.
+	require.Nil(t, got.HoldExpiresAt)
+	require.False(t, got.AwaitsPayment(time.Now()))
+}
+
+func TestBookingRepositoryGetBookingByPayment(t *testing.T) {
+	repo := NewBookingRepository(testQueries)
+	ctx := context.Background()
+
+	booking, err := hold(t, repo, validBookSlotInput(t))
+	require.NoError(t, err)
+
+	intent := "pi_lookup_" + gofakeit.LetterN(12)
+	require.NoError(t, repo.AttachPayment(ctx, booking.ID, intent))
+
+	got, err := repo.GetBookingByPayment(ctx, intent)
+	require.NoError(t, err)
+	require.Equal(t, booking.ID, got.ID)
+	require.Equal(t, intent, got.PaymentIntentID)
+
+	_, err = repo.GetBookingByPayment(ctx, "pi_never_seen")
+	require.ErrorIs(t, err, entity.ErrBookingNotFound)
+}
+
+// The insert decides who is first, so two deliveries of the same event arriving
+// at once cannot both be told to act on it.
+func TestBookingRepositoryRecordEvent(t *testing.T) {
+	repo := NewBookingRepository(testQueries)
+	ctx := context.Background()
+
+	id := "evt_" + gofakeit.LetterN(16)
+
+	first, err := repo.RecordEvent(ctx, id, "payment_succeeded")
+	require.NoError(t, err)
+	require.True(t, first)
+
+	again, err := repo.RecordEvent(ctx, id, "payment_succeeded")
+	require.NoError(t, err)
+	require.False(t, again, "the same event must not be handled twice")
+
+	other, err := repo.RecordEvent(ctx, "evt_"+gofakeit.LetterN(16), "payment_failed")
+	require.NoError(t, err)
+	require.True(t, other)
+}
+
+func TestBookingRepositoryRecordEventSettlesRacesInTheDatabase(t *testing.T) {
+	const deliveries = 8
+
+	repo := NewBookingRepository(testQueries)
+	id := "evt_" + gofakeit.LetterN(16)
+
+	var (
+		wg     sync.WaitGroup
+		mu     sync.Mutex
+		firsts int
+	)
+
+	start := make(chan struct{})
+
+	for range deliveries {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			<-start
+
+			first, err := repo.RecordEvent(context.Background(), id, "payment_succeeded")
+			require.NoError(t, err)
+
+			if first {
+				mu.Lock()
+				firsts++
+				mu.Unlock()
+			}
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+
+	require.Equal(t, 1, firsts, "exactly one delivery may be told it is first")
+}

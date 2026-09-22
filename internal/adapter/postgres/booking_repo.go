@@ -205,3 +205,40 @@ func (r *BookingRepository) ListBookedSlotsForCourts(ctx context.Context, courtI
 
 	return byCourt, nil
 }
+
+func (r *BookingRepository) ConfirmBooking(ctx context.Context, bookingID uuid.UUID) error {
+	if err := r.q.ConfirmBooking(ctx, bookingID); err != nil {
+		return fmt.Errorf("confirm booking: %w", err)
+	}
+
+	return nil
+}
+
+func (r *BookingRepository) GetBookingByPayment(ctx context.Context, paymentIntentID string) (*entity.Booking, error) {
+	row, err := r.q.GetBookingByPayment(ctx, pgtype.Text{String: paymentIntentID, Valid: true})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, entity.ErrBookingNotFound
+		}
+		return nil, fmt.Errorf("get booking by payment: %w", err)
+	}
+
+	return toEntityBooking(row)
+}
+
+var _ usecase.PaymentEventLog = (*BookingRepository)(nil)
+
+// RecordEvent reports whether this is the first time the event has been seen.
+// The insert does the deciding, so two deliveries arriving at once cannot both
+// be told they are first.
+func (r *BookingRepository) RecordEvent(ctx context.Context, id, eventType string) (bool, error) {
+	_, err := r.q.RecordStripeEvent(ctx, RecordStripeEventParams{ID: id, Type: eventType})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("record stripe event: %w", err)
+	}
+
+	return true, nil
+}

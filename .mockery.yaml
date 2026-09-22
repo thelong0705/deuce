@@ -21,6 +21,7 @@ packages:
       CourtRepo:
       BookedSlotFinder:
       PaymentGateway:
+      PaymentEventLog:
       BookingRepo:
       CourtFinder:
       UserFinder:
@@ -37,6 +38,7 @@ packages:
       VenueUsecase:
       CourtUsecase:
       BookingUsecase:
+      PaymentWebhook:
 
 # Silence v3 deprecation warnings by opting into the future defaults now.
 resolve-type-alias: false
