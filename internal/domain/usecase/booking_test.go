@@ -260,10 +260,10 @@ func TestBookingAvailability(t *testing.T) {
 		wantErr       error
 	}{
 		{
-			name: "every open hour, all free",
+			name: "every window, all free",
 			setup: func(m bookingMocks) {
 				m.courts.EXPECT().GetCourtWithVenue(mock.Anything, bookingCourtID).
-					Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 9, IsActive: true},
+					Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 12, IsActive: true},
 						bookableVenue(), nil).Once()
 				m.bookings.EXPECT().ListBookedSlots(mock.Anything, bookingCourtID, mock.Anything, mock.Anything).
 					Return(nil, nil).Once()
@@ -271,12 +271,12 @@ func TestBookingAvailability(t *testing.T) {
 			wantAvailable: []bool{true, true, true},
 		},
 		{
-			name: "a booked hour comes back unavailable, and stays listed",
+			name: "a booked window comes back unavailable, and stays listed",
 			setup: func(m bookingMocks) {
 				m.courts.EXPECT().GetCourtWithVenue(mock.Anything, bookingCourtID).
-					Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 9, IsActive: true},
+					Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 12, IsActive: true},
 						bookableVenue(), nil).Once()
-				taken := time.Date(day.Year(), day.Month(), day.Day(), 7, 0, 0, 0, time.UTC)
+				taken := time.Date(day.Year(), day.Month(), day.Day(), 8, 0, 0, 0, time.UTC)
 				m.bookings.EXPECT().ListBookedSlots(mock.Anything, bookingCourtID, mock.Anything, mock.Anything).
 					Return([]time.Time{taken}, nil).Once()
 			},
@@ -286,7 +286,7 @@ func TestBookingAvailability(t *testing.T) {
 			name: "a booking stored in another offset still matches its hour",
 			setup: func(m bookingMocks) {
 				m.courts.EXPECT().GetCourtWithVenue(mock.Anything, bookingCourtID).
-					Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 8, IsActive: true},
+					Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 10, IsActive: true},
 						bookableVenue(), nil).Once()
 				// The same instant as 06:00 UTC, written down somewhere else.
 				elsewhere := time.FixedZone("UTC+7", 7*3600)
@@ -300,7 +300,7 @@ func TestBookingAvailability(t *testing.T) {
 			name: "a closed court is not asked about bookings",
 			setup: func(m bookingMocks) {
 				m.courts.EXPECT().GetCourtWithVenue(mock.Anything, bookingCourtID).
-					Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 9}, bookableVenue(), nil).Once()
+					Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 12}, bookableVenue(), nil).Once()
 			},
 			wantAvailable: []bool{},
 		},
@@ -436,7 +436,7 @@ func TestBookingAvailabilityAsksForTheWholeDay(t *testing.T) {
 	courts := mocks.NewMockCourtFinder(t)
 
 	courts.EXPECT().GetCourtWithVenue(mock.Anything, bookingCourtID).
-		Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 9, IsActive: true},
+		Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 12, IsActive: true},
 			bookableVenue(), nil).Once()
 
 	var from, to time.Time

@@ -93,16 +93,17 @@ func TestBookingEndsAt(t *testing.T) {
 
 	got := entity.Booking{StartsAt: start}.EndsAt()
 
-	require.Equal(t, start.Add(time.Hour), got)
+	require.Equal(t, start.Add(entity.SlotDuration), got)
 }
 
 func TestCourtValidateSlot(t *testing.T) {
 	hcm, err := time.LoadLocation("Asia/Ho_Chi_Minh")
 	require.NoError(t, err)
 
-	// 09:00 in Ho Chi Minh City, comfortably inside a 6-22 court.
+	// 10:00 in Ho Chi Minh City: a window start for a 6-22 court, since the
+	// windows tile 06:00, 08:00, 10:00 and so on.
 	now := time.Date(2026, 9, 22, 8, 0, 0, 0, hcm)
-	slot := time.Date(2026, 9, 22, 9, 0, 0, 0, hcm)
+	slot := time.Date(2026, 9, 22, 10, 0, 0, 0, hcm)
 
 	court := entity.Court{OpenHour: 6, CloseHour: 22, IsActive: true}
 
@@ -121,17 +122,28 @@ func TestCourtValidateSlot(t *testing.T) {
 			startsAt: time.Date(2026, 9, 23, 6, 0, 0, 0, hcm),
 		},
 		{
-			// The slot runs an hour, so 21:00-22:00 is the last one.
+			// The window runs two hours, so 20:00-22:00 is the last one.
 			name:     "the last slot of the day",
-			startsAt: time.Date(2026, 9, 23, 21, 0, 0, 0, hcm),
+			startsAt: time.Date(2026, 9, 23, 20, 0, 0, 0, hcm),
 		},
 		{
-			name:     "a slot expressed in another timezone is still local 09:00",
+			name:     "an hour inside opening hours but mid-window",
+			startsAt: time.Date(2026, 9, 23, 9, 0, 0, 0, hcm),
+			wantErr:  entity.ErrSlotNotOnTheGrid,
+		},
+		{
+			// The grid starts at opening, not at midnight.
+			name:     "the grid follows an odd opening hour",
+			court:    func(c *entity.Court) { c.OpenHour = 7 },
+			startsAt: time.Date(2026, 9, 23, 9, 0, 0, 0, hcm),
+		},
+		{
+			name:     "a slot expressed in another timezone is still local 10:00",
 			startsAt: slot.UTC(),
 		},
 		{
 			name:     "exactly two weeks ahead",
-			startsAt: slot.Add(entity.BookingHorizon - time.Hour),
+			startsAt: slot.Add(entity.BookingHorizon - entity.SlotDuration),
 		},
 		{
 			name:     "half past the hour",
@@ -230,14 +242,25 @@ func TestCourtSlotsOn(t *testing.T) {
 		want  []int
 	}{
 		{
-			name:  "every open hour, last one starting before closing",
+			name:  "windows tile the day from opening",
 			court: entity.Court{OpenHour: 6, CloseHour: 10, IsActive: true},
-			want:  []int{6, 7, 8, 9},
+			want:  []int{6, 8},
 		},
 		{
-			name:  "a court open one hour offers one slot",
+			name:  "the grid follows the opening hour, odd or not",
+			court: entity.Court{OpenHour: 7, CloseHour: 11, IsActive: true},
+			want:  []int{7, 9},
+		},
+		{
+			// 10:00-12:00 would run past closing, so the odd hour is unused.
+			name:  "an odd span leaves a gap at the end rather than a short window",
+			court: entity.Court{OpenHour: 6, CloseHour: 11, IsActive: true},
+			want:  []int{6, 8},
+		},
+		{
+			name:  "a court open less than one window offers nothing",
 			court: entity.Court{OpenHour: 6, CloseHour: 7, IsActive: true},
-			want:  []int{6},
+			want:  nil,
 		},
 		{
 			name:  "an inactive court offers nothing",
@@ -245,10 +268,10 @@ func TestCourtSlotsOn(t *testing.T) {
 			want:  nil,
 		},
 		{
-			name:  "hours already gone are absent, not unavailable",
-			court: entity.Court{OpenHour: 6, CloseHour: 10, IsActive: true},
+			name:  "windows already started are absent, not unavailable",
+			court: entity.Court{OpenHour: 6, CloseHour: 12, IsActive: true},
 			now:   time.Date(2026, 9, 22, 8, 30, 0, 0, hcm),
-			want:  []int{9},
+			want:  []int{10},
 		},
 		{
 			name:  "a day past the horizon offers nothing",
@@ -292,7 +315,7 @@ func TestCourtSlotsOnResolvesTheDateInTheVenueTimezone(t *testing.T) {
 	hcm, err := time.LoadLocation("Asia/Ho_Chi_Minh")
 	require.NoError(t, err)
 
-	court := entity.Court{OpenHour: 6, CloseHour: 8, IsActive: true}
+	court := entity.Court{OpenHour: 6, CloseHour: 10, IsActive: true}
 	now := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
 
 	slots := court.SlotsOn(time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC), hcm, now)
@@ -317,4 +340,31 @@ func TestCourtSlotsOnAgreesWithValidateSlot(t *testing.T) {
 			require.NoError(t, court.ValidateSlot(slot, hcm, now), "offered %s", slot)
 		}
 	}
+}
+
+// Every window the court offers is two hours long and butts against the next,
+// which is what "6-8, 8-10" means in practice.
+func TestCourtSlotsOnAreTwoHourWindowsBackToBack(t *testing.T) {
+	hcm, err := time.LoadLocation("Asia/Ho_Chi_Minh")
+	require.NoError(t, err)
+
+	court := entity.Court{OpenHour: 6, CloseHour: 12, IsActive: true}
+	day := time.Date(2026, 9, 23, 0, 0, 0, 0, hcm)
+	now := day.Add(-24 * time.Hour)
+
+	slots := court.SlotsOn(day, hcm, now)
+	require.Len(t, slots, 3)
+
+	for i, start := range slots {
+		end := entity.Slot{StartsAt: start}.EndsAt()
+		require.Equal(t, 2*time.Hour, end.Sub(start))
+
+		if i > 0 {
+			previousEnd := entity.Slot{StartsAt: slots[i-1]}.EndsAt()
+			require.True(t, previousEnd.Equal(start), "window %d starts where %d ended", i, i-1)
+		}
+	}
+
+	require.Equal(t, 6, slots[0].Hour())
+	require.Equal(t, 12, entity.Slot{StartsAt: slots[2]}.EndsAt().Hour())
 }

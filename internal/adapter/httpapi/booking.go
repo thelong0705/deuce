@@ -88,6 +88,7 @@ var errInvalidDate = apperr.New(apperr.KindInvalid, "invalid_date", "date must b
 
 type slotResponse struct {
 	StartsAt  time.Time `json:"starts_at"`
+	EndsAt    time.Time `json:"ends_at"`
 	Available bool      `json:"available"`
 }
 
@@ -119,7 +120,11 @@ func (s *Server) courtAvailability(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]slotResponse, 0, len(slots))
 	for _, slot := range slots {
-		out = append(out, slotResponse{StartsAt: slot.StartsAt, Available: slot.Available})
+		out = append(out, slotResponse{
+			StartsAt:  slot.StartsAt,
+			EndsAt:    slot.EndsAt(),
+			Available: slot.Available,
+		})
 	}
 
 	writeJSON(w, http.StatusOK, availabilityResponse{Slots: out})

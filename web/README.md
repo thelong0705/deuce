@@ -116,7 +116,7 @@ fix that too, and the list would then work like the venue list does.
 ## Booking
 
 A player sees the booking screens where an owner sees venues: search a city,
-open a venue, pick a court, pick an hour, book.
+open a venue, pick a court, pick a two-hour window, book.
 
 **Only the booking itself is implemented.** Everything a player needs to reach
 one — browsing, listing courts, availability, and their own bookings — is
@@ -128,8 +128,9 @@ POST /courts/{courtID}/bookings        (implemented)
 { "starts_at": "2026-09-22T06:00:00+07:00" }
 
 201 -> { "id", "court_id", "player_id", "starts_at", "ends_at", "created_at" }
-400 -> { "code": "slot_not_on_the_hour" | "slot_in_the_past"
-                | "slot_too_far_ahead" | "slot_outside_opening_hours"
+400 -> { "code": "slot_not_on_the_hour" | "slot_not_on_the_grid"
+                | "slot_in_the_past" | "slot_too_far_ahead"
+                | "slot_outside_opening_hours"
                 | "invalid_starts_at" }
 403 -> { "code": "court_inactive" | "not_a_player" | "player_inactive" }
 404 -> { "code": "court_not_found" }
@@ -160,11 +161,15 @@ GET /venues/{venueID}/courts           (session cookie required)
 GET /courts/{courtID}/availability?date=YYYY-MM-DD
 
 200 -> { "slots": [ { "starts_at": "2026-09-22T06:00:00+07:00",
+                      "ends_at":   "2026-09-22T08:00:00+07:00",
                       "available": true } ] }
 ```
 
-One entry per bookable hour between the court's `open_hour` and `close_hour`,
-with `available` false where an uncancelled booking already exists.
+One entry per bookable two-hour window. Windows tile the day from the court's
+`open_hour`, so 06:00-10:00 offers 06:00-08:00 and 08:00-10:00 and nothing in
+between; `available` is false where an uncancelled booking already holds one.
+Each entry carries its own `ends_at`, so the client never encodes how long a
+slot runs.
 
 ```
 GET /bookings                          (session cookie required)

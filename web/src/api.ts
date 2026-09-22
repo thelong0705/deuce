@@ -170,6 +170,9 @@ export type Slot = {
   // echoing back a value the server offered. That keeps the whole question of
   // which timezone an hour belongs to on the server, where the venue is.
   starts_at: string
+  // ends_at comes from the server too, so how long a slot runs stays one
+  // fact in one place rather than a duration duplicated here.
+  ends_at: string
   available: boolean
 }
 
