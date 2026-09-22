@@ -15,8 +15,7 @@ type Props = {
 export function CourtSlots({ court, onBooked, onUnauthorized }: Props) {
   const [date, setDate] = useState(isoDate(new Date()))
   const [slots, setSlots] = useState<Slot[] | null>(null)
-  // The whole slot is held, not just its start, so the window can be named
-  // without this file knowing how long one runs.
+  // The whole slot is held, not just its start, so the window can be named.
   const [picked, setPicked] = useState<Slot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [booking, setBooking] = useState(false)
@@ -152,8 +151,6 @@ function pad(value: number): string {
   return String(value).padStart(2, '0')
 }
 
-// The end comes from the server, so a two-hour slot reads as one even though
-// nothing here knows that is how long it runs.
 function formatWindow(slot: Slot): string {
   return `${formatTime(slot.starts_at)}\u2013${formatTime(slot.ends_at)}`
 }

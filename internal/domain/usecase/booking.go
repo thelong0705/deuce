@@ -12,11 +12,10 @@ import (
 // BookingRepo stores bookings.
 type BookingRepo interface {
 	CreateBooking(ctx context.Context, in entity.BookSlotInput) (*entity.Booking, error)
-	// ListBookedSlots returns the start times still held on a court between
-	// from inclusive and to exclusive. Cancelled bookings are not held.
+	// ListBookedSlots returns the start times still held on a court, from
+	// inclusive to exclusive.
 	ListBookedSlots(ctx context.Context, courtID uuid.UUID, from, to time.Time) ([]time.Time, error)
-	// ListPlayerBookings returns a player's uncancelled bookings starting at
-	// or after from, earliest first.
+	// ListPlayerBookings returns a player's uncancelled bookings from then on.
 	ListPlayerBookings(ctx context.Context, playerID uuid.UUID, from time.Time) ([]entity.PlayerBooking, error)
 }
 
@@ -72,11 +71,8 @@ func (s *Booking) Book(ctx context.Context, in entity.BookSlotInput) (*entity.Bo
 	return s.bookings.CreateBooking(ctx, in)
 }
 
-// Availability reports the court's hours on one calendar date, resolved in the
-// venue's timezone, and whether each is still free.
-//
-// It is a snapshot, not a reservation: a slot reported free can be taken
-// before the player acts on it. Book is where that race is settled.
+// Availability reports the court's windows on one calendar date and whether
+// each is still free. It is a snapshot, not a hold: Book settles the race.
 func (s *Booking) Availability(ctx context.Context, courtID uuid.UUID, day time.Time) ([]entity.Slot, error) {
 	if courtID == uuid.Nil {
 		return nil, entity.ErrCourtRequired
@@ -96,15 +92,13 @@ func (s *Booking) Availability(ctx context.Context, courtID uuid.UUID, day time.
 		return []entity.Slot{}, nil
 	}
 
-	// One query for the whole day rather than one per hour.
 	last := starts[len(starts)-1]
 	taken, err := s.bookings.ListBookedSlots(ctx, courtID, starts[0], last.Add(entity.SlotDuration))
 	if err != nil {
 		return nil, err
 	}
 
-	// Keyed by instant, so a booking stored in one offset still matches a slot
-	// built in another.
+	// Keyed by instant, so an offset written elsewhere still matches.
 	held := make(map[int64]bool, len(taken))
 	for _, at := range taken {
 		held[at.UnixNano()] = true
@@ -118,8 +112,7 @@ func (s *Booking) Availability(ctx context.Context, courtID uuid.UUID, day time.
 	return slots, nil
 }
 
-// ListForPlayer returns the player's bookings from now on. Slots already
-// played are not what the list is for.
+// ListForPlayer returns the player's bookings from now on.
 func (s *Booking) ListForPlayer(ctx context.Context, playerID uuid.UUID) ([]entity.PlayerBooking, error) {
 	if playerID == uuid.Nil {
 		return nil, entity.ErrPlayerRequired
