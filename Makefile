@@ -4,6 +4,7 @@ DB_NAME   ?= deuce
 CONTAINER := deuce-postgres
 DB_SERVICE := postgres
 DB_VOLUME  := deuce-pgdata
+REDIS_SERVICE := redis
 TEST_DB_NAME := deuce_test
 MIGRATIONS_DIR := db/postgres/migration
 MIGRATE_IMAGE := migrate/migrate:v4.17.1
@@ -18,6 +19,7 @@ MIGRATE := docker run --rm \
 	-path=/migration -database "$(DB_URL)"
 
 .PHONY: db-start db-down db-wait db-psql db-test-create db-reset \
+        redis-start redis-down redis-wait redis-cli dev \
         migrate-up migrate-down migrate-version \
         sqlc-gen build test test-cover mocks \
         lint fmt fmt-check \
@@ -51,6 +53,22 @@ db-reset:
 	@$(MAKE) migrate-up
 	@$(MAKE) migrate-up DB_NAME=$(TEST_DB_NAME)
 
+redis-start:
+	$(COMPOSE) up -d $(REDIS_SERVICE)
+	@$(MAKE) redis-wait
+
+redis-down:
+	$(COMPOSE) down $(REDIS_SERVICE)
+
+redis-wait:
+	@echo "waiting for redis..."
+	@until $(COMPOSE) exec -T $(REDIS_SERVICE) redis-cli ping >/dev/null 2>&1; \
+		do sleep 0.5; done
+	@echo "redis ready"
+
+redis-cli:
+	$(COMPOSE) exec -it $(REDIS_SERVICE) redis-cli
+
 migrate-up:
 	$(MIGRATE) up
 
@@ -67,6 +85,13 @@ COVERAGE_TOOL := github.com/vladopajic/go-test-coverage/v2@v2.19.0
 
 build:
 	go build -v ./...
+
+# dev brings up everything the server needs and then runs it. The server pings
+# both on startup and stops if either is missing, so they are waited for first.
+dev:
+	@$(MAKE) db-start
+	@$(MAKE) redis-start
+	@$(MAKE) server
 
 server:
 	go run ./cmd/deuce
