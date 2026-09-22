@@ -39,6 +39,15 @@ func createdBooking() *entity.Booking {
 	}
 }
 
+// heldBooking is what Book returns: the slot, and the secret the browser pays
+// with.
+func heldBooking() *entity.HeldBooking {
+	return &entity.HeldBooking{
+		Booking:      *createdBooking(),
+		ClientSecret: "pi_1_secret_abc",
+	}
+}
+
 func TestCreateBooking(t *testing.T) {
 	tests := []struct {
 		name string
@@ -64,6 +73,9 @@ func TestCreateBooking(t *testing.T) {
 				require.Equal(t, bookingCourtID.String(), got["court_id"])
 				require.Equal(t, venueOwnerID.String(), got["player_id"])
 				require.NotEmpty(t, got["id"])
+				// The browser needs the secret to pay, and this is the only
+				// response that carries it.
+				require.Equal(t, "pi_1_secret_abc", got["client_secret"])
 
 				startsAt, err := time.Parse(time.RFC3339, got["starts_at"].(string))
 				require.NoError(t, err)
@@ -187,7 +199,7 @@ func TestCreateBooking(t *testing.T) {
 				tt.setup(bookings)
 			case !tt.wantNoCall:
 				bookings.EXPECT().Book(mock.Anything, mock.Anything).
-					Return(createdBooking(), nil).Once()
+					Return(heldBooking(), nil).Once()
 			}
 
 			path := tt.path
@@ -229,7 +241,7 @@ func TestCreateBookingTakesTheCourtPlayerAndInstantFromTheRequest(t *testing.T) 
 				in.PlayerID == venueOwnerID &&
 				in.StartsAt.Equal(bookedSlot())
 		})).
-		Return(createdBooking(), nil).
+		Return(heldBooking(), nil).
 		Once()
 
 	rec := doAuthed(t, deps{users: signedInOwner(t), bookings: bookings}, http.MethodPost, bookingsPath(),

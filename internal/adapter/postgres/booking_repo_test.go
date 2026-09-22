@@ -14,6 +14,13 @@ import (
 	"github.com/thelong0705/deuce/internal/domain/entity"
 )
 
+// hold takes a slot with the price and expiry the use case would supply.
+func hold(t *testing.T, repo *BookingRepository, in entity.BookSlotInput) (*entity.Booking, error) {
+	t.Helper()
+
+	return repo.HoldSlot(context.Background(), in, 240000, time.Now().Add(entity.PaymentHold))
+}
+
 func createRandomCourt(t *testing.T) Court {
 	t.Helper()
 
@@ -51,7 +58,7 @@ func validBookSlotInput(t *testing.T) entity.BookSlotInput {
 	}
 }
 
-func TestBookingRepositoryCreateBooking(t *testing.T) {
+func TestBookingRepositoryHoldSlot(t *testing.T) {
 	repo := NewBookingRepository(testQueries)
 
 	tests := []struct {
@@ -64,7 +71,7 @@ func TestBookingRepositoryCreateBooking(t *testing.T) {
 		check      func(t *testing.T, in entity.BookSlotInput, got *entity.Booking)
 	}{
 		{
-			name: "books the slot",
+			name: "holds the slot",
 			in:   validBookSlotInput,
 			check: func(t *testing.T, in entity.BookSlotInput, got *entity.Booking) {
 				require.Equal(t, in.CourtID, got.CourtID)
@@ -72,12 +79,14 @@ func TestBookingRepositoryCreateBooking(t *testing.T) {
 				require.True(t, in.StartsAt.Equal(got.StartsAt))
 				require.False(t, got.IsBlock)
 				require.True(t, got.IsActive())
-				// Nothing is charged for yet, so the row owes nothing and has
-				// no payment attached.
-				require.Equal(t, entity.StatusConfirmed, got.Status)
-				require.Nil(t, got.Amount)
-				require.Nil(t, got.HoldExpiresAt)
+				// The slot is taken but not paid for, and no payment is
+				// attached until the gateway has opened one.
+				require.Equal(t, entity.StatusPendingPayment, got.Status)
+				require.NotNil(t, got.Amount)
+				require.Equal(t, 240000, *got.Amount)
+				require.NotNil(t, got.HoldExpiresAt)
 				require.Empty(t, got.PaymentIntentID)
+				require.True(t, got.AwaitsPayment(time.Now()))
 			},
 		},
 		{
@@ -102,7 +111,7 @@ func TestBookingRepositoryCreateBooking(t *testing.T) {
 			in: func(t *testing.T) entity.BookSlotInput {
 				in := validBookSlotInput(t)
 
-				_, err := repo.CreateBooking(context.Background(), in)
+				_, err := hold(t, repo, in)
 				require.NoError(t, err)
 
 				// A different player going for the same court and hour.
@@ -117,7 +126,7 @@ func TestBookingRepositoryCreateBooking(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			in := tt.in(t)
 
-			got, err := repo.CreateBooking(context.Background(), in)
+			got, err := hold(t, repo, in)
 
 			switch {
 			case tt.wantErr != nil:
@@ -169,7 +178,7 @@ func TestBookingRepositoryCreateBookingSettlesRacesInTheDatabase(t *testing.T) {
 			defer wg.Done()
 			<-start
 
-			got, err := repo.CreateBooking(context.Background(), entity.BookSlotInput{
+			got, err := hold(t, repo, entity.BookSlotInput{
 				PlayerID: playerID,
 				CourtID:  courtID,
 				StartsAt: slot,
@@ -247,7 +256,7 @@ func TestBookingRepositoryListBookedSlots(t *testing.T) {
 	first, second := base, base.Add(2*time.Hour)
 
 	for _, at := range []time.Time{first, second} {
-		_, err := repo.CreateBooking(ctx, entity.BookSlotInput{
+		_, err := hold(t, repo, entity.BookSlotInput{
 			PlayerID: player, CourtID: court.ID, StartsAt: at,
 		})
 		require.NoError(t, err)
@@ -255,11 +264,11 @@ func TestBookingRepositoryListBookedSlots(t *testing.T) {
 
 	// A cancelled booking no longer holds its slot.
 	cancelled := base.Add(4 * time.Hour)
-	booking, err := repo.CreateBooking(ctx, entity.BookSlotInput{
+	booking, err := hold(t, repo, entity.BookSlotInput{
 		PlayerID: player, CourtID: court.ID, StartsAt: cancelled,
 	})
 	require.NoError(t, err)
-	cancelBooking(t, booking.ID)
+	require.NoError(t, repo.CancelBooking(ctx, booking.ID))
 
 	tests := []struct {
 		name      string
@@ -311,13 +320,13 @@ func TestBookingRepositoryListPlayerBookings(t *testing.T) {
 	player := createRandomPlayer(t)
 
 	at := nextSlot()
-	_, err := repo.CreateBooking(ctx, entity.BookSlotInput{
+	_, err := hold(t, repo, entity.BookSlotInput{
 		PlayerID: player, CourtID: court.ID, StartsAt: at,
 	})
 	require.NoError(t, err)
 
 	// Another player's booking on the same court.
-	_, err = repo.CreateBooking(ctx, entity.BookSlotInput{
+	_, err = hold(t, repo, entity.BookSlotInput{
 		PlayerID: createRandomPlayer(t), CourtID: court.ID, StartsAt: at.Add(time.Hour),
 	})
 	require.NoError(t, err)
@@ -343,28 +352,17 @@ func TestBookingRepositoryListPlayerBookings(t *testing.T) {
 
 	t.Run("a cancelled booking is not listed", func(t *testing.T) {
 		other := createRandomPlayer(t)
-		booking, err := repo.CreateBooking(ctx, entity.BookSlotInput{
+		booking, err := hold(t, repo, entity.BookSlotInput{
 			PlayerID: other, CourtID: court.ID, StartsAt: at.Add(2 * time.Hour),
 		})
 		require.NoError(t, err)
 
-		cancelBooking(t, booking.ID)
+		require.NoError(t, repo.CancelBooking(ctx, booking.ID))
 
 		got, err := repo.ListPlayerBookings(ctx, other, at.Add(-time.Hour))
 		require.NoError(t, err)
 		require.Empty(t, got)
 	})
-}
-
-// cancelBooking writes cancelled_at directly: nothing in the application
-// cancels yet, and these tests only need a cancelled row to read past.
-func cancelBooking(t *testing.T, id uuid.UUID) {
-	t.Helper()
-
-	_, err := testPool.Exec(
-		context.Background(), "UPDATE bookings SET cancelled_at = now() WHERE id = $1", id,
-	)
-	require.NoError(t, err)
 }
 
 // One query answers for every court at once, keyed so each court's slots stay
@@ -379,12 +377,12 @@ func TestBookingRepositoryListBookedSlotsForCourts(t *testing.T) {
 
 	slot := nextSlot()
 
-	_, err := repo.CreateBooking(ctx, entity.BookSlotInput{
+	_, err := hold(t, repo, entity.BookSlotInput{
 		PlayerID: createRandomPlayer(t), CourtID: first, StartsAt: slot,
 	})
 	require.NoError(t, err)
 
-	_, err = repo.CreateBooking(ctx, entity.BookSlotInput{
+	_, err = hold(t, repo, entity.BookSlotInput{
 		PlayerID: createRandomPlayer(t), CourtID: second, StartsAt: slot,
 	})
 	require.NoError(t, err)
@@ -408,7 +406,7 @@ func TestBookingRepositoryListBookedSlotsForCourtsIsBoundedAndSkipsCancelled(t *
 	courtID := createRandomCourt(t).ID
 	slot := nextSlot()
 
-	booking, err := repo.CreateBooking(ctx, entity.BookSlotInput{
+	booking, err := hold(t, repo, entity.BookSlotInput{
 		PlayerID: createRandomPlayer(t), CourtID: courtID, StartsAt: slot,
 	})
 	require.NoError(t, err)
@@ -426,4 +424,44 @@ func TestBookingRepositoryListBookedSlotsForCourtsIsBoundedAndSkipsCancelled(t *
 	got, err = repo.ListBookedSlotsForCourts(ctx, []uuid.UUID{courtID}, slot, slot.Add(entity.SlotDuration))
 	require.NoError(t, err)
 	require.Empty(t, got[courtID])
+}
+
+func TestBookingRepositoryAttachPayment(t *testing.T) {
+	repo := NewBookingRepository(testQueries)
+	ctx := context.Background()
+
+	booking, err := hold(t, repo, validBookSlotInput(t))
+	require.NoError(t, err)
+	require.Empty(t, booking.PaymentIntentID)
+
+	require.NoError(t, repo.AttachPayment(ctx, booking.ID, "pi_test_"+gofakeit.LetterN(12)))
+
+	// One payment per booking, so the same intent cannot be attached twice.
+	other, err := hold(t, repo, validBookSlotInput(t))
+	require.NoError(t, err)
+
+	intent := "pi_shared_" + gofakeit.LetterN(12)
+	require.NoError(t, repo.AttachPayment(ctx, booking.ID, intent))
+	require.Error(t, repo.AttachPayment(ctx, other.ID, intent))
+}
+
+// Cancelling is what frees the slot: the unique index ignores cancelled rows,
+// so the same hour can be held again straight away.
+func TestBookingRepositoryCancelBookingFreesTheSlot(t *testing.T) {
+	repo := NewBookingRepository(testQueries)
+	ctx := context.Background()
+
+	in := validBookSlotInput(t)
+
+	first, err := hold(t, repo, in)
+	require.NoError(t, err)
+
+	_, err = hold(t, repo, in)
+	require.ErrorIs(t, err, entity.ErrSlotTaken)
+
+	require.NoError(t, repo.CancelBooking(ctx, first.ID))
+
+	again, err := hold(t, repo, in)
+	require.NoError(t, err)
+	require.NotEqual(t, first.ID, again.ID)
 }

@@ -34,22 +34,43 @@ func NewBookingRepository(q *Queries) *BookingRepository {
 // The partial unique index on (court_id, starts_at) decides that, so two
 // players racing for one slot cannot both succeed: the loser's insert violates
 // the index and comes back as ErrSlotTaken.
-func (r *BookingRepository) CreateBooking(ctx context.Context, in entity.BookSlotInput) (*entity.Booking, error) {
-	row, err := r.q.CreateBooking(ctx, CreateBookingParams{
-		CourtID:  in.CourtID,
-		PlayerID: uuid.NullUUID{UUID: in.PlayerID, Valid: in.PlayerID != uuid.Nil},
-		StartsAt: pgtype.Timestamptz{Time: in.StartsAt, Valid: true},
-		Status:   BookingStatusConfirmed,
+func (r *BookingRepository) HoldSlot(ctx context.Context, in entity.BookSlotInput, amount int, holdExpiresAt time.Time) (*entity.Booking, error) {
+	row, err := r.q.HoldSlot(ctx, HoldSlotParams{
+		CourtID:       in.CourtID,
+		PlayerID:      uuid.NullUUID{UUID: in.PlayerID, Valid: in.PlayerID != uuid.Nil},
+		StartsAt:      pgtype.Timestamptz{Time: in.StartsAt, Valid: true},
+		Amount:        pgtype.Int4{Int32: int32(amount), Valid: true},
+		HoldExpiresAt: pgtype.Timestamptz{Time: holdExpiresAt, Valid: true},
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return nil, entity.ErrSlotTaken
 		}
-		return nil, fmt.Errorf("create booking: %w", err)
+		return nil, fmt.Errorf("hold slot: %w", err)
 	}
 
 	return toEntityBooking(row)
+}
+
+func (r *BookingRepository) AttachPayment(ctx context.Context, bookingID uuid.UUID, paymentIntentID string) error {
+	err := r.q.AttachPayment(ctx, AttachPaymentParams{
+		ID:              bookingID,
+		PaymentIntentID: pgtype.Text{String: paymentIntentID, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("attach payment: %w", err)
+	}
+
+	return nil
+}
+
+func (r *BookingRepository) CancelBooking(ctx context.Context, bookingID uuid.UUID) error {
+	if err := r.q.CancelBooking(ctx, bookingID); err != nil {
+		return fmt.Errorf("cancel booking: %w", err)
+	}
+
+	return nil
 }
 
 func (r *BookingRepository) GetCourtWithVenue(ctx context.Context, id uuid.UUID) (*entity.Court, *entity.Venue, error) {

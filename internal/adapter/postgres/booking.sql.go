@@ -12,47 +12,31 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createBooking = `-- name: CreateBooking :one
-INSERT INTO bookings (
-    court_id, player_id, starts_at, status, amount
-) VALUES (
-    $1, $2, $3, $4, $5
-)
-RETURNING id, court_id, player_id, is_block, starts_at, cancelled_at, created_at, updated_at, status, amount, hold_expires_at, payment_intent_id
+const attachPayment = `-- name: AttachPayment :exec
+UPDATE bookings
+SET payment_intent_id = $2
+WHERE id = $1
 `
 
-type CreateBookingParams struct {
-	CourtID  uuid.UUID          `json:"court_id"`
-	PlayerID uuid.NullUUID      `json:"player_id"`
-	StartsAt pgtype.Timestamptz `json:"starts_at"`
-	Status   BookingStatus      `json:"status"`
-	Amount   pgtype.Int4        `json:"amount"`
+type AttachPaymentParams struct {
+	ID              uuid.UUID   `json:"id"`
+	PaymentIntentID pgtype.Text `json:"payment_intent_id"`
 }
 
-func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (Booking, error) {
-	row := q.db.QueryRow(ctx, createBooking,
-		arg.CourtID,
-		arg.PlayerID,
-		arg.StartsAt,
-		arg.Status,
-		arg.Amount,
-	)
-	var i Booking
-	err := row.Scan(
-		&i.ID,
-		&i.CourtID,
-		&i.PlayerID,
-		&i.IsBlock,
-		&i.StartsAt,
-		&i.CancelledAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Status,
-		&i.Amount,
-		&i.HoldExpiresAt,
-		&i.PaymentIntentID,
-	)
-	return i, err
+func (q *Queries) AttachPayment(ctx context.Context, arg AttachPaymentParams) error {
+	_, err := q.db.Exec(ctx, attachPayment, arg.ID, arg.PaymentIntentID)
+	return err
+}
+
+const cancelBooking = `-- name: CancelBooking :exec
+UPDATE bookings
+SET cancelled_at = now()
+WHERE id = $1 AND cancelled_at IS NULL
+`
+
+func (q *Queries) CancelBooking(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, cancelBooking, id)
+	return err
 }
 
 const getCourtVenue = `-- name: GetCourtVenue :one
@@ -90,6 +74,49 @@ func (q *Queries) GetCourtVenue(ctx context.Context, id uuid.UUID) (GetCourtVenu
 		&i.Venue.CreatedAt,
 		&i.Venue.UpdatedAt,
 		&i.Venue.Timezone,
+	)
+	return i, err
+}
+
+const holdSlot = `-- name: HoldSlot :one
+INSERT INTO bookings (
+    court_id, player_id, starts_at, status, amount, hold_expires_at
+) VALUES (
+    $1, $2, $3, 'pending_payment', $4, $5
+)
+RETURNING id, court_id, player_id, is_block, starts_at, cancelled_at, created_at, updated_at, status, amount, hold_expires_at, payment_intent_id
+`
+
+type HoldSlotParams struct {
+	CourtID       uuid.UUID          `json:"court_id"`
+	PlayerID      uuid.NullUUID      `json:"player_id"`
+	StartsAt      pgtype.Timestamptz `json:"starts_at"`
+	Amount        pgtype.Int4        `json:"amount"`
+	HoldExpiresAt pgtype.Timestamptz `json:"hold_expires_at"`
+}
+
+func (q *Queries) HoldSlot(ctx context.Context, arg HoldSlotParams) (Booking, error) {
+	row := q.db.QueryRow(ctx, holdSlot,
+		arg.CourtID,
+		arg.PlayerID,
+		arg.StartsAt,
+		arg.Amount,
+		arg.HoldExpiresAt,
+	)
+	var i Booking
+	err := row.Scan(
+		&i.ID,
+		&i.CourtID,
+		&i.PlayerID,
+		&i.IsBlock,
+		&i.StartsAt,
+		&i.CancelledAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.Amount,
+		&i.HoldExpiresAt,
+		&i.PaymentIntentID,
 	)
 	return i, err
 }

@@ -19,6 +19,7 @@ import (
 	rediscache "github.com/thelong0705/deuce/internal/adapter/cache/redis"
 	"github.com/thelong0705/deuce/internal/adapter/crypto"
 	"github.com/thelong0705/deuce/internal/adapter/httpapi"
+	"github.com/thelong0705/deuce/internal/adapter/payment/stripe"
 	"github.com/thelong0705/deuce/internal/adapter/postgres"
 	"github.com/thelong0705/deuce/internal/domain/usecase"
 )
@@ -45,6 +46,7 @@ func run() error {
 	var (
 		dsn       = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
 		addr      = listenAddr()
+		stripeKey = os.Getenv("STRIPE_SECRET_KEY")
 		redisAddr = env("REDIS_ADDR", "localhost:6379")
 	)
 
@@ -82,7 +84,8 @@ func run() error {
 		userUC      = usecase.NewUser(userRepo, hasher, userRepo, sessionRepo, cache, sessionTTL)
 		venueUC     = usecase.NewVenue(venueRepo, userRepo)
 		courtUC     = usecase.NewCourt(courtRepo, venueRepo, bookingRepo)
-		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo)
+		payments    = stripe.NewGateway(stripeKey)
+		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo, payments)
 		cityUC      = usecase.NewCity(cityRepo)
 		api         = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC, cityUC)
 	)

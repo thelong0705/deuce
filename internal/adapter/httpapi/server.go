@@ -41,7 +41,7 @@ type CityUsecase interface {
 
 // BookingUsecase books slots on a court and reads back what is booked.
 type BookingUsecase interface {
-	Book(ctx context.Context, in entity.BookSlotInput) (*entity.Booking, error)
+	Book(ctx context.Context, in entity.BookSlotInput) (*entity.HeldBooking, error)
 	Availability(ctx context.Context, courtID uuid.UUID, day time.Time) ([]entity.Slot, error)
 	ListForPlayer(ctx context.Context, playerID uuid.UUID) ([]entity.PlayerBooking, error)
 }
