@@ -1,5 +1,5 @@
 -- Sample data for poking at a local deuce: two owners with venues and courts,
--- two players, and a few bookings.
+-- and two players to book them with.
 --
 -- Every account's password is "supersecret". The hash below is a real bcrypt
 -- of it, so signing in through the app works.
@@ -74,19 +74,9 @@ FROM (VALUES
 ) AS c(venue_name, name, open_hour, close_hour, price_per_hour, currency)
 JOIN seeded_venues v ON v.name = c.venue_name;
 
--- A couple of bookings tomorrow, so "My bookings" is not empty and some slots
--- show as taken. Dates are relative so the seed does not go stale.
-INSERT INTO bookings (court_id, player_id, starts_at)
-SELECT c.id, u.id,
-       ((CURRENT_DATE + 1) + b.at) AT TIME ZONE v.timezone
-FROM (VALUES
-    ('Riverside Tennis Club', 'Court 1', 'player1@deuce.test', TIME '08:00'),
-    ('Riverside Tennis Club', 'Court 1', 'player2@deuce.test', TIME '10:00'),
-    ('Saigon Smash Club',     'Clay 1',  'player1@deuce.test', TIME '18:00')
-) AS b(venue_name, court_name, player_email, at)
-JOIN venues v ON v.name = b.venue_name
-JOIN courts c ON c.venue_id = v.id AND c.name = b.court_name
-JOIN users u ON u.email = b.player_email;
+-- No bookings: those are what there is to do once signed in, and seeding them
+-- would tie this file to how a booking is represented. The deletes above still
+-- clear any, so a booking made through the app does not block a re-seed.
 
 COMMIT;
 
@@ -94,5 +84,4 @@ COMMIT;
 \echo 'Seeded. Every account signs in with the password: supersecret'
 \echo '  owner1@deuce.test   Riverside Tennis Club, Lakeside Courts'
 \echo '  owner2@deuce.test   Saigon Smash Club'
-\echo '  player1@deuce.test  two bookings tomorrow'
-\echo '  player2@deuce.test  one booking tomorrow'
+\echo '  player1@deuce.test, player2@deuce.test  nothing booked yet'
