@@ -86,6 +86,19 @@ func TestUserRepositoryCreateUser(t *testing.T) {
 			},
 			wantErr: entity.ErrEmailTaken,
 		},
+		{
+			name: "a duplicate phone number becomes ErrPhoneTaken",
+			rec: func(t *testing.T) usecase.CreateUserRecord {
+				existing := validRecord()
+				_, err := repo.CreateUser(context.Background(), existing)
+				require.NoError(t, err)
+
+				dup := validRecord()
+				dup.PhoneNumber = existing.PhoneNumber
+				return dup
+			},
+			wantErr: entity.ErrPhoneTaken,
+		},
 	}
 
 	for _, tt := range tests {

@@ -47,6 +47,7 @@ var (
 	ErrPhoneInvalid     = apperr.New(apperr.KindInvalid, "phone_invalid", "phone number must be in E.164 format, like +84901234567")
 	ErrInvalidRole      = apperr.New(apperr.KindInvalid, "invalid_role", `role must be "player" or "owner"`)
 	ErrEmailTaken       = apperr.New(apperr.KindConflict, "email_taken", "email already registered")
+	ErrPhoneTaken       = apperr.New(apperr.KindConflict, "phone_taken", "phone number already registered")
 	ErrUserNotFound     = apperr.New(apperr.KindNotFound, "user_not_found", "user not found")
 )
 

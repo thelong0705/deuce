@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"testing"
 
@@ -191,8 +192,11 @@ func TestUpdateUserProfile(t *testing.T) {
 	}
 }
 
+// randomPhone is unique by construction, the way randomEmail is: phone numbers
+// are unique in the database, and rows from earlier runs are still there.
 func randomPhone() string {
-	return fmt.Sprintf("+849%08d", gofakeit.Number(0, 99999999))
+	id := uuid.New()
+	return fmt.Sprintf("+84%012d", binary.BigEndian.Uint64(id[:8])%1e12)
 }
 
 func createRandomUser(t *testing.T, role UserRole) User {

@@ -44,7 +44,14 @@ func (r *UserRepository) CreateUser(ctx context.Context, rec usecase.CreateUserR
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return nil, entity.ErrEmailTaken
+			// Which column clashed is in the constraint name; an unknown one is
+			// not worth guessing at, so it falls through as an internal error.
+			switch pgErr.ConstraintName {
+			case "users_email_key":
+				return nil, entity.ErrEmailTaken
+			case "users_phone_number_key":
+				return nil, entity.ErrPhoneTaken
+			}
 		}
 		return nil, fmt.Errorf("create user: %w", err)
 	}
