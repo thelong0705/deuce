@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -37,14 +38,16 @@ const (
 
 func run() error {
 	var (
-		dsn       = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
-		addr      = env("HTTP_ADDR", ":8080")
-		redisAddr = env("REDIS_ADDR", "localhost:6379")
+		dsn       = flag.String("db-url", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable", "postgres connection string")
+		addr      = flag.String("http-addr", ":8080", "address to listen on")
+		redisAddr = flag.String("redis-addr", "localhost:6379", "redis address for the session cache")
 	)
+
+	flag.Parse()
 
 	ctx := context.Background()
 
-	pool, err := pgxpool.New(ctx, dsn)
+	pool, err := pgxpool.New(ctx, *dsn)
 	if err != nil {
 		return fmt.Errorf("parse db config: %w", err)
 	}
@@ -56,7 +59,7 @@ func run() error {
 		return fmt.Errorf("connect to db: %w", err)
 	}
 
-	rdb := redis.NewClient(rediscache.Options(redisAddr))
+	rdb := redis.NewClient(rediscache.Options(*redisAddr))
 	defer func() { _ = rdb.Close() }()
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
@@ -82,7 +85,7 @@ func run() error {
 	)
 
 	srv := &http.Server{
-		Addr:    addr,
+		Addr:    *addr,
 		Handler: api.Handler(),
 
 		// net/http has no defaults, so without these a slow client can hold a
@@ -110,7 +113,7 @@ func run() error {
 		shutdownErr <- srv.Shutdown(ctx)
 	}()
 
-	slog.Info("listening", "addr", addr)
+	slog.Info("listening", "addr", *addr)
 
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve: %w", err)
@@ -122,11 +125,4 @@ func run() error {
 
 	slog.Info("stopped cleanly")
 	return nil
-}
-
-func env(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }

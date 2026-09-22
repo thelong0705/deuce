@@ -1,3 +1,10 @@
+# Local secrets and overrides, kept out of the repo. Absent is fine: every flag
+# below has a default that works against docker compose.
+ifneq (,$(wildcard .env))
+include .env
+export
+endif
+
 COMPOSE   := docker compose
 DB_USER   := deuce
 DB_NAME   ?= deuce
@@ -93,8 +100,14 @@ dev:
 	@$(MAKE) redis-start
 	@$(MAKE) server
 
+# SERVER_FLAGS is what the server is configured with. A flag left empty is the
+# same as not passing it, so an absent .env still starts a working server.
+SERVER_FLAGS = $(strip -db-url="$(DB_URL)" \
+	$(if $(HTTP_ADDR),-http-addr="$(HTTP_ADDR)") \
+	$(if $(REDIS_ADDR),-redis-addr="$(REDIS_ADDR)"))
+
 server:
-	go run ./cmd/deuce
+	go run ./cmd/deuce $(SERVER_FLAGS)
 
 web-install:
 	npm --prefix web install
