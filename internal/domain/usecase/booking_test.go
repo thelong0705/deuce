@@ -20,10 +20,11 @@ var (
 	bookingCourtID  = uuid.New()
 )
 
-// nextSlot is the top of the next hour, which is always inside a 6-22 court's
-// day in UTC except around midnight, so the fixtures open the court fully.
+// nextSlot is the start of the next window on a court that opens at midnight,
+// which is what the fixtures use. Truncating to the slot width rather than to
+// the hour is what keeps it on the grid whatever time the suite runs at.
 func nextSlot() time.Time {
-	return time.Now().UTC().Truncate(time.Hour).Add(time.Hour)
+	return time.Now().UTC().Truncate(entity.SlotDuration).Add(entity.SlotDuration)
 }
 
 func validBookSlotInput() entity.BookSlotInput {
