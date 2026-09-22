@@ -33,7 +33,7 @@ const (
 	// sessionCacheTTL bounds how long a deactivated account can keep using a
 	// session it had already made requests with: nothing evicts on
 	// deactivation, so the entry has to lapse on its own.
-	sessionCacheTTL = 30 * time.Second
+	sessionCacheTTL = 10 * time.Minute
 )
 
 func run() error {
