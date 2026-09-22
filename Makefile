@@ -23,7 +23,7 @@ MIGRATE := docker run --rm \
         migrate-up migrate-down migrate-version \
         sqlc-gen build test test-cover mocks \
         lint fmt fmt-check \
-        server web web-install
+        server sweeper web web-install
 
 db-start:
 	$(COMPOSE) up -d $(DB_SERVICE)
@@ -99,6 +99,9 @@ dev:
 
 server:
 	go run ./cmd/deuce
+
+sweeper:
+	go run ./cmd/sweeper
 
 web-install:
 	npm --prefix web install

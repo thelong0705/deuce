@@ -242,3 +242,17 @@ func (r *BookingRepository) RecordEvent(ctx context.Context, id, eventType strin
 
 	return true, nil
 }
+
+var _ usecase.HoldReleaser = (*BookingRepository)(nil)
+
+// ReleaseLapsedHolds cancels every hold that has run out, in one statement.
+// Two sweepers running at once cannot double cancel: the second waits on the
+// rows and then finds they no longer match.
+func (r *BookingRepository) ReleaseLapsedHolds(ctx context.Context, asOf time.Time) (int, error) {
+	released, err := r.q.ReleaseLapsedHolds(ctx, pgtype.Timestamptz{Time: asOf, Valid: true})
+	if err != nil {
+		return 0, fmt.Errorf("release lapsed holds: %w", err)
+	}
+
+	return int(released), nil
+}

@@ -56,3 +56,10 @@ WHERE court_id = ANY(@court_ids::uuid[])
   AND starts_at >= @from_time
   AND starts_at < @to_time
 ORDER BY court_id, starts_at;
+
+-- name: ReleaseLapsedHolds :execrows
+UPDATE bookings
+SET cancelled_at = now()
+WHERE status = 'pending_payment'
+  AND cancelled_at IS NULL
+  AND hold_expires_at <= $1;
