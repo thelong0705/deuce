@@ -39,6 +39,7 @@ func (r *BookingRepository) CreateBooking(ctx context.Context, in entity.BookSlo
 		CourtID:  in.CourtID,
 		PlayerID: uuid.NullUUID{UUID: in.PlayerID, Valid: in.PlayerID != uuid.Nil},
 		StartsAt: pgtype.Timestamptz{Time: in.StartsAt, Valid: true},
+		Status:   BookingStatusConfirmed,
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -112,7 +113,22 @@ func toEntityBooking(b Booking) *entity.Booking {
 		CourtID:   b.CourtID,
 		IsBlock:   b.IsBlock,
 		StartsAt:  b.StartsAt.Time,
+		Status:    entity.BookingStatus(b.Status),
 		CreatedAt: b.CreatedAt.Time,
+	}
+
+	if b.Amount.Valid {
+		amount := int(b.Amount.Int32)
+		out.Amount = &amount
+	}
+
+	if b.PaymentIntentID.Valid {
+		out.PaymentIntentID = b.PaymentIntentID.String
+	}
+
+	if b.HoldExpiresAt.Valid {
+		holdExpiresAt := b.HoldExpiresAt.Time
+		out.HoldExpiresAt = &holdExpiresAt
 	}
 
 	if b.PlayerID.Valid {

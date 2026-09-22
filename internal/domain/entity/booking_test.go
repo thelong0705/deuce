@@ -368,3 +368,78 @@ func TestCourtSlotsOnAreTwoHourWindowsBackToBack(t *testing.T) {
 	require.Equal(t, 6, slots[0].Hour())
 	require.Equal(t, 12, entity.Slot{StartsAt: slots[2]}.EndsAt().Hour())
 }
+
+func TestBookingStatusValid(t *testing.T) {
+	tests := []struct {
+		name string
+		in   entity.BookingStatus
+		want bool
+	}{
+		{name: "pending payment", in: entity.StatusPendingPayment, want: true},
+		{name: "confirmed", in: entity.StatusConfirmed, want: true},
+		{name: "empty", in: ""},
+		{name: "something else", in: "refunded"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.in.Valid())
+		})
+	}
+}
+
+func TestBookingHold(t *testing.T) {
+	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
+	soon := now.Add(time.Minute)
+	gone := now.Add(-time.Minute)
+	cancelled := now.Add(-time.Hour)
+
+	tests := []struct {
+		name string
+		in   entity.Booking
+		// wantLapsed is HoldHasLapsed, wantAwaits is AwaitsPayment
+		wantLapsed bool
+		wantAwaits bool
+	}{
+		{
+			name:       "a hold with time left",
+			in:         entity.Booking{Status: entity.StatusPendingPayment, HoldExpiresAt: &soon},
+			wantAwaits: true,
+		},
+		{
+			name:       "a hold that has run out",
+			in:         entity.Booking{Status: entity.StatusPendingPayment, HoldExpiresAt: &gone},
+			wantLapsed: true,
+		},
+		{
+			name:       "a hold expiring exactly now",
+			in:         entity.Booking{Status: entity.StatusPendingPayment, HoldExpiresAt: &now},
+			wantLapsed: true,
+		},
+		{
+			name: "a confirmed booking owes nothing",
+			in:   entity.Booking{Status: entity.StatusConfirmed},
+		},
+		{
+			name: "a block is not waiting on anything",
+			in:   entity.Booking{IsBlock: true, Status: entity.StatusConfirmed},
+		},
+		{
+			name:       "a cancelled hold is not awaiting payment",
+			in:         entity.Booking{Status: entity.StatusPendingPayment, HoldExpiresAt: &soon, CancelledAt: &cancelled},
+			wantAwaits: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.wantLapsed, tt.in.HoldHasLapsed(now))
+			require.Equal(t, tt.wantAwaits, tt.in.AwaitsPayment(now))
+		})
+	}
+}
+
+func TestCourtSlotPrice(t *testing.T) {
+	require.Equal(t, 240000, entity.Court{PricePerHour: 120000}.SlotPrice())
+	require.Equal(t, 0, entity.Court{PricePerHour: 0}.SlotPrice())
+}
