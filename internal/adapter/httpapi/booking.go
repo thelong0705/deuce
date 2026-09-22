@@ -21,6 +21,13 @@ type createBookingRequest struct {
 	StartsAt string `json:"starts_at"`
 }
 
+type heldBookingResponse struct {
+	bookingResponse
+	// ClientSecret is what the browser completes the payment with. It is not
+	// stored, and this is the only time it is sent.
+	ClientSecret string `json:"client_secret"`
+}
+
 type bookingResponse struct {
 	ID        uuid.UUID `json:"id"`
 	CourtID   uuid.UUID `json:"court_id"`
@@ -71,7 +78,7 @@ func (s *Server) createBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	booking, err := s.bookings.Book(r.Context(), entity.BookSlotInput{
+	held, err := s.bookings.Book(r.Context(), entity.BookSlotInput{
 		PlayerID: player.ID,
 		CourtID:  courtID,
 		StartsAt: startsAt,
@@ -81,7 +88,10 @@ func (s *Server) createBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, newBookingResponse(*booking))
+	writeJSON(w, http.StatusCreated, heldBookingResponse{
+		bookingResponse: newBookingResponse(held.Booking),
+		ClientSecret:    held.ClientSecret,
+	})
 }
 
 var errInvalidDate = apperr.New(apperr.KindInvalid, "invalid_date", "date must be YYYY-MM-DD")

@@ -1,10 +1,20 @@
--- name: CreateBooking :one
+-- name: HoldSlot :one
 INSERT INTO bookings (
-    court_id, player_id, starts_at, status, amount
+    court_id, player_id, starts_at, status, amount, hold_expires_at
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, 'pending_payment', $4, $5
 )
 RETURNING *;
+
+-- name: AttachPayment :exec
+UPDATE bookings
+SET payment_intent_id = $2
+WHERE id = $1;
+
+-- name: CancelBooking :exec
+UPDATE bookings
+SET cancelled_at = now()
+WHERE id = $1 AND cancelled_at IS NULL;
 
 -- name: GetCourtVenue :one
 SELECT sqlc.embed(courts), sqlc.embed(venues)

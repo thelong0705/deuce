@@ -18,6 +18,7 @@ import (
 var (
 	bookingPlayerID = uuid.New()
 	bookingCourtID  = uuid.New()
+	heldBookingID   = uuid.New()
 )
 
 // nextSlot is the start of the next window on a court that opens at midnight,
@@ -51,6 +52,32 @@ type bookingMocks struct {
 	bookings *mocks.MockBookingRepo
 	courts   *mocks.MockCourtFinder
 	users    *mocks.MockUserFinder
+	payments *mocks.MockPaymentGateway
+}
+
+func newBookingMocks(t *testing.T) bookingMocks {
+	t.Helper()
+
+	return bookingMocks{
+		bookings: mocks.NewMockBookingRepo(t),
+		courts:   mocks.NewMockCourtFinder(t),
+		users:    mocks.NewMockUserFinder(t),
+		payments: mocks.NewMockPaymentGateway(t),
+	}
+}
+
+func (m bookingMocks) svc() *usecase.Booking {
+	return usecase.NewBooking(m.bookings, m.courts, m.users, m.payments)
+}
+
+// expectHoldAndPay sets up the write path: the slot is taken, a payment is
+// opened for it, and the intent is recorded against the row.
+func (m bookingMocks) expectHoldAndPay() {
+	m.bookings.EXPECT().HoldSlot(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&entity.Booking{ID: heldBookingID, CourtID: bookingCourtID}, nil).Once()
+	m.payments.EXPECT().CreatePayment(mock.Anything, mock.Anything).
+		Return(&entity.Payment{IntentID: "pi_1", ClientSecret: "pi_1_secret"}, nil).Once()
+	m.bookings.EXPECT().AttachPayment(mock.Anything, heldBookingID, "pi_1").Return(nil).Once()
 }
 
 // expectLookups sets up the two reads Book makes before it writes.
@@ -168,7 +195,7 @@ func TestBookingBook(t *testing.T) {
 			name: "a slot taken by somebody else propagates",
 			setup: func(m bookingMocks) {
 				m.expectLookups()
-				m.bookings.EXPECT().CreateBooking(mock.Anything, mock.Anything).
+				m.bookings.EXPECT().HoldSlot(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, entity.ErrSlotTaken).Once()
 			},
 			wantErr: entity.ErrSlotTaken,
@@ -177,8 +204,22 @@ func TestBookingBook(t *testing.T) {
 			name: "propagates a storage failure",
 			setup: func(m bookingMocks) {
 				m.expectLookups()
-				m.bookings.EXPECT().CreateBooking(mock.Anything, mock.Anything).
+				m.bookings.EXPECT().HoldSlot(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 					Return(nil, boom).Once()
+			},
+			wantErr: boom,
+		},
+		{
+			// Nothing can pay for the hold now, so it goes back rather than
+			// sitting on the slot until it lapses.
+			name: "a gateway failure releases the slot",
+			setup: func(m bookingMocks) {
+				m.expectLookups()
+				m.bookings.EXPECT().HoldSlot(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(&entity.Booking{ID: heldBookingID}, nil).Once()
+				m.payments.EXPECT().CreatePayment(mock.Anything, mock.Anything).
+					Return(nil, boom).Once()
+				m.bookings.EXPECT().CancelBooking(mock.Anything, heldBookingID).Return(nil).Once()
 			},
 			wantErr: boom,
 		},
@@ -186,18 +227,13 @@ func TestBookingBook(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := bookingMocks{
-				bookings: mocks.NewMockBookingRepo(t),
-				courts:   mocks.NewMockCourtFinder(t),
-				users:    mocks.NewMockUserFinder(t),
-			}
+			m := newBookingMocks(t)
 
 			if tt.setup != nil {
 				tt.setup(m)
 			} else {
 				m.expectLookups()
-				m.bookings.EXPECT().CreateBooking(mock.Anything, mock.Anything).
-					Return(&entity.Booking{CourtID: bookingCourtID}, nil).Once()
+				m.expectHoldAndPay()
 			}
 
 			in := validBookSlotInput()
@@ -205,8 +241,7 @@ func TestBookingBook(t *testing.T) {
 				tt.mutate(&in)
 			}
 
-			svc := usecase.NewBooking(m.bookings, m.courts, m.users)
-			_, err := svc.Book(context.Background(), in)
+			_, err := m.svc().Book(context.Background(), in)
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -215,35 +250,72 @@ func TestBookingBook(t *testing.T) {
 			}
 
 			if tt.wantNoStorage {
-				m.bookings.AssertNotCalled(t, "CreateBooking")
+				m.bookings.AssertNotCalled(t, "HoldSlot")
 			}
 		})
 	}
 }
 
 // The slot is handed to storage untouched, so the row holds the instant the
-// player asked for.
-func TestBookingBookStoresTheRequestedSlot(t *testing.T) {
-	m := bookingMocks{
-		bookings: mocks.NewMockBookingRepo(t),
-		courts:   mocks.NewMockCourtFinder(t),
-		users:    mocks.NewMockUserFinder(t),
-	}
+// player asked for, priced at what the court charges for a slot.
+func TestBookingBookHoldsTheRequestedSlot(t *testing.T) {
+	m := newBookingMocks(t)
 
 	in := validBookSlotInput()
 
 	m.expectLookups()
 	m.bookings.EXPECT().
-		CreateBooking(mock.Anything, mock.MatchedBy(func(got entity.BookSlotInput) bool {
+		HoldSlot(mock.Anything, mock.MatchedBy(func(got entity.BookSlotInput) bool {
 			return got.PlayerID == bookingPlayerID &&
 				got.CourtID == bookingCourtID &&
 				got.StartsAt.Equal(in.StartsAt)
-		})).
-		Return(&entity.Booking{}, nil).
+		}), bookableCourt().SlotPrice(), mock.Anything).
+		Return(&entity.Booking{ID: heldBookingID}, nil).
 		Once()
+	m.payments.EXPECT().CreatePayment(mock.Anything, mock.Anything).
+		Return(&entity.Payment{IntentID: "pi_1", ClientSecret: "pi_1_secret"}, nil).Once()
+	m.bookings.EXPECT().AttachPayment(mock.Anything, heldBookingID, "pi_1").Return(nil).Once()
 
-	svc := usecase.NewBooking(m.bookings, m.courts, m.users)
-	_, err := svc.Book(context.Background(), in)
+	_, err := m.svc().Book(context.Background(), in)
+
+	require.NoError(t, err)
+}
+
+// The secret reaches the caller and the intent is on the booking, which is
+// what the webhook later matches on.
+func TestBookingBookReturnsTheClientSecret(t *testing.T) {
+	m := newBookingMocks(t)
+
+	m.expectLookups()
+	m.expectHoldAndPay()
+
+	held, err := m.svc().Book(context.Background(), validBookSlotInput())
+
+	require.NoError(t, err)
+	require.Equal(t, "pi_1_secret", held.ClientSecret)
+	require.Equal(t, "pi_1", held.Booking.PaymentIntentID)
+}
+
+// The gateway is told what the court charges, in the court's own currency.
+func TestBookingBookChargesTheCourtsPrice(t *testing.T) {
+	m := newBookingMocks(t)
+
+	court := bookableCourt()
+
+	m.expectLookups()
+	m.bookings.EXPECT().HoldSlot(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&entity.Booking{ID: heldBookingID}, nil).Once()
+	m.payments.EXPECT().
+		CreatePayment(mock.Anything, mock.MatchedBy(func(in entity.PaymentRequest) bool {
+			return in.BookingID == heldBookingID &&
+				in.Amount == court.SlotPrice() &&
+				in.Currency == court.Currency
+		})).
+		Return(&entity.Payment{IntentID: "pi_1", ClientSecret: "pi_1_secret"}, nil).
+		Once()
+	m.bookings.EXPECT().AttachPayment(mock.Anything, heldBookingID, "pi_1").Return(nil).Once()
+
+	_, err := m.svc().Book(context.Background(), validBookSlotInput())
 
 	require.NoError(t, err)
 }
@@ -344,7 +416,7 @@ func TestBookingAvailability(t *testing.T) {
 			}
 			tt.setup(m)
 
-			svc := usecase.NewBooking(m.bookings, m.courts, m.users)
+			svc := m.svc()
 			slots, err := svc.Availability(context.Background(), bookingCourtID, day)
 
 			if tt.wantErr != nil {
@@ -365,9 +437,7 @@ func TestBookingAvailability(t *testing.T) {
 }
 
 func TestBookingAvailabilityRejectsAnEmptyCourt(t *testing.T) {
-	svc := usecase.NewBooking(
-		mocks.NewMockBookingRepo(t), mocks.NewMockCourtFinder(t), mocks.NewMockUserFinder(t),
-	)
+	svc := newBookingMocks(t).svc()
 
 	_, err := svc.Availability(context.Background(), uuid.Nil, time.Now())
 	require.ErrorIs(t, err, entity.ErrCourtRequired)
@@ -414,7 +484,7 @@ func TestBookingListForPlayer(t *testing.T) {
 			bookings := mocks.NewMockBookingRepo(t)
 			tt.setup(bookings)
 
-			svc := usecase.NewBooking(bookings, mocks.NewMockCourtFinder(t), mocks.NewMockUserFinder(t))
+			svc := usecase.NewBooking(bookings, mocks.NewMockCourtFinder(t), mocks.NewMockUserFinder(t), mocks.NewMockPaymentGateway(t))
 			got, err := svc.ListForPlayer(context.Background(), tt.playerID)
 
 			if tt.wantErr != nil {
@@ -445,7 +515,7 @@ func TestBookingAvailabilityAsksForTheWholeDay(t *testing.T) {
 		Run(func(_ context.Context, _ uuid.UUID, f, t time.Time) { from, to = f, t }).
 		Return(nil, nil).Once()
 
-	svc := usecase.NewBooking(bookings, courts, mocks.NewMockUserFinder(t))
+	svc := usecase.NewBooking(bookings, courts, mocks.NewMockUserFinder(t), mocks.NewMockPaymentGateway(t))
 	slots, err := svc.Availability(context.Background(), bookingCourtID, day)
 	require.NoError(t, err)
 	require.Len(t, slots, 3)

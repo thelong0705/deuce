@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,12 +12,23 @@ import (
 
 // BookingRepo stores bookings.
 type BookingRepo interface {
-	CreateBooking(ctx context.Context, in entity.BookSlotInput) (*entity.Booking, error)
+	// HoldSlot writes the booking as pending payment. It is what takes the
+	// slot, so a second caller for the same slot gets ErrSlotTaken.
+	HoldSlot(ctx context.Context, in entity.BookSlotInput, amount int, holdExpiresAt time.Time) (*entity.Booking, error)
+	// AttachPayment records which payment a held slot is waiting on.
+	AttachPayment(ctx context.Context, bookingID uuid.UUID, paymentIntentID string) error
+	// CancelBooking releases the slot.
+	CancelBooking(ctx context.Context, bookingID uuid.UUID) error
 	// ListBookedSlots returns the start times still held on a court, from
 	// inclusive to exclusive.
 	ListBookedSlots(ctx context.Context, courtID uuid.UUID, from, to time.Time) ([]time.Time, error)
 	// ListPlayerBookings returns a player's uncancelled bookings from then on.
 	ListPlayerBookings(ctx context.Context, playerID uuid.UUID, from time.Time) ([]entity.PlayerBooking, error)
+}
+
+// PaymentGateway collects money for a slot.
+type PaymentGateway interface {
+	CreatePayment(ctx context.Context, in entity.PaymentRequest) (*entity.Payment, error)
 }
 
 // CourtFinder looks up a court together with the venue it belongs to, whose
@@ -29,15 +41,16 @@ type Booking struct {
 	bookings BookingRepo
 	courts   CourtFinder
 	users    UserFinder
+	payments PaymentGateway
 }
 
-func NewBooking(bookings BookingRepo, courts CourtFinder, users UserFinder) *Booking {
-	return &Booking{bookings: bookings, courts: courts, users: users}
+func NewBooking(bookings BookingRepo, courts CourtFinder, users UserFinder, payments PaymentGateway) *Booking {
+	return &Booking{bookings: bookings, courts: courts, users: users, payments: payments}
 }
 
 // Book holds a slot for a player. Whether the slot is free is decided by
 // storage, not by a check here, so two players racing for it cannot both win.
-func (s *Booking) Book(ctx context.Context, in entity.BookSlotInput) (*entity.Booking, error) {
+func (s *Booking) Book(ctx context.Context, in entity.BookSlotInput) (*entity.HeldBooking, error) {
 	if err := in.Validate(); err != nil {
 		return nil, err
 	}
@@ -64,11 +77,40 @@ func (s *Booking) Book(ctx context.Context, in entity.BookSlotInput) (*entity.Bo
 		return nil, entity.ErrVenueInactive
 	}
 
-	if err := court.ValidateSlot(in.StartsAt, venue.Location(), time.Now()); err != nil {
+	now := time.Now()
+	if err := court.ValidateSlot(in.StartsAt, venue.Location(), now); err != nil {
 		return nil, err
 	}
 
-	return s.bookings.CreateBooking(ctx, in)
+	// The slot is taken before anything is charged, so two players racing for
+	// it still resolve in storage rather than at the gateway.
+	held, err := s.bookings.HoldSlot(ctx, in, court.SlotPrice(), now.Add(entity.PaymentHold))
+	if err != nil {
+		return nil, err
+	}
+
+	payment, err := s.payments.CreatePayment(ctx, entity.PaymentRequest{
+		BookingID: held.ID,
+		Amount:    court.SlotPrice(),
+		Currency:  court.Currency,
+	})
+	if err != nil {
+		// Nothing can pay for this hold now, so it goes back rather than
+		// sitting on the slot until it lapses.
+		if cancelErr := s.bookings.CancelBooking(ctx, held.ID); cancelErr != nil {
+			return nil, errors.Join(err, cancelErr)
+		}
+
+		return nil, err
+	}
+
+	if err := s.bookings.AttachPayment(ctx, held.ID, payment.IntentID); err != nil {
+		return nil, err
+	}
+
+	held.PaymentIntentID = payment.IntentID
+
+	return &entity.HeldBooking{Booking: *held, ClientSecret: payment.ClientSecret}, nil
 }
 
 // Availability reports the court's windows on one calendar date and whether

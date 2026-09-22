@@ -197,3 +197,24 @@ func (c Court) ValidateSlot(startsAt time.Time, loc *time.Location, now time.Tim
 
 	return nil
 }
+
+// HeldBooking is a slot held for a player and the secret their browser pays
+// with. The secret is never stored.
+type HeldBooking struct {
+	Booking      Booking
+	ClientSecret string
+}
+
+// PaymentRequest is what a gateway needs to start collecting for a slot.
+type PaymentRequest struct {
+	BookingID uuid.UUID
+	Amount    int
+	Currency  Currency
+}
+
+// Payment is a started payment: what to settle it against later, and what the
+// browser needs to complete it.
+type Payment struct {
+	IntentID     string
+	ClientSecret string
+}

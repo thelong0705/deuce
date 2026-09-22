@@ -26,29 +26,124 @@ func (_m *MockBookingRepo) EXPECT() *MockBookingRepo_Expecter {
 	return &MockBookingRepo_Expecter{mock: &_m.Mock}
 }
 
-// CreateBooking provides a mock function with given fields: ctx, in
-func (_m *MockBookingRepo) CreateBooking(ctx context.Context, in entity.BookSlotInput) (*entity.Booking, error) {
-	ret := _m.Called(ctx, in)
+// AttachPayment provides a mock function with given fields: ctx, bookingID, paymentIntentID
+func (_m *MockBookingRepo) AttachPayment(ctx context.Context, bookingID uuid.UUID, paymentIntentID string) error {
+	ret := _m.Called(ctx, bookingID, paymentIntentID)
 
 	if len(ret) == 0 {
-		panic("no return value specified for CreateBooking")
+		panic("no return value specified for AttachPayment")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string) error); ok {
+		r0 = rf(ctx, bookingID, paymentIntentID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockBookingRepo_AttachPayment_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AttachPayment'
+type MockBookingRepo_AttachPayment_Call struct {
+	*mock.Call
+}
+
+// AttachPayment is a helper method to define mock.On call
+//   - ctx context.Context
+//   - bookingID uuid.UUID
+//   - paymentIntentID string
+func (_e *MockBookingRepo_Expecter) AttachPayment(ctx interface{}, bookingID interface{}, paymentIntentID interface{}) *MockBookingRepo_AttachPayment_Call {
+	return &MockBookingRepo_AttachPayment_Call{Call: _e.mock.On("AttachPayment", ctx, bookingID, paymentIntentID)}
+}
+
+func (_c *MockBookingRepo_AttachPayment_Call) Run(run func(ctx context.Context, bookingID uuid.UUID, paymentIntentID string)) *MockBookingRepo_AttachPayment_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockBookingRepo_AttachPayment_Call) Return(_a0 error) *MockBookingRepo_AttachPayment_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockBookingRepo_AttachPayment_Call) RunAndReturn(run func(context.Context, uuid.UUID, string) error) *MockBookingRepo_AttachPayment_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CancelBooking provides a mock function with given fields: ctx, bookingID
+func (_m *MockBookingRepo) CancelBooking(ctx context.Context, bookingID uuid.UUID) error {
+	ret := _m.Called(ctx, bookingID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CancelBooking")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) error); ok {
+		r0 = rf(ctx, bookingID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockBookingRepo_CancelBooking_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelBooking'
+type MockBookingRepo_CancelBooking_Call struct {
+	*mock.Call
+}
+
+// CancelBooking is a helper method to define mock.On call
+//   - ctx context.Context
+//   - bookingID uuid.UUID
+func (_e *MockBookingRepo_Expecter) CancelBooking(ctx interface{}, bookingID interface{}) *MockBookingRepo_CancelBooking_Call {
+	return &MockBookingRepo_CancelBooking_Call{Call: _e.mock.On("CancelBooking", ctx, bookingID)}
+}
+
+func (_c *MockBookingRepo_CancelBooking_Call) Run(run func(ctx context.Context, bookingID uuid.UUID)) *MockBookingRepo_CancelBooking_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *MockBookingRepo_CancelBooking_Call) Return(_a0 error) *MockBookingRepo_CancelBooking_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockBookingRepo_CancelBooking_Call) RunAndReturn(run func(context.Context, uuid.UUID) error) *MockBookingRepo_CancelBooking_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// HoldSlot provides a mock function with given fields: ctx, in, amount, holdExpiresAt
+func (_m *MockBookingRepo) HoldSlot(ctx context.Context, in entity.BookSlotInput, amount int, holdExpiresAt time.Time) (*entity.Booking, error) {
+	ret := _m.Called(ctx, in, amount, holdExpiresAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for HoldSlot")
 	}
 
 	var r0 *entity.Booking
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, entity.BookSlotInput) (*entity.Booking, error)); ok {
-		return rf(ctx, in)
+	if rf, ok := ret.Get(0).(func(context.Context, entity.BookSlotInput, int, time.Time) (*entity.Booking, error)); ok {
+		return rf(ctx, in, amount, holdExpiresAt)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, entity.BookSlotInput) *entity.Booking); ok {
-		r0 = rf(ctx, in)
+	if rf, ok := ret.Get(0).(func(context.Context, entity.BookSlotInput, int, time.Time) *entity.Booking); ok {
+		r0 = rf(ctx, in, amount, holdExpiresAt)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*entity.Booking)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, entity.BookSlotInput) error); ok {
-		r1 = rf(ctx, in)
+	if rf, ok := ret.Get(1).(func(context.Context, entity.BookSlotInput, int, time.Time) error); ok {
+		r1 = rf(ctx, in, amount, holdExpiresAt)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -56,31 +151,33 @@ func (_m *MockBookingRepo) CreateBooking(ctx context.Context, in entity.BookSlot
 	return r0, r1
 }
 
-// MockBookingRepo_CreateBooking_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateBooking'
-type MockBookingRepo_CreateBooking_Call struct {
+// MockBookingRepo_HoldSlot_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HoldSlot'
+type MockBookingRepo_HoldSlot_Call struct {
 	*mock.Call
 }
 
-// CreateBooking is a helper method to define mock.On call
+// HoldSlot is a helper method to define mock.On call
 //   - ctx context.Context
 //   - in entity.BookSlotInput
-func (_e *MockBookingRepo_Expecter) CreateBooking(ctx interface{}, in interface{}) *MockBookingRepo_CreateBooking_Call {
-	return &MockBookingRepo_CreateBooking_Call{Call: _e.mock.On("CreateBooking", ctx, in)}
+//   - amount int
+//   - holdExpiresAt time.Time
+func (_e *MockBookingRepo_Expecter) HoldSlot(ctx interface{}, in interface{}, amount interface{}, holdExpiresAt interface{}) *MockBookingRepo_HoldSlot_Call {
+	return &MockBookingRepo_HoldSlot_Call{Call: _e.mock.On("HoldSlot", ctx, in, amount, holdExpiresAt)}
 }
 
-func (_c *MockBookingRepo_CreateBooking_Call) Run(run func(ctx context.Context, in entity.BookSlotInput)) *MockBookingRepo_CreateBooking_Call {
+func (_c *MockBookingRepo_HoldSlot_Call) Run(run func(ctx context.Context, in entity.BookSlotInput, amount int, holdExpiresAt time.Time)) *MockBookingRepo_HoldSlot_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(entity.BookSlotInput))
+		run(args[0].(context.Context), args[1].(entity.BookSlotInput), args[2].(int), args[3].(time.Time))
 	})
 	return _c
 }
 
-func (_c *MockBookingRepo_CreateBooking_Call) Return(_a0 *entity.Booking, _a1 error) *MockBookingRepo_CreateBooking_Call {
+func (_c *MockBookingRepo_HoldSlot_Call) Return(_a0 *entity.Booking, _a1 error) *MockBookingRepo_HoldSlot_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockBookingRepo_CreateBooking_Call) RunAndReturn(run func(context.Context, entity.BookSlotInput) (*entity.Booking, error)) *MockBookingRepo_CreateBooking_Call {
+func (_c *MockBookingRepo_HoldSlot_Call) RunAndReturn(run func(context.Context, entity.BookSlotInput, int, time.Time) (*entity.Booking, error)) *MockBookingRepo_HoldSlot_Call {
 	_c.Call.Return(run)
 	return _c
 }
