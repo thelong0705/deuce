@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -44,7 +45,7 @@ func run() error {
 
 	var (
 		dsn          = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
-		addr         = env("HTTP_ADDR", ":8080")
+		addr         = listenAddr()
 		stripeKey    = os.Getenv("STRIPE_SECRET_KEY")
 		stripeSecret = os.Getenv("STRIPE_WEBHOOK_SECRET")
 		redisAddr    = env("REDIS_ADDR", "localhost:6379")
@@ -132,6 +133,21 @@ func run() error {
 
 	slog.Info("stopped cleanly")
 	return nil
+}
+
+// listenAddr prefers PORT, which Cloud Run and similar platforms set to tell
+// the container where to listen. Kubernetes injects PORT too when a Service is
+// named "port", and its value is a URL rather than a number, so anything that
+// is not a plain port number is ignored.
+func listenAddr() string {
+	if port := os.Getenv("PORT"); port != "" {
+		if n, err := strconv.Atoi(port); err == nil && n > 0 && n < 65536 {
+			return ":" + port
+		}
+		slog.Warn("ignoring unusable PORT", "port", port)
+	}
+
+	return env("HTTP_ADDR", ":8080")
 }
 
 func env(key, fallback string) string {
