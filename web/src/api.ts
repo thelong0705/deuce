@@ -95,11 +95,24 @@ export async function createVenue(input: VenueInput): Promise<Venue> {
       name: input.name.trim(),
       city: input.city.trim(),
       address: input.address.trim(),
-      timezone: input.timezone,
     }),
   })
 
   return (await response.json()) as Venue
+}
+
+// The set is fixed and comes from the server, so the client offers a choice
+// rather than a free-text field.
+export type City = {
+  name: string
+  timezone: string
+}
+
+export async function listCities(): Promise<City[]> {
+  const response = await request('/cities', { method: 'GET' })
+
+  const body = (await response.json()) as { cities?: City[] }
+  return body.cities ?? []
 }
 
 export async function listVenues(): Promise<Venue[]> {

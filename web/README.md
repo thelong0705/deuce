@@ -7,8 +7,8 @@ npm install
 npm run dev
 ```
 
-Opens on http://localhost:5173 and proxies `/users`, `/sessions` and `/venues`
-to `http://localhost:8080`. Override the backend with
+Opens on http://localhost:5173 and proxies the API paths to
+`http://localhost:8080`. Override the backend with
 `API_URL=http://host:port npm run dev`.
 
 ```bash
@@ -37,11 +37,11 @@ DELETE /sessions
 204 -> Set-Cookie: deuce_session=; Max-Age=0
 
 POST /venues            (session cookie required)
-{ "name": "...", "city": "...", "address": "...", "timezone": "Asia/Ho_Chi_Minh" }
+{ "name": "...", "city": "...", "address": "..." }
 
 201 -> { "id", "owner_id", "name", "city", "address", "timezone",
          "is_active", "created_at" }
-400 -> { "code": "venue_timezone_invalid", "error": "..." }
+400 -> { "code": "venue_city_unsupported", "error": "..." }
 401 -> { "code": "session_invalid", "error": "..." }
 403 -> { "code": "not_an_owner", "error": "..." }
 
@@ -94,6 +94,16 @@ possible answer is 403. `VenueForm` still handles `not_an_owner` anyway — a
 role can change while a session is open, and this is presentation, not
 enforcement.
 
+## Cities
+
+Both the venue form and the player's search offer a select filled from
+`GET /cities` rather than a free-text field. The set is master data — a venue
+can only be in one of them, and a search only finds venues in one of them, so
+a typed city could only ever be wrong.
+
+A city name can contain a space, so it is URL-encoded on the way into a search:
+`?city=Ha%20Noi`.
+
 ## Courts
 
 Each venue can expand an inline form to add a court: a name, opening and
@@ -101,12 +111,9 @@ closing hours, and a price per hour. The hour selects are bounded at the
 source — 00:00 to 23:00 for opening, 01:00 to 24:00 for closing — so the only
 ordering rule left to state is open before close.
 
-Those hours are read in the venue's timezone, which is why registering a venue
-asks for one. The select is filled from `Intl.supportedValuesOf('timeZone')`
-and defaults to the browser's own zone, since an owner is nearly always
-registering a venue where they are sitting. Where the browser will not
-enumerate zones, a short list stands in and the browser's own zone is added to
-it, so the default is never missing from its own list.
+Those hours are read in the venue's timezone, which the city decides — so
+registering a venue does not ask for one, and the response carries the zone
+back without the form ever having sent it.
 
 **There is no endpoint to read courts back** for an owner. Only `POST` exists,
 so the list under each venue holds what was added in this session and starts
@@ -180,11 +187,11 @@ in the client would be one request per row.
 
 ### Why the client never builds a timestamp
 
-`starts_at` goes out exactly as the availability response gave it. A venue has
-no timezone column, so which real instant "06:00" means is a question only the
-server can answer — having the browser construct one from its own clock would
-get it wrong for anyone travelling or for a venue in another zone. The date
-picker sends a plain `YYYY-MM-DD`; everything finer round-trips.
+`starts_at` goes out exactly as the availability response gave it. Which real
+instant "06:00" means depends on the venue's timezone, so having the browser
+construct one from its own clock would get it wrong for anyone travelling or
+for a venue in another zone. The date picker sends a plain `YYYY-MM-DD`;
+everything finer round-trips.
 
 The date input is bounded to today through fourteen days out, matching the
 booking horizon. The server still has to enforce it, along with the minimum
