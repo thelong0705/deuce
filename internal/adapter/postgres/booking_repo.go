@@ -49,7 +49,7 @@ func (r *BookingRepository) CreateBooking(ctx context.Context, in entity.BookSlo
 		return nil, fmt.Errorf("create booking: %w", err)
 	}
 
-	return toEntityBooking(row), nil
+	return toEntityBooking(row)
 }
 
 func (r *BookingRepository) GetCourtWithVenue(ctx context.Context, id uuid.UUID) (*entity.Court, *entity.Venue, error) {
@@ -97,8 +97,13 @@ func (r *BookingRepository) ListPlayerBookings(
 
 	bookings := make([]entity.PlayerBooking, 0, len(rows))
 	for _, row := range rows {
+		booking, err := toEntityBooking(row.Booking)
+		if err != nil {
+			return nil, err
+		}
+
 		bookings = append(bookings, entity.PlayerBooking{
-			Booking: *toEntityBooking(row.Booking),
+			Booking: *booking,
 			Court:   *toEntityCourt(row.Court),
 			Venue:   *toEntityVenue(row.Venue),
 		})
@@ -107,13 +112,47 @@ func (r *BookingRepository) ListPlayerBookings(
 	return bookings, nil
 }
 
-func toEntityBooking(b Booking) *entity.Booking {
+// toEntityBookingStatus maps the Postgres enum back onto an entity status. A
+// value added to the enum and not here would otherwise reach the domain as a
+// status it has no rules for.
+func toEntityBookingStatus(s BookingStatus) (entity.BookingStatus, error) {
+	switch s {
+	case BookingStatusPendingPayment:
+		return entity.StatusPendingPayment, nil
+	case BookingStatusConfirmed:
+		return entity.StatusConfirmed, nil
+	default:
+		return "", fmt.Errorf("unknown booking status %q from database", s)
+	}
+}
+
+func toEntityBooking(b Booking) (*entity.Booking, error) {
+	status, err := toEntityBookingStatus(b.Status)
+	if err != nil {
+		return nil, err
+	}
+
 	out := &entity.Booking{
 		ID:        b.ID,
 		CourtID:   b.CourtID,
 		IsBlock:   b.IsBlock,
 		StartsAt:  b.StartsAt.Time,
+		Status:    status,
 		CreatedAt: b.CreatedAt.Time,
+	}
+
+	if b.Amount.Valid {
+		amount := int(b.Amount.Int32)
+		out.Amount = &amount
+	}
+
+	if b.HoldExpiresAt.Valid {
+		holdExpiresAt := b.HoldExpiresAt.Time
+		out.HoldExpiresAt = &holdExpiresAt
+	}
+
+	if b.PaymentIntentID.Valid {
+		out.PaymentIntentID = b.PaymentIntentID.String
 	}
 
 	if b.PlayerID.Valid {
@@ -125,7 +164,7 @@ func toEntityBooking(b Booking) *entity.Booking {
 		out.CancelledAt = &cancelledAt
 	}
 
-	return out
+	return out, nil
 }
 
 func (r *BookingRepository) ListBookedSlotsForCourts(ctx context.Context, courtIDs []uuid.UUID, from, to time.Time) (map[uuid.UUID][]time.Time, error) {

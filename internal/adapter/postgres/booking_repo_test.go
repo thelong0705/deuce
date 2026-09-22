@@ -72,6 +72,12 @@ func TestBookingRepositoryCreateBooking(t *testing.T) {
 				require.True(t, in.StartsAt.Equal(got.StartsAt))
 				require.False(t, got.IsBlock)
 				require.True(t, got.IsActive())
+				// Nothing is charged for yet, so the row owes nothing and has
+				// no payment attached.
+				require.Equal(t, entity.StatusConfirmed, got.Status)
+				require.Nil(t, got.Amount)
+				require.Nil(t, got.HoldExpiresAt)
+				require.Empty(t, got.PaymentIntentID)
 			},
 		},
 		{

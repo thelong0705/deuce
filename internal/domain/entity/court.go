@@ -143,3 +143,9 @@ func (c Court) SlotsWithin(day time.Time, loc *time.Location, now time.Time, fro
 
 	return within
 }
+
+// SlotPrice is what one slot costs: courts are priced by the hour and a slot
+// runs longer than one.
+func (c Court) SlotPrice() int {
+	return c.PricePerHour * slotHours
+}
