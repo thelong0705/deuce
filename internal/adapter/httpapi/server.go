@@ -20,20 +20,24 @@ type UserUsecase interface {
 	Authenticate(ctx context.Context, token string) (*entity.User, error)
 }
 
-// VenueUsecase creates and lists venues.
+// VenueUsecase creates, lists and searches venues.
 type VenueUsecase interface {
 	Create(ctx context.Context, in entity.CreateVenueInput) (*entity.Venue, error)
 	ListByOwner(ctx context.Context, ownerID uuid.UUID) ([]entity.Venue, error)
+	Search(ctx context.Context, city string) ([]entity.Venue, error)
 }
 
-// CourtUsecase registers courts at a venue.
+// CourtUsecase registers and lists the courts at a venue.
 type CourtUsecase interface {
 	Create(ctx context.Context, in entity.CreateCourtInput) (*entity.Court, error)
+	ListByVenue(ctx context.Context, venueID uuid.UUID) ([]entity.Court, error)
 }
 
-// BookingUsecase books slots on a court.
+// BookingUsecase books slots on a court and reads back what is booked.
 type BookingUsecase interface {
 	Book(ctx context.Context, in entity.BookSlotInput) (*entity.Booking, error)
+	Availability(ctx context.Context, courtID uuid.UUID, day time.Time) ([]entity.Slot, error)
+	ListForPlayer(ctx context.Context, playerID uuid.UUID) ([]entity.PlayerBooking, error)
 }
 
 type Server struct {
@@ -81,6 +85,13 @@ func (s *Server) routes() {
 		r.Get("/venues", s.listVenues)
 		r.Post("/venues/{venueID}/courts", s.createCourt)
 		r.Post("/courts/{courtID}/bookings", s.createBooking)
+
+		// Browsing: a player looking for somewhere to play sees every
+		// owner's venues, not their own.
+		r.Get("/venues/search", s.searchVenues)
+		r.Get("/venues/{venueID}/courts", s.listCourts)
+		r.Get("/courts/{courtID}/availability", s.courtAvailability)
+		r.Get("/bookings", s.listBookings)
 	})
 }
 

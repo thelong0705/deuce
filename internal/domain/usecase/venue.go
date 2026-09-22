@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -12,6 +13,9 @@ import (
 type VenueRepo interface {
 	CreateVenue(ctx context.Context, in entity.CreateVenueInput) (*entity.Venue, error)
 	ListVenuesByOwner(ctx context.Context, ownerID uuid.UUID) ([]entity.Venue, error)
+	// SearchVenuesByCity returns the active venues in a city, whoever owns
+	// them. The column is citext, so the match ignores capitalisation.
+	SearchVenuesByCity(ctx context.Context, city string) ([]entity.Venue, error)
 }
 
 // UserFinder looks up a user by id.
@@ -58,4 +62,16 @@ func (s *Venue) ListByOwner(ctx context.Context, ownerID uuid.UUID) ([]entity.Ve
 	}
 
 	return s.venueRepo.ListVenuesByOwner(ctx, ownerID)
+}
+
+// Search returns the active venues in a city, for a player looking for
+// somewhere to play. Unlike ListByOwner it is not scoped to the caller: the
+// whole point is to see other people's venues.
+func (s *Venue) Search(ctx context.Context, city string) ([]entity.Venue, error) {
+	city = strings.TrimSpace(city)
+	if city == "" {
+		return nil, entity.ErrVenueCityRequired
+	}
+
+	return s.venueRepo.SearchVenuesByCity(ctx, city)
 }

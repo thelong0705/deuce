@@ -76,6 +76,47 @@ func (in BookSlotInput) Validate() error {
 	return nil
 }
 
+// Slot is one hour on a court and whether it can still be taken.
+type Slot struct {
+	StartsAt  time.Time
+	Available bool
+}
+
+// PlayerBooking is a booking with the court and venue it is on. A booking row
+// alone names neither, and a list of court ids tells a player nothing.
+type PlayerBooking struct {
+	Booking
+	Court Court
+	Venue Venue
+}
+
+// SlotsOn returns every hour of one calendar date that the court could take a
+// booking for, earliest first.
+//
+// Only the year, month and day of day are read; the date is resolved in loc,
+// because "22 September" at the venue is not the same span of time as it is
+// wherever the caller happens to be.
+//
+// Each candidate is put through ValidateSlot, so what is offered and what
+// would be accepted cannot drift apart. That also means hours already gone,
+// or past the booking horizon, are absent rather than present and unavailable
+// — a player cannot take them, and showing them as merely taken would say
+// something untrue about why.
+func (c Court) SlotsOn(day time.Time, loc *time.Location, now time.Time) []time.Time {
+	year, month, date := day.Date()
+
+	var slots []time.Time
+	// The slot runs an hour, so the last one starts an hour before closing.
+	for hour := c.OpenHour; hour+1 <= c.CloseHour; hour++ {
+		startsAt := time.Date(year, month, date, hour, 0, 0, 0, loc)
+		if c.ValidateSlot(startsAt, loc, now) == nil {
+			slots = append(slots, startsAt)
+		}
+	}
+
+	return slots
+}
+
 // ValidateSlot checks a start time against the court: its opening hours, read
 // in the venue's timezone, and whether the court is open for business at all.
 // loc is the venue's location and now is the current time.

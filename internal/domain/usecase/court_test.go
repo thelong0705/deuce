@@ -154,3 +154,73 @@ func TestCourtCreate(t *testing.T) {
 		})
 	}
 }
+
+func TestCourtListByVenue(t *testing.T) {
+	boom := errors.New("boom")
+	venueID := uuid.New()
+
+	tests := []struct {
+		name    string
+		venueID uuid.UUID
+		setup   func(courts *mocks.MockCourtRepo, venues *mocks.MockVenueFinder)
+		wantLen int
+		wantErr error
+	}{
+		{
+			name:    "returns the venue's courts",
+			venueID: venueID,
+			setup: func(courts *mocks.MockCourtRepo, venues *mocks.MockVenueFinder) {
+				venues.EXPECT().GetVenue(mock.Anything, venueID).
+					Return(&entity.Venue{ID: venueID, IsActive: true}, nil).Once()
+				courts.EXPECT().ListCourtsByVenue(mock.Anything, venueID).
+					Return([]entity.Court{{}, {}}, nil).Once()
+			},
+			wantLen: 2,
+		},
+		{
+			// An empty list would read as a venue with nothing at it.
+			name:    "an unknown venue is not found, not empty",
+			venueID: venueID,
+			setup: func(_ *mocks.MockCourtRepo, venues *mocks.MockVenueFinder) {
+				venues.EXPECT().GetVenue(mock.Anything, venueID).
+					Return(nil, entity.ErrVenueNotFound).Once()
+			},
+			wantErr: entity.ErrVenueNotFound,
+		},
+		{
+			name:    "an empty venue id is refused without a lookup",
+			venueID: uuid.Nil,
+			setup:   func(*mocks.MockCourtRepo, *mocks.MockVenueFinder) {},
+			wantErr: entity.ErrVenueRequired,
+		},
+		{
+			name:    "propagates a storage failure",
+			venueID: venueID,
+			setup: func(courts *mocks.MockCourtRepo, venues *mocks.MockVenueFinder) {
+				venues.EXPECT().GetVenue(mock.Anything, venueID).
+					Return(&entity.Venue{ID: venueID, IsActive: true}, nil).Once()
+				courts.EXPECT().ListCourtsByVenue(mock.Anything, venueID).Return(nil, boom).Once()
+			},
+			wantErr: boom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			courts := mocks.NewMockCourtRepo(t)
+			venues := mocks.NewMockVenueFinder(t)
+			tt.setup(courts, venues)
+
+			svc := usecase.NewCourt(courts, venues)
+			got, err := svc.ListByVenue(context.Background(), tt.venueID)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Len(t, got, tt.wantLen)
+		})
+	}
+}

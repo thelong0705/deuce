@@ -11,6 +11,7 @@ import (
 // CourtRepo stores courts.
 type CourtRepo interface {
 	CreateCourt(ctx context.Context, in entity.CreateCourtInput) (*entity.Court, error)
+	ListCourtsByVenue(ctx context.Context, venueID uuid.UUID) ([]entity.Court, error)
 }
 
 // VenueFinder looks up a venue by id.
@@ -48,4 +49,21 @@ func (s *Court) Create(ctx context.Context, in entity.CreateCourtInput) (*entity
 	}
 
 	return s.courtRepo.CreateCourt(ctx, in)
+}
+
+// ListByVenue returns a venue's active courts.
+//
+// The venue is looked up first so an id that matches nothing answers
+// "venue not found" rather than an empty list, which would read as a real
+// venue that happens to have no courts.
+func (s *Court) ListByVenue(ctx context.Context, venueID uuid.UUID) ([]entity.Court, error) {
+	if venueID == uuid.Nil {
+		return nil, entity.ErrVenueRequired
+	}
+
+	if _, err := s.venueFinder.GetVenue(ctx, venueID); err != nil {
+		return nil, err
+	}
+
+	return s.courtRepo.ListCourtsByVenue(ctx, venueID)
 }

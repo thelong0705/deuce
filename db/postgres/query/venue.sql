@@ -33,3 +33,9 @@ RETURNING *;
 SELECT * FROM venues
 WHERE owner_id = $1
 ORDER BY name;
+
+-- name: SearchVenuesByCity :many
+-- city is citext, so this matches regardless of how the caller capitalised it.
+SELECT * FROM venues
+WHERE is_active AND city = $1
+ORDER BY name;

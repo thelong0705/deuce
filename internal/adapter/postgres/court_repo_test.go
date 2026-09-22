@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/brianvoe/gofakeit/v7"
@@ -157,4 +158,53 @@ func TestVenueRepositoryGetVenue(t *testing.T) {
 			require.True(t, got.IsActive)
 		})
 	}
+}
+
+func TestCourtRepositoryListCourtsByVenue(t *testing.T) {
+	repo := NewCourtRepository(testQueries)
+	ctx := context.Background()
+
+	venue := createRandomVenue(t)
+
+	var want []string
+	for _, name := range []string{"Zulu", "Alpha"} {
+		court, err := testQueries.CreateCourt(ctx, CreateCourtParams{
+			VenueID:      venue.ID,
+			Name:         name + " " + gofakeit.LetterN(6),
+			OpenHour:     6,
+			CloseHour:    22,
+			PricePerHour: 150,
+		})
+		require.NoError(t, err)
+		want = append(want, court.Name)
+	}
+	slices.Sort(want)
+
+	// Another venue's court, which must not leak into the results.
+	_, err := testQueries.CreateCourt(ctx, CreateCourtParams{
+		VenueID:      createRandomVenue(t).ID,
+		Name:         "Elsewhere " + gofakeit.LetterN(6),
+		OpenHour:     6,
+		CloseHour:    22,
+		PricePerHour: 150,
+	})
+	require.NoError(t, err)
+
+	t.Run("the venue's courts, by name", func(t *testing.T) {
+		got, err := repo.ListCourtsByVenue(ctx, venue.ID)
+		require.NoError(t, err)
+
+		names := make([]string, 0, len(got))
+		for _, court := range got {
+			require.Equal(t, venue.ID, court.VenueID)
+			names = append(names, court.Name)
+		}
+		require.Equal(t, want, names)
+	})
+
+	t.Run("a venue with no courts is empty, not an error", func(t *testing.T) {
+		got, err := repo.ListCourtsByVenue(ctx, createRandomVenue(t).ID)
+		require.NoError(t, err)
+		require.Empty(t, got)
+	})
 }

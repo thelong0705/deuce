@@ -256,6 +256,41 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /venues/search:
+    get:
+      tags: [venues]
+      summary: Find venues in a city
+      operationId: searchVenues
+      description: |
+        Every owner's active venues, which is what separates this from
+        `GET /venues` — that one only ever answers with the caller's own.
+
+        The city is matched case-insensitively, because the column is citext.
+      parameters:
+        - name: city
+          in: query
+          required: true
+          schema:
+            type: string
+          example: Da Nang
+      responses:
+        "200":
+          description: The active venues in that city, by name
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [venues]
+                properties:
+                  venues:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Venue"
+        "400":
+          $ref: "#/components/responses/Invalid"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /venues/{venueID}/courts:
     post:
       tags: [courts]
@@ -300,6 +335,34 @@ paths:
               example:
                 code: court_name_taken
                 error: the venue already has a court with that name
+    get:
+      tags: [courts]
+      summary: List a venue's courts
+      operationId: listCourts
+      description: |
+        Only active courts. An id that matches no venue answers 404 rather
+        than an empty list, which would read as a venue with nothing at it.
+      parameters:
+        - $ref: "#/components/parameters/VenueID"
+      responses:
+        "200":
+          description: The venue's active courts, by name
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [courts]
+                properties:
+                  courts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Court"
+        "400":
+          $ref: "#/components/responses/Invalid"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /courts/{courtID}/bookings:
     post:
@@ -366,6 +429,90 @@ paths:
               example:
                 code: slot_taken
                 error: that slot is already taken
+
+  /courts/{courtID}/availability:
+    get:
+      tags: [bookings]
+      summary: The bookable hours on a court for one day
+      operationId: courtAvailability
+      description: |
+        One entry per hour the court is open on that date, resolved in the
+        venue's timezone, with `available` false where an uncancelled booking
+        already holds it.
+
+        Hours that have passed, or that fall beyond the two-week booking
+        horizon, are absent rather than present and unavailable: a player
+        cannot take them at all, and calling them taken would misstate why.
+
+        This is a snapshot, not a hold. A slot reported free can be gone
+        before the player acts on it; `POST /courts/{courtID}/bookings` is
+        where that race is settled.
+      parameters:
+        - $ref: "#/components/parameters/CourtID"
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: A calendar date, read in the venue's timezone.
+          example: "2026-09-22"
+      responses:
+        "200":
+          description: The court's hours for that day, earliest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [slots]
+                properties:
+                  slots:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Slot"
+        "400":
+          $ref: "#/components/responses/Invalid"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The venue is deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: venue_inactive
+                error: venue is not active
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /bookings:
+    get:
+      tags: [bookings]
+      summary: The signed-in player's upcoming bookings
+      operationId: listBookings
+      description: |
+        Uncancelled bookings starting from now, earliest first. Slots already
+        played are not what the list is for.
+
+        Each entry carries the court and venue names, because a court id
+        tells a player nothing and resolving them one at a time would be a
+        request per row.
+      responses:
+        "200":
+          description: The player's upcoming bookings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [bookings]
+                properties:
+                  bookings:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PlayerBooking"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
 components:
   securitySchemes:
@@ -613,6 +760,43 @@ components:
           format: date-time
           description: RFC 3339, on the hour, from now to two weeks ahead.
           examples: ["2026-09-23T16:00:00+07:00"]
+
+    Slot:
+      type: object
+      required: [starts_at, available]
+      properties:
+        starts_at:
+          type: string
+          format: date-time
+        available:
+          type: boolean
+          description: False when an uncancelled booking already holds the hour.
+
+    PlayerBooking:
+      allOf:
+        - $ref: "#/components/schemas/Booking"
+        - type: object
+          required: [court, venue]
+          properties:
+            court:
+              type: object
+              required: [name, price_per_hour]
+              properties:
+                name:
+                  type: string
+                price_per_hour:
+                  type: integer
+            venue:
+              type: object
+              required: [id, name, city]
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                city:
+                  type: string
 
     Booking:
       type: object

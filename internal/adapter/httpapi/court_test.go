@@ -214,3 +214,92 @@ func TestCreateCourtRequiresASession(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
 	courts.AssertNotCalled(t, "Create")
 }
+
+func TestListCourts(t *testing.T) {
+	tests := []struct {
+		name string
+		// path defaults to the valid venue path when empty
+		path       string
+		setup      func(courts *mocks.MockCourtUsecase)
+		wantNoCall bool
+		wantStatus int
+		wantCode   string
+		check      func(t *testing.T, body []byte)
+	}{
+		{
+			name: "lists the venue's courts",
+			setup: func(courts *mocks.MockCourtUsecase) {
+				courts.EXPECT().ListByVenue(mock.Anything, courtVenueID).
+					Return([]entity.Court{*createdCourt()}, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body []byte) {
+				var got struct {
+					Courts []map[string]any `json:"courts"`
+				}
+				require.NoError(t, json.Unmarshal(body, &got))
+				require.Len(t, got.Courts, 1)
+				require.Equal(t, "Court 1", got.Courts[0]["name"])
+				require.Equal(t, float64(6), got.Courts[0]["open_hour"])
+			},
+		},
+		{
+			name: "a venue with no courts is an empty list, not null",
+			setup: func(courts *mocks.MockCourtUsecase) {
+				courts.EXPECT().ListByVenue(mock.Anything, mock.Anything).Return(nil, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body []byte) {
+				require.JSONEq(t, `{"courts":[]}`, string(body))
+			},
+		},
+		{
+			name:       "a venue id that is not a uuid is 400",
+			path:       "/venues/not-a-uuid/courts",
+			wantNoCall: true,
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "invalid_venue_id",
+		},
+		{
+			name: "an unknown venue is 404, not an empty list",
+			setup: func(courts *mocks.MockCourtUsecase) {
+				courts.EXPECT().ListByVenue(mock.Anything, mock.Anything).
+					Return(nil, entity.ErrVenueNotFound).Once()
+			},
+			wantStatus: http.StatusNotFound,
+			wantCode:   "venue_not_found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			courts := mocks.NewMockCourtUsecase(t)
+			if tt.setup != nil {
+				tt.setup(courts)
+			}
+
+			path := tt.path
+			if path == "" {
+				path = courtsPath()
+			}
+
+			rec := doAuthed(t, deps{users: signedInOwner(t), courts: courts}, http.MethodGet, path, "")
+
+			require.Equal(t, tt.wantStatus, rec.Code)
+
+			if tt.wantNoCall {
+				courts.AssertNotCalled(t, "ListByVenue")
+			}
+
+			if tt.wantCode != "" {
+				var got errorBody
+				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+				require.Equal(t, tt.wantCode, got.Code)
+			}
+
+			if tt.check != nil {
+				tt.check(t, rec.Body.Bytes())
+			}
+		})
+	}
+}

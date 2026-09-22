@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/brianvoe/gofakeit/v7"
@@ -156,4 +158,93 @@ func TestVenueRepositoryListVenuesByOwnerWhenNone(t *testing.T) {
 
 	require.NotNil(t, got, "an empty result must marshal as [] rather than null")
 	require.Empty(t, got)
+}
+
+func TestVenueRepositorySearchVenuesByCity(t *testing.T) {
+	repo := NewVenueRepository(testQueries)
+	ctx := context.Background()
+
+	// A city of this run's own, so other rows cannot drift into the results.
+	city := "Testville " + gofakeit.LetterN(8)
+
+	owner := createRandomOwner(t)
+	var want []string
+	for range 2 {
+		venue, err := testQueries.CreateVenue(ctx, CreateVenueParams{
+			OwnerID:  owner,
+			Name:     gofakeit.Company() + " " + gofakeit.LetterN(6),
+			City:     city,
+			Address:  gofakeit.Street(),
+			Timezone: "Asia/Ho_Chi_Minh",
+		})
+		require.NoError(t, err)
+		want = append(want, venue.Name)
+	}
+
+	// A venue of another owner's in the same city: browsing is not scoped to
+	// the caller, so it belongs in the results.
+	other, err := testQueries.CreateVenue(ctx, CreateVenueParams{
+		OwnerID:  createRandomOwner(t),
+		Name:     "Aardvark " + gofakeit.LetterN(6),
+		City:     city,
+		Address:  gofakeit.Street(),
+		Timezone: "Asia/Ho_Chi_Minh",
+	})
+	require.NoError(t, err)
+	want = append(want, other.Name)
+
+	deactivated, err := testQueries.CreateVenue(ctx, CreateVenueParams{
+		OwnerID:  owner,
+		Name:     gofakeit.Company() + " " + gofakeit.LetterN(6),
+		City:     city,
+		Address:  gofakeit.Street(),
+		Timezone: "Asia/Ho_Chi_Minh",
+	})
+	require.NoError(t, err)
+	_, err = testQueries.DeactivateVenue(ctx, deactivated.ID)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		city string
+		// wantNames is what should come back, in order
+		wantNames []string
+	}{
+		{
+			name:      "every active venue in the city, by name",
+			city:      city,
+			wantNames: sorted(want),
+		},
+		{
+			// The column is citext.
+			name:      "capitalisation does not matter",
+			city:      strings.ToLower(city),
+			wantNames: sorted(want),
+		},
+		{
+			name:      "a city with nothing in it is empty, not an error",
+			city:      "Nowhere " + gofakeit.LetterN(8),
+			wantNames: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := repo.SearchVenuesByCity(ctx, tt.city)
+			require.NoError(t, err)
+
+			names := make([]string, 0, len(got))
+			for _, venue := range got {
+				names = append(names, venue.Name)
+				require.True(t, venue.IsActive, "a deactivated venue must not be browsable")
+			}
+			require.Equal(t, tt.wantNames, names)
+		})
+	}
+}
+
+func sorted(in []string) []string {
+	out := slices.Clone(in)
+	slices.Sort(out)
+	return out
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -59,6 +60,49 @@ func (r *BookingRepository) GetCourtWithVenue(ctx context.Context, id uuid.UUID)
 	}
 
 	return toEntityCourt(row.Court), toEntityVenue(row.Venue), nil
+}
+
+func (r *BookingRepository) ListBookedSlots(
+	ctx context.Context, courtID uuid.UUID, from, to time.Time,
+) ([]time.Time, error) {
+	rows, err := r.q.ListBookedSlots(ctx, ListBookedSlotsParams{
+		CourtID:    courtID,
+		StartsAt:   pgtype.Timestamptz{Time: from, Valid: true},
+		StartsAt_2: pgtype.Timestamptz{Time: to, Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list booked slots: %w", err)
+	}
+
+	slots := make([]time.Time, 0, len(rows))
+	for _, row := range rows {
+		slots = append(slots, row.Time)
+	}
+
+	return slots, nil
+}
+
+func (r *BookingRepository) ListPlayerBookings(
+	ctx context.Context, playerID uuid.UUID, from time.Time,
+) ([]entity.PlayerBooking, error) {
+	rows, err := r.q.ListPlayerBookings(ctx, ListPlayerBookingsParams{
+		PlayerID: uuid.NullUUID{UUID: playerID, Valid: playerID != uuid.Nil},
+		StartsAt: pgtype.Timestamptz{Time: from, Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list player bookings: %w", err)
+	}
+
+	bookings := make([]entity.PlayerBooking, 0, len(rows))
+	for _, row := range rows {
+		bookings = append(bookings, entity.PlayerBooking{
+			Booking: *toEntityBooking(row.Booking),
+			Court:   *toEntityCourt(row.Court),
+			Venue:   *toEntityVenue(row.Venue),
+		})
+	}
+
+	return bookings, nil
 }
 
 func toEntityBooking(b Booking) *entity.Booking {

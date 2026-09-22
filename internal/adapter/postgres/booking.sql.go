@@ -80,3 +80,107 @@ func (q *Queries) GetCourtVenue(ctx context.Context, id uuid.UUID) (GetCourtVenu
 	)
 	return i, err
 }
+
+const listBookedSlots = `-- name: ListBookedSlots :many
+SELECT starts_at FROM bookings
+WHERE court_id = $1
+  AND cancelled_at IS NULL
+  AND starts_at >= $2
+  AND starts_at < $3
+ORDER BY starts_at
+`
+
+type ListBookedSlotsParams struct {
+	CourtID    uuid.UUID          `json:"court_id"`
+	StartsAt   pgtype.Timestamptz `json:"starts_at"`
+	StartsAt_2 pgtype.Timestamptz `json:"starts_at_2"`
+}
+
+func (q *Queries) ListBookedSlots(ctx context.Context, arg ListBookedSlotsParams) ([]pgtype.Timestamptz, error) {
+	rows, err := q.db.Query(ctx, listBookedSlots, arg.CourtID, arg.StartsAt, arg.StartsAt_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Timestamptz{}
+	for rows.Next() {
+		var starts_at pgtype.Timestamptz
+		if err := rows.Scan(&starts_at); err != nil {
+			return nil, err
+		}
+		items = append(items, starts_at)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlayerBookings = `-- name: ListPlayerBookings :many
+SELECT bookings.id, bookings.court_id, bookings.player_id, bookings.is_block, bookings.starts_at, bookings.cancelled_at, bookings.created_at, bookings.updated_at, courts.id, courts.venue_id, courts.name, courts.open_hour, courts.close_hour, courts.price_per_hour, courts.is_active, courts.created_at, courts.updated_at, venues.id, venues.owner_id, venues.name, venues.city, venues.address, venues.is_active, venues.created_at, venues.updated_at, venues.timezone
+FROM bookings
+JOIN courts ON courts.id = bookings.court_id
+JOIN venues ON venues.id = courts.venue_id
+WHERE bookings.player_id = $1
+  AND bookings.cancelled_at IS NULL
+  AND bookings.starts_at >= $2
+ORDER BY bookings.starts_at
+`
+
+type ListPlayerBookingsParams struct {
+	PlayerID uuid.NullUUID      `json:"player_id"`
+	StartsAt pgtype.Timestamptz `json:"starts_at"`
+}
+
+type ListPlayerBookingsRow struct {
+	Booking Booking `json:"booking"`
+	Court   Court   `json:"court"`
+	Venue   Venue   `json:"venue"`
+}
+
+func (q *Queries) ListPlayerBookings(ctx context.Context, arg ListPlayerBookingsParams) ([]ListPlayerBookingsRow, error) {
+	rows, err := q.db.Query(ctx, listPlayerBookings, arg.PlayerID, arg.StartsAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPlayerBookingsRow{}
+	for rows.Next() {
+		var i ListPlayerBookingsRow
+		if err := rows.Scan(
+			&i.Booking.ID,
+			&i.Booking.CourtID,
+			&i.Booking.PlayerID,
+			&i.Booking.IsBlock,
+			&i.Booking.StartsAt,
+			&i.Booking.CancelledAt,
+			&i.Booking.CreatedAt,
+			&i.Booking.UpdatedAt,
+			&i.Court.ID,
+			&i.Court.VenueID,
+			&i.Court.Name,
+			&i.Court.OpenHour,
+			&i.Court.CloseHour,
+			&i.Court.PricePerHour,
+			&i.Court.IsActive,
+			&i.Court.CreatedAt,
+			&i.Court.UpdatedAt,
+			&i.Venue.ID,
+			&i.Venue.OwnerID,
+			&i.Venue.Name,
+			&i.Venue.City,
+			&i.Venue.Address,
+			&i.Venue.IsActive,
+			&i.Venue.CreatedAt,
+			&i.Venue.UpdatedAt,
+			&i.Venue.Timezone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

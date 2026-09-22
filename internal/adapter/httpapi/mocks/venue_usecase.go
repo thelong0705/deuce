@@ -143,6 +143,65 @@ func (_c *MockVenueUsecase_ListByOwner_Call) RunAndReturn(run func(context.Conte
 	return _c
 }
 
+// Search provides a mock function with given fields: ctx, city
+func (_m *MockVenueUsecase) Search(ctx context.Context, city string) ([]entity.Venue, error) {
+	ret := _m.Called(ctx, city)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Search")
+	}
+
+	var r0 []entity.Venue
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]entity.Venue, error)); ok {
+		return rf(ctx, city)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []entity.Venue); ok {
+		r0 = rf(ctx, city)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]entity.Venue)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, city)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockVenueUsecase_Search_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Search'
+type MockVenueUsecase_Search_Call struct {
+	*mock.Call
+}
+
+// Search is a helper method to define mock.On call
+//   - ctx context.Context
+//   - city string
+func (_e *MockVenueUsecase_Expecter) Search(ctx interface{}, city interface{}) *MockVenueUsecase_Search_Call {
+	return &MockVenueUsecase_Search_Call{Call: _e.mock.On("Search", ctx, city)}
+}
+
+func (_c *MockVenueUsecase_Search_Call) Run(run func(ctx context.Context, city string)) *MockVenueUsecase_Search_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockVenueUsecase_Search_Call) Return(_a0 []entity.Venue, _a1 error) *MockVenueUsecase_Search_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockVenueUsecase_Search_Call) RunAndReturn(run func(context.Context, string) ([]entity.Venue, error)) *MockVenueUsecase_Search_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockVenueUsecase creates a new instance of MockVenueUsecase. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockVenueUsecase(t interface {

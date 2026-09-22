@@ -246,3 +246,212 @@ func TestBookingBookStoresTheRequestedSlot(t *testing.T) {
 
 	require.NoError(t, err)
 }
+
+func TestBookingAvailability(t *testing.T) {
+	boom := errors.New("boom")
+	// Tomorrow, so no hour of the day is refused for having passed.
+	day := time.Now().UTC().AddDate(0, 0, 1)
+
+	tests := []struct {
+		name  string
+		setup func(m bookingMocks)
+		// wantAvailable is the availability flag per returned slot
+		wantAvailable []bool
+		wantErr       error
+	}{
+		{
+			name: "every open hour, all free",
+			setup: func(m bookingMocks) {
+				m.courts.EXPECT().GetCourtWithVenue(mock.Anything, bookingCourtID).
+					Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 9, IsActive: true},
+						bookableVenue(), nil).Once()
+				m.bookings.EXPECT().ListBookedSlots(mock.Anything, bookingCourtID, mock.Anything, mock.Anything).
+					Return(nil, nil).Once()
+			},
+			wantAvailable: []bool{true, true, true},
+		},
+		{
+			name: "a booked hour comes back unavailable, and stays listed",
+			setup: func(m bookingMocks) {
+				m.courts.EXPECT().GetCourtWithVenue(mock.Anything, bookingCourtID).
+					Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 9, IsActive: true},
+						bookableVenue(), nil).Once()
+				taken := time.Date(day.Year(), day.Month(), day.Day(), 7, 0, 0, 0, time.UTC)
+				m.bookings.EXPECT().ListBookedSlots(mock.Anything, bookingCourtID, mock.Anything, mock.Anything).
+					Return([]time.Time{taken}, nil).Once()
+			},
+			wantAvailable: []bool{true, false, true},
+		},
+		{
+			name: "a booking stored in another offset still matches its hour",
+			setup: func(m bookingMocks) {
+				m.courts.EXPECT().GetCourtWithVenue(mock.Anything, bookingCourtID).
+					Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 8, IsActive: true},
+						bookableVenue(), nil).Once()
+				// The same instant as 06:00 UTC, written down somewhere else.
+				elsewhere := time.FixedZone("UTC+7", 7*3600)
+				taken := time.Date(day.Year(), day.Month(), day.Day(), 13, 0, 0, 0, elsewhere)
+				m.bookings.EXPECT().ListBookedSlots(mock.Anything, bookingCourtID, mock.Anything, mock.Anything).
+					Return([]time.Time{taken}, nil).Once()
+			},
+			wantAvailable: []bool{false, true},
+		},
+		{
+			name: "a closed court is not asked about bookings",
+			setup: func(m bookingMocks) {
+				m.courts.EXPECT().GetCourtWithVenue(mock.Anything, bookingCourtID).
+					Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 9}, bookableVenue(), nil).Once()
+			},
+			wantAvailable: []bool{},
+		},
+		{
+			name: "a deactivated venue is refused",
+			setup: func(m bookingMocks) {
+				venue := bookableVenue()
+				venue.IsActive = false
+				m.courts.EXPECT().GetCourtWithVenue(mock.Anything, bookingCourtID).
+					Return(bookableCourt(), venue, nil).Once()
+			},
+			wantErr: entity.ErrVenueInactive,
+		},
+		{
+			name: "an unknown court is refused",
+			setup: func(m bookingMocks) {
+				m.courts.EXPECT().GetCourtWithVenue(mock.Anything, bookingCourtID).
+					Return(nil, nil, entity.ErrCourtNotFound).Once()
+			},
+			wantErr: entity.ErrCourtNotFound,
+		},
+		{
+			name: "propagates a storage failure",
+			setup: func(m bookingMocks) {
+				m.courts.EXPECT().GetCourtWithVenue(mock.Anything, bookingCourtID).
+					Return(bookableCourt(), bookableVenue(), nil).Once()
+				m.bookings.EXPECT().ListBookedSlots(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, boom).Once()
+			},
+			wantErr: boom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := bookingMocks{
+				bookings: mocks.NewMockBookingRepo(t),
+				courts:   mocks.NewMockCourtFinder(t),
+				users:    mocks.NewMockUserFinder(t),
+			}
+			tt.setup(m)
+
+			svc := usecase.NewBooking(m.bookings, m.courts, m.users)
+			slots, err := svc.Availability(context.Background(), bookingCourtID, day)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				require.Nil(t, slots)
+				return
+			}
+
+			require.NoError(t, err)
+
+			available := make([]bool, 0, len(slots))
+			for _, slot := range slots {
+				available = append(available, slot.Available)
+			}
+			require.Equal(t, tt.wantAvailable, available)
+		})
+	}
+}
+
+func TestBookingAvailabilityRejectsAnEmptyCourt(t *testing.T) {
+	svc := usecase.NewBooking(
+		mocks.NewMockBookingRepo(t), mocks.NewMockCourtFinder(t), mocks.NewMockUserFinder(t),
+	)
+
+	_, err := svc.Availability(context.Background(), uuid.Nil, time.Now())
+	require.ErrorIs(t, err, entity.ErrCourtRequired)
+}
+
+func TestBookingListForPlayer(t *testing.T) {
+	boom := errors.New("boom")
+
+	tests := []struct {
+		name     string
+		playerID uuid.UUID
+		setup    func(m *mocks.MockBookingRepo)
+		wantLen  int
+		wantErr  error
+	}{
+		{
+			name:     "returns what storage holds",
+			playerID: bookingPlayerID,
+			setup: func(m *mocks.MockBookingRepo) {
+				m.EXPECT().ListPlayerBookings(mock.Anything, bookingPlayerID, mock.Anything).
+					Return([]entity.PlayerBooking{{}, {}}, nil).Once()
+			},
+			wantLen: 2,
+		},
+		{
+			name:     "an empty player is refused without a lookup",
+			playerID: uuid.Nil,
+			setup:    func(*mocks.MockBookingRepo) {},
+			wantErr:  entity.ErrPlayerRequired,
+		},
+		{
+			name:     "propagates a storage failure",
+			playerID: bookingPlayerID,
+			setup: func(m *mocks.MockBookingRepo) {
+				m.EXPECT().ListPlayerBookings(mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, boom).Once()
+			},
+			wantErr: boom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bookings := mocks.NewMockBookingRepo(t)
+			tt.setup(bookings)
+
+			svc := usecase.NewBooking(bookings, mocks.NewMockCourtFinder(t), mocks.NewMockUserFinder(t))
+			got, err := svc.ListForPlayer(context.Background(), tt.playerID)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Len(t, got, tt.wantLen)
+		})
+	}
+}
+
+// The window asked of storage has to cover every slot offered, or an hour
+// booked at the edge of the day would be reported free.
+func TestBookingAvailabilityAsksForTheWholeDay(t *testing.T) {
+	day := time.Now().UTC().AddDate(0, 0, 1)
+
+	bookings := mocks.NewMockBookingRepo(t)
+	courts := mocks.NewMockCourtFinder(t)
+
+	courts.EXPECT().GetCourtWithVenue(mock.Anything, bookingCourtID).
+		Return(&entity.Court{ID: bookingCourtID, OpenHour: 6, CloseHour: 9, IsActive: true},
+			bookableVenue(), nil).Once()
+
+	var from, to time.Time
+	bookings.EXPECT().ListBookedSlots(mock.Anything, bookingCourtID, mock.Anything, mock.Anything).
+		Run(func(_ context.Context, _ uuid.UUID, f, t time.Time) { from, to = f, t }).
+		Return(nil, nil).Once()
+
+	svc := usecase.NewBooking(bookings, courts, mocks.NewMockUserFinder(t))
+	slots, err := svc.Availability(context.Background(), bookingCourtID, day)
+	require.NoError(t, err)
+	require.Len(t, slots, 3)
+
+	require.Equal(t, slots[0].StartsAt, from)
+	// Exclusive, and an hour past the last slot's start, so the last slot's
+	// own booking still falls inside.
+	require.Equal(t, slots[2].StartsAt.Add(entity.SlotDuration), to)
+	require.True(t, to.After(slots[2].StartsAt))
+}

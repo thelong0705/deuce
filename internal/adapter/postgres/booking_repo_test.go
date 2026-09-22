@@ -228,3 +228,135 @@ func TestBookingRepositoryGetCourtWithVenue(t *testing.T) {
 		})
 	}
 }
+
+func TestBookingRepositoryListBookedSlots(t *testing.T) {
+	repo := NewBookingRepository(testQueries)
+	ctx := context.Background()
+
+	court := createRandomCourt(t)
+	player := createRandomPlayer(t)
+
+	base := nextSlot()
+	first, second := base, base.Add(2*time.Hour)
+
+	for _, at := range []time.Time{first, second} {
+		_, err := repo.CreateBooking(ctx, entity.BookSlotInput{
+			PlayerID: player, CourtID: court.ID, StartsAt: at,
+		})
+		require.NoError(t, err)
+	}
+
+	// A cancelled booking no longer holds its slot.
+	cancelled := base.Add(4 * time.Hour)
+	booking, err := repo.CreateBooking(ctx, entity.BookSlotInput{
+		PlayerID: player, CourtID: court.ID, StartsAt: cancelled,
+	})
+	require.NoError(t, err)
+	cancelBooking(t, booking.ID)
+
+	tests := []struct {
+		name      string
+		courtID   uuid.UUID
+		from, to  time.Time
+		wantSlots []time.Time
+	}{
+		{
+			name:      "the slots held in the window",
+			courtID:   court.ID,
+			from:      base,
+			to:        base.Add(5 * time.Hour),
+			wantSlots: []time.Time{first, second},
+		},
+		{
+			name:      "from is inclusive and to is exclusive",
+			courtID:   court.ID,
+			from:      first,
+			to:        second,
+			wantSlots: []time.Time{first},
+		},
+		{
+			name:      "another court's bookings are not counted",
+			courtID:   createRandomCourt(t).ID,
+			from:      base,
+			to:        base.Add(5 * time.Hour),
+			wantSlots: []time.Time{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := repo.ListBookedSlots(ctx, tt.courtID, tt.from, tt.to)
+			require.NoError(t, err)
+
+			require.Len(t, got, len(tt.wantSlots))
+			for i, want := range tt.wantSlots {
+				require.True(t, want.Equal(got[i]), "want %s, got %s", want, got[i])
+			}
+		})
+	}
+}
+
+func TestBookingRepositoryListPlayerBookings(t *testing.T) {
+	repo := NewBookingRepository(testQueries)
+	ctx := context.Background()
+
+	court := createRandomCourt(t)
+	player := createRandomPlayer(t)
+
+	at := nextSlot()
+	_, err := repo.CreateBooking(ctx, entity.BookSlotInput{
+		PlayerID: player, CourtID: court.ID, StartsAt: at,
+	})
+	require.NoError(t, err)
+
+	// Another player's booking on the same court.
+	_, err = repo.CreateBooking(ctx, entity.BookSlotInput{
+		PlayerID: createRandomPlayer(t), CourtID: court.ID, StartsAt: at.Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	t.Run("carries the court and the venue, not just ids", func(t *testing.T) {
+		got, err := repo.ListPlayerBookings(ctx, player, at.Add(-time.Hour))
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+
+		require.Equal(t, player, got[0].PlayerID)
+		require.Equal(t, court.ID, got[0].Court.ID)
+		require.Equal(t, court.Name, got[0].Court.Name)
+		require.Equal(t, court.VenueID, got[0].Venue.ID)
+		require.NotEmpty(t, got[0].Venue.Name)
+		require.NotEmpty(t, got[0].Venue.City)
+	})
+
+	t.Run("slots before from are left out", func(t *testing.T) {
+		got, err := repo.ListPlayerBookings(ctx, player, at.Add(time.Hour))
+		require.NoError(t, err)
+		require.Empty(t, got)
+	})
+
+	t.Run("a cancelled booking is not listed", func(t *testing.T) {
+		other := createRandomPlayer(t)
+		booking, err := repo.CreateBooking(ctx, entity.BookSlotInput{
+			PlayerID: other, CourtID: court.ID, StartsAt: at.Add(2 * time.Hour),
+		})
+		require.NoError(t, err)
+
+		cancelBooking(t, booking.ID)
+
+		got, err := repo.ListPlayerBookings(ctx, other, at.Add(-time.Hour))
+		require.NoError(t, err)
+		require.Empty(t, got)
+	})
+}
+
+// cancelBooking writes cancelled_at directly. There is no query for it yet
+// because nothing in the application cancels a booking; these tests only need
+// a cancelled row to prove the reads skip one.
+func cancelBooking(t *testing.T, id uuid.UUID) {
+	t.Helper()
+
+	_, err := testPool.Exec(
+		context.Background(), "UPDATE bookings SET cancelled_at = now() WHERE id = $1", id,
+	)
+	require.NoError(t, err)
+}

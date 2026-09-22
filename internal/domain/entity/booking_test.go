@@ -213,3 +213,108 @@ func TestCourtValidateSlotReadsHoursInTheVenueTimezone(t *testing.T) {
 	require.NoError(t, court.ValidateSlot(slot, hcm, now))
 	require.ErrorIs(t, court.ValidateSlot(slot, time.UTC, now), entity.ErrSlotOutsideOpeningHours)
 }
+
+func TestCourtSlotsOn(t *testing.T) {
+	hcm, err := time.LoadLocation("Asia/Ho_Chi_Minh")
+	require.NoError(t, err)
+
+	// Well before the court opens, so nothing is refused for being past.
+	day := time.Date(2026, 9, 22, 0, 0, 0, 0, hcm)
+	now := day.Add(-24 * time.Hour)
+
+	tests := []struct {
+		name  string
+		court entity.Court
+		day   time.Time
+		now   time.Time
+		want  []int
+	}{
+		{
+			name:  "every open hour, last one starting before closing",
+			court: entity.Court{OpenHour: 6, CloseHour: 10, IsActive: true},
+			want:  []int{6, 7, 8, 9},
+		},
+		{
+			name:  "a court open one hour offers one slot",
+			court: entity.Court{OpenHour: 6, CloseHour: 7, IsActive: true},
+			want:  []int{6},
+		},
+		{
+			name:  "an inactive court offers nothing",
+			court: entity.Court{OpenHour: 6, CloseHour: 10},
+			want:  nil,
+		},
+		{
+			name:  "hours already gone are absent, not unavailable",
+			court: entity.Court{OpenHour: 6, CloseHour: 10, IsActive: true},
+			now:   time.Date(2026, 9, 22, 8, 30, 0, 0, hcm),
+			want:  []int{9},
+		},
+		{
+			name:  "a day past the horizon offers nothing",
+			court: entity.Court{OpenHour: 6, CloseHour: 10, IsActive: true},
+			day:   day.AddDate(0, 0, 30),
+			want:  nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			on, at := day, now
+			if !tt.day.IsZero() {
+				on = tt.day
+			}
+			if !tt.now.IsZero() {
+				at = tt.now
+			}
+
+			slots := tt.court.SlotsOn(on, hcm, at)
+
+			hours := make([]int, 0, len(slots))
+			for _, slot := range slots {
+				require.Equal(t, hcm, slot.Location())
+				require.Zero(t, slot.Minute())
+				hours = append(hours, slot.Hour())
+			}
+
+			if tt.want == nil {
+				require.Empty(t, hours)
+				return
+			}
+			require.Equal(t, tt.want, hours)
+		})
+	}
+}
+
+// Only the calendar date of the argument is read. A caller holding midnight
+// UTC means that date at the venue, not the span of time UTC calls it.
+func TestCourtSlotsOnResolvesTheDateInTheVenueTimezone(t *testing.T) {
+	hcm, err := time.LoadLocation("Asia/Ho_Chi_Minh")
+	require.NoError(t, err)
+
+	court := entity.Court{OpenHour: 6, CloseHour: 8, IsActive: true}
+	now := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
+
+	slots := court.SlotsOn(time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC), hcm, now)
+
+	require.Len(t, slots, 2)
+	require.Equal(t, time.Date(2026, 9, 22, 6, 0, 0, 0, hcm), slots[0])
+	// 06:00 in Ho Chi Minh City is 23:00 the evening before in UTC.
+	require.Equal(t, time.Date(2026, 9, 21, 23, 0, 0, 0, time.UTC), slots[0].UTC())
+}
+
+// Whatever SlotsOn offers, Book must accept, or the two tell a player
+// different stories about the same hour.
+func TestCourtSlotsOnAgreesWithValidateSlot(t *testing.T) {
+	hcm, err := time.LoadLocation("Asia/Ho_Chi_Minh")
+	require.NoError(t, err)
+
+	court := entity.Court{OpenHour: 0, CloseHour: 24, IsActive: true}
+	now := time.Date(2026, 9, 22, 11, 17, 0, 0, hcm)
+
+	for _, day := range []time.Time{now, now.AddDate(0, 0, 1), now.AddDate(0, 0, 14)} {
+		for _, slot := range court.SlotsOn(day, hcm, now) {
+			require.NoError(t, court.ValidateSlot(slot, hcm, now), "offered %s", slot)
+		}
+	}
+}

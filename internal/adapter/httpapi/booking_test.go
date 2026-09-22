@@ -249,3 +249,242 @@ func TestCreateBookingRequiresASession(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
 	bookings.AssertNotCalled(t, "Book")
 }
+
+func availabilityPath(query string) string {
+	return "/courts/" + bookingCourtID.String() + "/availability" + query
+}
+
+func TestCourtAvailability(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		setup      func(bookings *mocks.MockBookingUsecase)
+		wantNoCall bool
+		wantStatus int
+		wantCode   string
+		check      func(t *testing.T, body []byte)
+	}{
+		{
+			name: "lists the day's hours and whether each is free",
+			path: availabilityPath("?date=2026-09-23"),
+			setup: func(bookings *mocks.MockBookingUsecase) {
+				bookings.EXPECT().
+					Availability(mock.Anything, bookingCourtID, mock.MatchedBy(func(day time.Time) bool {
+						y, m, d := day.Date()
+						return y == 2026 && m == time.September && d == 23
+					})).
+					Return([]entity.Slot{
+						{StartsAt: bookedSlot(), Available: true},
+						{StartsAt: bookedSlot().Add(time.Hour), Available: false},
+					}, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body []byte) {
+				var got struct {
+					Slots []struct {
+						StartsAt  string `json:"starts_at"`
+						Available bool   `json:"available"`
+					} `json:"slots"`
+				}
+				require.NoError(t, json.Unmarshal(body, &got))
+				require.Len(t, got.Slots, 2)
+				require.True(t, got.Slots[0].Available)
+				require.False(t, got.Slots[1].Available)
+				require.Equal(t, bookedSlot().Format(time.RFC3339), got.Slots[0].StartsAt)
+			},
+		},
+		{
+			name: "a closed day is an empty list, not null",
+			path: availabilityPath("?date=2026-09-23"),
+			setup: func(bookings *mocks.MockBookingUsecase) {
+				bookings.EXPECT().Availability(mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body []byte) {
+				require.JSONEq(t, `{"slots":[]}`, string(body))
+			},
+		},
+		{
+			name:       "a court id that is not a uuid is 400",
+			path:       "/courts/not-a-uuid/availability?date=2026-09-23",
+			wantNoCall: true,
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "invalid_court_id",
+		},
+		{
+			name:       "a missing date is 400",
+			path:       availabilityPath(""),
+			wantNoCall: true,
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "invalid_date",
+		},
+		{
+			name:       "a date that is not YYYY-MM-DD is 400",
+			path:       availabilityPath("?date=23-09-2026"),
+			wantNoCall: true,
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "invalid_date",
+		},
+		{
+			// A timestamp is not a calendar date, and guessing which day the
+			// caller meant is worse than saying so.
+			name:       "a full timestamp is 400",
+			path:       availabilityPath("?date=2026-09-23T09:00:00Z"),
+			wantNoCall: true,
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "invalid_date",
+		},
+		{
+			name: "an unknown court is 404",
+			path: availabilityPath("?date=2026-09-23"),
+			setup: func(bookings *mocks.MockBookingUsecase) {
+				bookings.EXPECT().Availability(mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, entity.ErrCourtNotFound).Once()
+			},
+			wantStatus: http.StatusNotFound,
+			wantCode:   "court_not_found",
+		},
+		{
+			name: "a deactivated venue is 403",
+			path: availabilityPath("?date=2026-09-23"),
+			setup: func(bookings *mocks.MockBookingUsecase) {
+				bookings.EXPECT().Availability(mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, entity.ErrVenueInactive).Once()
+			},
+			wantStatus: http.StatusForbidden,
+			wantCode:   "venue_inactive",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bookings := mocks.NewMockBookingUsecase(t)
+			if tt.setup != nil {
+				tt.setup(bookings)
+			}
+
+			rec := doAuthed(t, deps{users: signedInOwner(t), bookings: bookings},
+				http.MethodGet, tt.path, "")
+
+			require.Equal(t, tt.wantStatus, rec.Code)
+
+			if tt.wantNoCall {
+				bookings.AssertNotCalled(t, "Availability")
+			}
+
+			if tt.wantCode != "" {
+				var got errorBody
+				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+				require.Equal(t, tt.wantCode, got.Code)
+			}
+
+			if tt.check != nil {
+				tt.check(t, rec.Body.Bytes())
+			}
+		})
+	}
+}
+
+func TestListBookings(t *testing.T) {
+	playerBooking := entity.PlayerBooking{
+		Booking: *createdBooking(),
+		Court:   entity.Court{ID: bookingCourtID, Name: "Court 1", PricePerHour: 150},
+		Venue:   entity.Venue{ID: uuid.New(), Name: "Ace Tennis Club", City: "Hanoi"},
+	}
+
+	tests := []struct {
+		name       string
+		setup      func(bookings *mocks.MockBookingUsecase)
+		wantStatus int
+		check      func(t *testing.T, body []byte)
+	}{
+		{
+			name: "carries the court and venue names, not just ids",
+			setup: func(bookings *mocks.MockBookingUsecase) {
+				bookings.EXPECT().ListForPlayer(mock.Anything, venueOwnerID).
+					Return([]entity.PlayerBooking{playerBooking}, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body []byte) {
+				var got struct {
+					Bookings []struct {
+						ID       string `json:"id"`
+						StartsAt string `json:"starts_at"`
+						EndsAt   string `json:"ends_at"`
+						Court    struct {
+							Name         string `json:"name"`
+							PricePerHour int    `json:"price_per_hour"`
+						} `json:"court"`
+						Venue struct {
+							Name string `json:"name"`
+							City string `json:"city"`
+						} `json:"venue"`
+					} `json:"bookings"`
+				}
+				require.NoError(t, json.Unmarshal(body, &got))
+				require.Len(t, got.Bookings, 1)
+
+				require.Equal(t, "Court 1", got.Bookings[0].Court.Name)
+				require.Equal(t, 150, got.Bookings[0].Court.PricePerHour)
+				require.Equal(t, "Ace Tennis Club", got.Bookings[0].Venue.Name)
+				require.Equal(t, "Hanoi", got.Bookings[0].Venue.City)
+
+				// The embedded booking's fields stay at the top level.
+				require.NotEmpty(t, got.Bookings[0].ID)
+				require.Equal(t, bookedSlot().Format(time.RFC3339), got.Bookings[0].StartsAt)
+				require.Equal(t,
+					bookedSlot().Add(entity.SlotDuration).Format(time.RFC3339),
+					got.Bookings[0].EndsAt,
+				)
+			},
+		},
+		{
+			name: "nothing booked is an empty list, not null",
+			setup: func(bookings *mocks.MockBookingUsecase) {
+				bookings.EXPECT().ListForPlayer(mock.Anything, mock.Anything).Return(nil, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body []byte) {
+				require.JSONEq(t, `{"bookings":[]}`, string(body))
+			},
+		},
+		{
+			name: "an unexpected failure is 500 without leaking detail",
+			setup: func(bookings *mocks.MockBookingUsecase) {
+				bookings.EXPECT().ListForPlayer(mock.Anything, mock.Anything).
+					Return(nil, errors.New("pq: connection to 10.0.0.5 refused")).Once()
+			},
+			wantStatus: http.StatusInternalServerError,
+			check: func(t *testing.T, body []byte) {
+				require.NotContains(t, string(body), "10.0.0.5")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bookings := mocks.NewMockBookingUsecase(t)
+			tt.setup(bookings)
+
+			rec := doAuthed(t, deps{users: signedInOwner(t), bookings: bookings},
+				http.MethodGet, "/bookings", "")
+
+			require.Equal(t, tt.wantStatus, rec.Code)
+			tt.check(t, rec.Body.Bytes())
+		})
+	}
+}
+
+// The player is the session's, never the caller's to name.
+func TestListBookingsRequiresASession(t *testing.T) {
+	users := mocks.NewMockUserUsecase(t)
+	users.EXPECT().Authenticate(mock.Anything, "").Return(nil, entity.ErrSessionInvalid).Once()
+
+	bookings := mocks.NewMockBookingUsecase(t)
+
+	rec := do(t, deps{users: users, bookings: bookings}, http.MethodGet, "/bookings", "")
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	bookings.AssertNotCalled(t, "ListForPlayer")
+}
