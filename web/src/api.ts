@@ -57,8 +57,7 @@ export async function login(input: LoginInput): Promise<Session> {
     }),
   })
 
-  // The session token is only ever in the httpOnly cookie the server set; the
-  // body carries nothing secret.
+  // The token is only in the httpOnly cookie; the body carries nothing secret.
   return (await response.json()) as Session
 }
 
@@ -66,9 +65,8 @@ export async function logout(): Promise<void> {
   await request('/sessions', { method: 'DELETE' })
 }
 
-// me confirms the session with the server and reports who it belongs to. The
-// stored hint cannot answer either question: it is not proof the session is
-// still live, and it does not carry the role.
+// me confirms the session and reports who it belongs to. The stored hint is
+// neither proof the session is live nor a source of the role.
 export async function me(): Promise<User> {
   const response = await request('/me', { method: 'GET' })
 
@@ -122,8 +120,7 @@ export type Court = {
   created_at: string
 }
 
-// The hours and the price are numbers on the wire; the form holds them as text
-// until validation has had a look.
+// The hours and price are numbers on the wire; the form holds them as text.
 export async function createCourt(venueID: string, input: CourtInput): Promise<Court> {
   const response = await request(`/venues/${encodeURIComponent(venueID)}/courts`, {
     method: 'POST',
@@ -145,8 +142,7 @@ export async function createCourt(venueID: string, input: CourtInput): Promise<C
 // written against; web/README.md spells it out. Until they land, those calls
 // come back 404 and the screens say so.
 
-// searchVenues browses every owner's venues, unlike GET /venues, which only
-// ever returns the caller's own.
+// searchVenues browses every owner's venues; GET /venues is the caller's own.
 export async function searchVenues(city: string): Promise<Venue[]> {
   const response = await request(`/venues/search?city=${encodeURIComponent(city.trim())}`, {
     method: 'GET',
@@ -165,11 +161,11 @@ export async function listCourts(venueID: string): Promise<Court[]> {
   return body.courts ?? []
 }
 
+// Both instants come from the server and go back untouched, so which timezone
+// an hour belongs to, and how long a slot runs, stay the server's to know.
 export type Slot = {
-  // starts_at is an instant, and the client never builds one: it books by
-  // echoing back a value the server offered. That keeps the whole question of
-  // which timezone an hour belongs to on the server, where the venue is.
   starts_at: string
+  ends_at: string
   available: boolean
 }
 
@@ -184,8 +180,7 @@ export async function listAvailability(courtID: string, date: string): Promise<S
 }
 
 // Booking is what POST returns: the row, and nothing about the court beyond
-// its id. The court is already in the URL, so the server has no reason to
-// repeat it.
+// its id.
 export type Booking = {
   id: string
   court_id: string
@@ -195,8 +190,7 @@ export type Booking = {
   created_at: string
 }
 
-// This one is implemented. The court is named by the path, so the body is
-// only the hour.
+// The court is named by the path, so the body is only the hour.
 export async function createBooking(courtID: string, startsAt: string): Promise<Booking> {
   const response = await request(`/courts/${encodeURIComponent(courtID)}/bookings`, {
     method: 'POST',
@@ -207,9 +201,8 @@ export async function createBooking(courtID: string, startsAt: string): Promise<
   return (await response.json()) as Booking
 }
 
-// A listed booking carries the court and venue names, because a list of court
-// ids tells a player nothing. Resolving them client side would be one request
-// per row, so the server is the place to join.
+// A listed booking carries the court and venue names; a list of court ids
+// tells a player nothing.
 export type BookingListItem = Booking & {
   court: { name: string; price_per_hour: number }
   venue: { id: string; name: string; city: string }
@@ -225,8 +218,7 @@ export async function listBookings(): Promise<BookingListItem[]> {
 async function request(path: string, init: RequestInit): Promise<Response> {
   let response: Response
   try {
-    // same-origin is the default, but the session cookie makes it load-bearing
-    // enough to say out loud.
+    // Default, but the session cookie makes it load-bearing.
     response = await fetch(path, { credentials: 'same-origin', ...init })
   } catch {
     throw new ApiError(0, 'unreachable', 'Could not reach the server. Is it running?')

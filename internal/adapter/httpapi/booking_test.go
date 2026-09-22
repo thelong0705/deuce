@@ -69,10 +69,11 @@ func TestCreateBooking(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, bookedSlot().Equal(startsAt))
 
-				// The hour is the client's to display, not to work out.
+				// How long a slot runs is the server's to say, not the
+				// client's to work out.
 				endsAt, err := time.Parse(time.RFC3339, got["ends_at"].(string))
 				require.NoError(t, err)
-				require.True(t, bookedSlot().Add(time.Hour).Equal(endsAt))
+				require.True(t, bookedSlot().Add(entity.SlotDuration).Equal(endsAt))
 			},
 		},
 		{
@@ -283,6 +284,7 @@ func TestCourtAvailability(t *testing.T) {
 				var got struct {
 					Slots []struct {
 						StartsAt  string `json:"starts_at"`
+						EndsAt    string `json:"ends_at"`
 						Available bool   `json:"available"`
 					} `json:"slots"`
 				}
@@ -291,6 +293,13 @@ func TestCourtAvailability(t *testing.T) {
 				require.True(t, got.Slots[0].Available)
 				require.False(t, got.Slots[1].Available)
 				require.Equal(t, bookedSlot().Format(time.RFC3339), got.Slots[0].StartsAt)
+
+				// Each window carries its own end, so the client never has to
+				// know how long a slot runs.
+				require.Equal(t,
+					bookedSlot().Add(entity.SlotDuration).Format(time.RFC3339),
+					got.Slots[0].EndsAt,
+				)
 			},
 		},
 		{
@@ -344,6 +353,16 @@ func TestCourtAvailability(t *testing.T) {
 			},
 			wantStatus: http.StatusNotFound,
 			wantCode:   "court_not_found",
+		},
+		{
+			name: "a slot mid-window is refused by the domain",
+			path: availabilityPath("?date=2026-09-23"),
+			setup: func(bookings *mocks.MockBookingUsecase) {
+				bookings.EXPECT().Availability(mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, entity.ErrSlotNotOnTheGrid).Once()
+			},
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "slot_not_on_the_grid",
 		},
 		{
 			name: "a deactivated venue is 403",

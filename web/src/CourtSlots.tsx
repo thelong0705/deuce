@@ -15,10 +15,11 @@ type Props = {
 export function CourtSlots({ court, onBooked, onUnauthorized }: Props) {
   const [date, setDate] = useState(isoDate(new Date()))
   const [slots, setSlots] = useState<Slot[] | null>(null)
-  const [picked, setPicked] = useState<string | null>(null)
+  // The whole slot is held, not just its start, so the window can be named.
+  const [picked, setPicked] = useState<Slot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [booking, setBooking] = useState(false)
-  const [booked, setBooked] = useState<string | null>(null)
+  const [booked, setBooked] = useState<Slot | null>(null)
 
   const load = useCallback(async () => {
     setSlots(null)
@@ -31,7 +32,7 @@ export function CourtSlots({ court, onBooked, onUnauthorized }: Props) {
         onUnauthorized()
         return
       }
-      // Not the same as a day with no bookable hours.
+      // Not the same as a day with no bookable windows.
       setError(err instanceof ApiError ? err.message : 'Could not load times.')
     }
   }, [court.id, date, onUnauthorized])
@@ -48,8 +49,8 @@ export function CourtSlots({ court, onBooked, onUnauthorized }: Props) {
     setBooking(true)
     setError(null)
     try {
-      const made = await createBooking(court.id, picked)
-      setBooked(made.starts_at)
+      const made = await createBooking(court.id, picked.starts_at)
+      setBooked({ starts_at: made.starts_at, ends_at: made.ends_at, available: false })
       onBooked()
       // Whatever else changed while the slots were on screen, the booked one
       // is certainly gone now.
@@ -101,13 +102,13 @@ export function CourtSlots({ court, onBooked, onUnauthorized }: Props) {
                 type="button"
                 className="slot"
                 disabled={!slot.available}
-                aria-pressed={picked === slot.starts_at}
+                aria-pressed={picked?.starts_at === slot.starts_at}
                 onClick={() => {
-                  setPicked(slot.starts_at)
+                  setPicked(slot)
                   setBooked(null)
                 }}
               >
-                {formatTime(slot.starts_at)}
+                {formatWindow(slot)}
               </button>
             </li>
           ))}
@@ -122,13 +123,13 @@ export function CourtSlots({ court, onBooked, onUnauthorized }: Props) {
 
       {booked && (
         <p className="notice" role="status">
-          Booked {formatTime(booked)} on {court.name}.
+          Booked {formatWindow(booked)} on {court.name}.
         </p>
       )}
 
       {picked && (
         <button type="button" onClick={handleBook} disabled={booking}>
-          {booking ? 'Booking…' : `Book ${formatTime(picked)} · ${court.price_per_hour}`}
+          {booking ? 'Booking…' : `Book ${formatWindow(picked)} · ${court.price_per_hour}`}
         </button>
       )}
     </div>
@@ -148,6 +149,10 @@ function addDays(at: Date, days: number): Date {
 
 function pad(value: number): string {
   return String(value).padStart(2, '0')
+}
+
+function formatWindow(slot: Slot): string {
+  return `${formatTime(slot.starts_at)}\u2013${formatTime(slot.ends_at)}`
 }
 
 function formatTime(startsAt: string): string {

@@ -51,11 +51,8 @@ func (s *Court) Create(ctx context.Context, in entity.CreateCourtInput) (*entity
 	return s.courtRepo.CreateCourt(ctx, in)
 }
 
-// ListByVenue returns a venue's active courts.
-//
-// The venue is looked up first so an id that matches nothing answers
-// "venue not found" rather than an empty list, which would read as a real
-// venue that happens to have no courts.
+// ListByVenue returns a venue's active courts. The venue is looked up first
+// so an unknown id answers "not found" rather than an empty list.
 func (s *Court) ListByVenue(ctx context.Context, venueID uuid.UUID) ([]entity.Court, error) {
 	if venueID == uuid.Nil {
 		return nil, entity.ErrVenueRequired

@@ -9,8 +9,12 @@ import (
 )
 
 const (
-	// SlotDuration is how long one booking holds a court.
-	SlotDuration = time.Hour
+	// SlotDuration is how long one booking holds a court. Slots sit on a grid
+	// of this width from the court's opening hour: 06:00 to 10:00 offers
+	// 06:00–08:00 and 08:00–10:00 and nothing between.
+	SlotDuration = 2 * time.Hour
+	// slotHours is SlotDuration in the whole hours opening times are kept in.
+	slotHours = int(SlotDuration / time.Hour)
 	// BookingHorizon is how far ahead a slot can be booked.
 	BookingHorizon = 14 * 24 * time.Hour
 	// CancellationNotice is how long before the slot a player may still cancel.
@@ -44,6 +48,7 @@ var (
 	ErrCourtRequired           = apperr.New(apperr.KindInvalid, "court_required", "court is required")
 	ErrSlotRequired            = apperr.New(apperr.KindInvalid, "slot_required", "slot start time is required")
 	ErrSlotNotOnTheHour        = apperr.New(apperr.KindInvalid, "slot_not_on_the_hour", "a slot starts on the hour")
+	ErrSlotNotOnTheGrid        = apperr.New(apperr.KindInvalid, "slot_not_on_the_grid", "a slot starts every two hours from the court's opening time")
 	ErrSlotInThePast           = apperr.New(apperr.KindInvalid, "slot_in_the_past", "that slot has already started")
 	ErrSlotTooFarAhead         = apperr.New(apperr.KindInvalid, "slot_too_far_ahead", "slots can be booked up to two weeks ahead")
 	ErrSlotOutsideOpeningHours = apperr.New(apperr.KindInvalid, "slot_outside_opening_hours", "the court is closed at that hour")
@@ -76,38 +81,37 @@ func (in BookSlotInput) Validate() error {
 	return nil
 }
 
-// Slot is one hour on a court and whether it can still be taken.
+// Slot is one bookable window on a court and whether it can still be taken.
 type Slot struct {
 	StartsAt  time.Time
 	Available bool
 }
 
-// PlayerBooking is a booking with the court and venue it is on. A booking row
-// alone names neither, and a list of court ids tells a player nothing.
+// EndsAt is when the window closes.
+func (s Slot) EndsAt() time.Time {
+	return s.StartsAt.Add(SlotDuration)
+}
+
+// PlayerBooking is a booking with the court and venue it is on.
 type PlayerBooking struct {
 	Booking
 	Court Court
 	Venue Venue
 }
 
-// SlotsOn returns every hour of one calendar date that the court could take a
-// booking for, earliest first.
+// SlotsOn returns the start of every window the court could take a booking
+// for on one calendar date, earliest first. Only the date part of day is
+// read; it is resolved in loc, the venue's zone.
 //
-// Only the year, month and day of day are read; the date is resolved in loc,
-// because "22 September" at the venue is not the same span of time as it is
-// wherever the caller happens to be.
-//
-// Each candidate is put through ValidateSlot, so what is offered and what
-// would be accepted cannot drift apart. That also means hours already gone,
-// or past the booking horizon, are absent rather than present and unavailable
-// — a player cannot take them, and showing them as merely taken would say
-// something untrue about why.
+// Candidates go through ValidateSlot, so what is offered and what would be
+// accepted cannot drift apart. Windows already started or past the horizon
+// are therefore absent, not present and unavailable.
 func (c Court) SlotsOn(day time.Time, loc *time.Location, now time.Time) []time.Time {
 	year, month, date := day.Date()
 
 	var slots []time.Time
-	// The slot runs an hour, so the last one starts an hour before closing.
-	for hour := c.OpenHour; hour+1 <= c.CloseHour; hour++ {
+	// Stepping by the slot width is what puts the windows on a grid.
+	for hour := c.OpenHour; hour+slotHours <= c.CloseHour; hour += slotHours {
 		startsAt := time.Date(year, month, date, hour, 0, 0, 0, loc)
 		if c.ValidateSlot(startsAt, loc, now) == nil {
 			slots = append(slots, startsAt)
@@ -140,10 +144,14 @@ func (c Court) ValidateSlot(startsAt time.Time, loc *time.Location, now time.Tim
 		return ErrSlotTooFarAhead
 	}
 
-	// The slot runs an hour, so the last one bookable starts an hour before
-	// closing.
-	if local.Hour() < c.OpenHour || local.Hour()+1 > c.CloseHour {
+	if local.Hour() < c.OpenHour || local.Hour()+slotHours > c.CloseHour {
 		return ErrSlotOutsideOpeningHours
+	}
+
+	// Inside opening hours is not enough: a court open from 06:00 takes 08:00
+	// but not 07:00.
+	if (local.Hour()-c.OpenHour)%slotHours != 0 {
+		return ErrSlotNotOnTheGrid
 	}
 
 	return nil

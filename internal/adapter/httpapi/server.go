@@ -99,8 +99,6 @@ func (s *Server) routes() {
 		r.Post("/venues/{venueID}/courts", s.createCourt)
 		r.Post("/courts/{courtID}/bookings", s.createBooking)
 
-		// Browsing: a player looking for somewhere to play sees every
-		// owner's venues, not their own.
 		r.Get("/venues/search", s.searchVenues)
 		r.Get("/venues/{venueID}/courts", s.listCourts)
 		r.Get("/courts/{courtID}/availability", s.courtAvailability)

@@ -9,7 +9,7 @@ info:
   description: |
     Tennis court booking.
 
-    Players book hour-long slots; owners register venues and courts. Everything
+    Players book two-hour slots; owners register venues and courts. Everything
     past sign-in is authenticated with a server-side session: `POST /sessions`
     sets an httpOnly cookie and the browser sends it back on its own.
 
@@ -31,7 +31,7 @@ tags:
   - name: courts
     description: Playable courts at a venue
   - name: bookings
-    description: Hour-long slots on a court
+    description: Two-hour slots on a court
   - name: cities
     description: Where deuce operates
   - name: ops
@@ -438,11 +438,17 @@ paths:
       summary: The bookable hours on a court for one day
       operationId: courtAvailability
       description: |
-        One entry per hour the court is open on that date, resolved in the
-        venue's timezone, with `available` false where an uncancelled booking
-        already holds it.
+        One entry per two-hour window the court is open on that date, resolved
+        in the venue's timezone, with `available` false where an uncancelled
+        booking already holds it.
 
-        Hours that have passed, or that fall beyond the two-week booking
+        Windows tile the day from the court's opening hour, so a court open
+        06:00 to 10:00 offers 06:00-08:00 and 08:00-10:00 and nothing in
+        between. A court open for less than one whole window offers nothing,
+        and an odd hour at the end of the day goes unused rather than
+        becoming a short window.
+
+        Windows that have started, or that fall beyond the two-week booking
         horizon, are absent rather than present and unavailable: a player
         cannot take them at all, and calling them taken would misstate why.
 
@@ -804,14 +810,18 @@ components:
 
     Slot:
       type: object
-      required: [starts_at, available]
+      required: [starts_at, ends_at, available]
       properties:
         starts_at:
           type: string
           format: date-time
+        ends_at:
+          type: string
+          format: date-time
+          description: Two hours after starts_at.
         available:
           type: boolean
-          description: False when an uncancelled booking already holds the hour.
+          description: False when an uncancelled booking already holds the window.
 
     PlayerBooking:
       allOf:
@@ -858,7 +868,7 @@ components:
         ends_at:
           type: string
           format: date-time
-          description: One hour after starts_at.
+          description: Two hours after starts_at.
         created_at:
           type: string
           format: date-time

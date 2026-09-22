@@ -349,9 +349,8 @@ func TestBookingRepositoryListPlayerBookings(t *testing.T) {
 	})
 }
 
-// cancelBooking writes cancelled_at directly. There is no query for it yet
-// because nothing in the application cancels a booking; these tests only need
-// a cancelled row to prove the reads skip one.
+// cancelBooking writes cancelled_at directly: nothing in the application
+// cancels yet, and these tests only need a cancelled row to read past.
 func cancelBooking(t *testing.T, id uuid.UUID) {
 	t.Helper()
 

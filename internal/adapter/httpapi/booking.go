@@ -88,6 +88,7 @@ var errInvalidDate = apperr.New(apperr.KindInvalid, "invalid_date", "date must b
 
 type slotResponse struct {
 	StartsAt  time.Time `json:"starts_at"`
+	EndsAt    time.Time `json:"ends_at"`
 	Available bool      `json:"available"`
 }
 
@@ -102,9 +103,8 @@ func (s *Server) courtAvailability(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A bare date names a calendar day, not an instant. Which instants that
-	// day covers depends on the venue's timezone, so only the year, month and
-	// day are carried through and the use case resolves them there.
+	// A bare date names a calendar day, not an instant; the use case resolves
+	// it in the venue's timezone.
 	day, err := time.Parse(time.DateOnly, r.URL.Query().Get("date"))
 	if err != nil {
 		writeAppError(w, errInvalidDate)
@@ -119,15 +119,18 @@ func (s *Server) courtAvailability(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]slotResponse, 0, len(slots))
 	for _, slot := range slots {
-		out = append(out, slotResponse{StartsAt: slot.StartsAt, Available: slot.Available})
+		out = append(out, slotResponse{
+			StartsAt:  slot.StartsAt,
+			EndsAt:    slot.EndsAt(),
+			Available: slot.Available,
+		})
 	}
 
 	writeJSON(w, http.StatusOK, availabilityResponse{Slots: out})
 }
 
 // playerBookingResponse is a booking with enough of the court and venue to
-// read it. A court id alone tells a player nothing, and looking each one up
-// would be a request per row.
+// read it.
 type playerBookingResponse struct {
 	bookingResponse
 	Court playerBookingCourt `json:"court"`
