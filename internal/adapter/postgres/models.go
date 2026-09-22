@@ -12,6 +12,48 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type BookingStatus string
+
+const (
+	BookingStatusPendingPayment BookingStatus = "pending_payment"
+	BookingStatusConfirmed      BookingStatus = "confirmed"
+)
+
+func (e *BookingStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = BookingStatus(s)
+	case string:
+		*e = BookingStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for BookingStatus: %T", src)
+	}
+	return nil
+}
+
+type NullBookingStatus struct {
+	BookingStatus BookingStatus `json:"booking_status"`
+	Valid         bool          `json:"valid"` // Valid is true if BookingStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullBookingStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.BookingStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.BookingStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullBookingStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.BookingStatus), nil
+}
+
 type Currency string
 
 const (
@@ -96,14 +138,18 @@ func (ns NullUserRole) Value() (driver.Value, error) {
 }
 
 type Booking struct {
-	ID          uuid.UUID          `json:"id"`
-	CourtID     uuid.UUID          `json:"court_id"`
-	PlayerID    uuid.NullUUID      `json:"player_id"`
-	IsBlock     bool               `json:"is_block"`
-	StartsAt    pgtype.Timestamptz `json:"starts_at"`
-	CancelledAt pgtype.Timestamptz `json:"cancelled_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID              uuid.UUID          `json:"id"`
+	CourtID         uuid.UUID          `json:"court_id"`
+	PlayerID        uuid.NullUUID      `json:"player_id"`
+	IsBlock         bool               `json:"is_block"`
+	StartsAt        pgtype.Timestamptz `json:"starts_at"`
+	CancelledAt     pgtype.Timestamptz `json:"cancelled_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	Status          BookingStatus      `json:"status"`
+	Amount          pgtype.Int4        `json:"amount"`
+	HoldExpiresAt   pgtype.Timestamptz `json:"hold_expires_at"`
+	PaymentIntentID pgtype.Text        `json:"payment_intent_id"`
 }
 
 type City struct {
@@ -132,6 +178,12 @@ type Session struct {
 	ClientIp  string             `json:"client_ip"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type StripeEvent struct {
+	ID         string             `json:"id"`
+	Type       string             `json:"type"`
+	ReceivedAt pgtype.Timestamptz `json:"received_at"`
 }
 
 type User struct {
