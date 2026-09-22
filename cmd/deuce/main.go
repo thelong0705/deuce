@@ -75,7 +75,7 @@ func run() error {
 		cache       = rediscache.NewSessionCache(rdb, sessionCacheTTL)
 		userUC      = usecase.NewUser(userRepo, hasher, userRepo, sessionRepo, cache, sessionTTL)
 		venueUC     = usecase.NewVenue(venueRepo, userRepo)
-		courtUC     = usecase.NewCourt(courtRepo, venueRepo)
+		courtUC     = usecase.NewCourt(courtRepo, venueRepo, bookingRepo)
 		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo)
 		cityUC      = usecase.NewCity(cityRepo)
 		api         = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC, cityUC)

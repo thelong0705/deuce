@@ -68,3 +68,20 @@ func toEntityCourt(c Court) *entity.Court {
 		CreatedAt:    c.CreatedAt.Time,
 	}
 }
+
+func (r *CourtRepository) SearchCourts(ctx context.Context, city string) ([]entity.CourtAtVenue, error) {
+	rows, err := r.q.SearchCourts(ctx, city)
+	if err != nil {
+		return nil, fmt.Errorf("search courts: %w", err)
+	}
+
+	courts := make([]entity.CourtAtVenue, 0, len(rows))
+	for _, row := range rows {
+		courts = append(courts, entity.CourtAtVenue{
+			Court: *toEntityCourt(row.Court),
+			Venue: *toEntityVenue(row.Venue),
+		})
+	}
+
+	return courts, nil
+}

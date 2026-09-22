@@ -16,8 +16,9 @@ import (
 )
 
 var (
-	_ usecase.BookingRepo = (*BookingRepository)(nil)
-	_ usecase.CourtFinder = (*BookingRepository)(nil)
+	_ usecase.BookingRepo      = (*BookingRepository)(nil)
+	_ usecase.BookedSlotFinder = (*BookingRepository)(nil)
+	_ usecase.CourtFinder      = (*BookingRepository)(nil)
 )
 
 // BookingRepository persists bookings in Postgres.
@@ -124,4 +125,22 @@ func toEntityBooking(b Booking) *entity.Booking {
 	}
 
 	return out
+}
+
+func (r *BookingRepository) ListBookedSlotsForCourts(ctx context.Context, courtIDs []uuid.UUID, from, to time.Time) (map[uuid.UUID][]time.Time, error) {
+	rows, err := r.q.ListBookedSlotsForCourts(ctx, ListBookedSlotsForCourtsParams{
+		CourtIds: courtIDs,
+		FromTime: pgtype.Timestamptz{Time: from, Valid: true},
+		ToTime:   pgtype.Timestamptz{Time: to, Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list booked slots for courts: %w", err)
+	}
+
+	byCourt := make(map[uuid.UUID][]time.Time, len(courtIDs))
+	for _, row := range rows {
+		byCourt[row.CourtID] = append(byCourt[row.CourtID], row.StartsAt.Time)
+	}
+
+	return byCourt, nil
 }

@@ -116,6 +116,46 @@ func (q *Queries) ListBookedSlots(ctx context.Context, arg ListBookedSlotsParams
 	return items, nil
 }
 
+const listBookedSlotsForCourts = `-- name: ListBookedSlotsForCourts :many
+SELECT court_id, starts_at FROM bookings
+WHERE court_id = ANY($1::uuid[])
+  AND cancelled_at IS NULL
+  AND starts_at >= $2
+  AND starts_at < $3
+ORDER BY court_id, starts_at
+`
+
+type ListBookedSlotsForCourtsParams struct {
+	CourtIds []uuid.UUID        `json:"court_ids"`
+	FromTime pgtype.Timestamptz `json:"from_time"`
+	ToTime   pgtype.Timestamptz `json:"to_time"`
+}
+
+type ListBookedSlotsForCourtsRow struct {
+	CourtID  uuid.UUID          `json:"court_id"`
+	StartsAt pgtype.Timestamptz `json:"starts_at"`
+}
+
+func (q *Queries) ListBookedSlotsForCourts(ctx context.Context, arg ListBookedSlotsForCourtsParams) ([]ListBookedSlotsForCourtsRow, error) {
+	rows, err := q.db.Query(ctx, listBookedSlotsForCourts, arg.CourtIds, arg.FromTime, arg.ToTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBookedSlotsForCourtsRow{}
+	for rows.Next() {
+		var i ListBookedSlotsForCourtsRow
+		if err := rows.Scan(&i.CourtID, &i.StartsAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPlayerBookings = `-- name: ListPlayerBookings :many
 SELECT bookings.id, bookings.court_id, bookings.player_id, bookings.is_block, bookings.starts_at, bookings.cancelled_at, bookings.created_at, bookings.updated_at, courts.id, courts.venue_id, courts.name, courts.open_hour, courts.close_hour, courts.price_per_hour, courts.is_active, courts.created_at, courts.updated_at, venues.id, venues.owner_id, venues.name, venues.city, venues.address, venues.is_active, venues.created_at, venues.updated_at, venues.timezone
 FROM bookings

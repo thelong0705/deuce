@@ -208,3 +208,98 @@ func TestCourtRepositoryListCourtsByVenue(t *testing.T) {
 		require.Empty(t, got)
 	})
 }
+
+func TestCourtRepositorySearchCourts(t *testing.T) {
+	repo := NewCourtRepository(testQueries)
+	ctx := context.Background()
+
+	city := supportedCity()
+
+	venue, err := testQueries.CreateVenue(ctx, CreateVenueParams{
+		OwnerID: createRandomOwner(t),
+		Name:    gofakeit.Company() + " " + gofakeit.LetterN(6),
+		City:    city,
+		Address: gofakeit.Street(),
+	})
+	require.NoError(t, err)
+
+	court, err := testQueries.CreateCourt(ctx, CreateCourtParams{
+		VenueID:      venue.ID,
+		Name:         gofakeit.Noun() + " " + gofakeit.LetterN(6),
+		OpenHour:     6,
+		CloseHour:    22,
+		PricePerHour: 120000,
+	})
+	require.NoError(t, err)
+
+	got, err := repo.SearchCourts(ctx, city)
+	require.NoError(t, err)
+
+	var found *entity.CourtAtVenue
+	for i := range got {
+		if got[i].Court.ID == court.ID {
+			found = &got[i]
+			break
+		}
+	}
+
+	require.NotNil(t, found, "the court should be in its own city's results")
+	require.Equal(t, venue.ID, found.Venue.ID)
+	require.Equal(t, city, found.Venue.City)
+	// The venue's zone comes back with it, which is what reading the court's
+	// opening hours needs.
+	require.NotEmpty(t, found.Venue.Timezone)
+	require.Equal(t, 6, found.Court.OpenHour)
+	require.Equal(t, 22, found.Court.CloseHour)
+}
+
+// A deactivated court, or one at a deactivated venue, is not somewhere anybody
+// can book.
+func TestCourtRepositorySearchCourtsSkipsWhatIsNotBookable(t *testing.T) {
+	repo := NewCourtRepository(testQueries)
+	ctx := context.Background()
+
+	city := supportedCity()
+
+	newVenue := func() Venue {
+		v, err := testQueries.CreateVenue(ctx, CreateVenueParams{
+			OwnerID: createRandomOwner(t),
+			Name:    gofakeit.Company() + " " + gofakeit.LetterN(6),
+			City:    city,
+			Address: gofakeit.Street(),
+		})
+		require.NoError(t, err)
+		return v
+	}
+
+	newCourt := func(venueID uuid.UUID) Court {
+		c, err := testQueries.CreateCourt(ctx, CreateCourtParams{
+			VenueID:      venueID,
+			Name:         gofakeit.Noun() + gofakeit.LetterN(6),
+			OpenHour:     6,
+			CloseHour:    22,
+			PricePerHour: 1,
+		})
+		require.NoError(t, err)
+		return c
+	}
+
+	deadCourt := newCourt(newVenue().ID)
+	// There is no query for this: an owner deactivating a court is not a
+	// feature yet, but the search already has to allow for it.
+	_, err := testPool.Exec(ctx, "UPDATE courts SET is_active = false WHERE id = $1", deadCourt.ID)
+	require.NoError(t, err)
+
+	deadVenue := newVenue()
+	courtAtDeadVenue := newCourt(deadVenue.ID)
+	_, err = testQueries.DeactivateVenue(ctx, deadVenue.ID)
+	require.NoError(t, err)
+
+	got, err := repo.SearchCourts(ctx, city)
+	require.NoError(t, err)
+
+	for _, cv := range got {
+		require.NotEqual(t, deadCourt.ID, cv.Court.ID, "a deactivated court must not be offered")
+		require.NotEqual(t, courtAtDeadVenue.ID, cv.Court.ID, "a court at a deactivated venue must not be offered")
+	}
+}

@@ -142,6 +142,65 @@ func (_c *MockCourtRepo_ListCourtsByVenue_Call) RunAndReturn(run func(context.Co
 	return _c
 }
 
+// SearchCourts provides a mock function with given fields: ctx, city
+func (_m *MockCourtRepo) SearchCourts(ctx context.Context, city string) ([]entity.CourtAtVenue, error) {
+	ret := _m.Called(ctx, city)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SearchCourts")
+	}
+
+	var r0 []entity.CourtAtVenue
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]entity.CourtAtVenue, error)); ok {
+		return rf(ctx, city)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []entity.CourtAtVenue); ok {
+		r0 = rf(ctx, city)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]entity.CourtAtVenue)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, city)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockCourtRepo_SearchCourts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SearchCourts'
+type MockCourtRepo_SearchCourts_Call struct {
+	*mock.Call
+}
+
+// SearchCourts is a helper method to define mock.On call
+//   - ctx context.Context
+//   - city string
+func (_e *MockCourtRepo_Expecter) SearchCourts(ctx interface{}, city interface{}) *MockCourtRepo_SearchCourts_Call {
+	return &MockCourtRepo_SearchCourts_Call{Call: _e.mock.On("SearchCourts", ctx, city)}
+}
+
+func (_c *MockCourtRepo_SearchCourts_Call) Run(run func(ctx context.Context, city string)) *MockCourtRepo_SearchCourts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockCourtRepo_SearchCourts_Call) Return(_a0 []entity.CourtAtVenue, _a1 error) *MockCourtRepo_SearchCourts_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockCourtRepo_SearchCourts_Call) RunAndReturn(run func(context.Context, string) ([]entity.CourtAtVenue, error)) *MockCourtRepo_SearchCourts_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockCourtRepo creates a new instance of MockCourtRepo. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockCourtRepo(t interface {
