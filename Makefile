@@ -1,29 +1,22 @@
 COMPOSE   := docker compose
 DB_USER   := deuce
-DB_NAME   := deuce
+DB_NAME   ?= deuce
 CONTAINER := deuce-postgres
+TEST_DB_NAME := deuce_test
 MIGRATIONS_DIR := db/postgres/migration
 MIGRATE_IMAGE := migrate/migrate:v4.17.1
+DB_URL        := postgres://$(DB_USER):$(DB_USER)@localhost:5432/$(DB_NAME)?sslmode=disable
 SQLC_VERSION := 1.30.0
 MIGRATE_NETWORK ?= container:$(CONTAINER)
 
-# The tests write freely and never clean up, so they get a database of their own
-# rather than filling the one the server uses.
-TEST_DB_NAME ?= deuce_test
-
-dsn = postgres://$(DB_USER):$(DB_USER)@localhost:5432/$(1)?sslmode=disable
-DB_URL      := $(call dsn,$(DB_NAME))
-TEST_DB_URL := $(call dsn,$(TEST_DB_NAME))
-
-migrate = docker run --rm \
+MIGRATE := docker run --rm \
 	-v "$(PWD)/$(MIGRATIONS_DIR):/migration" \
 	--network $(MIGRATE_NETWORK) \
 	$(MIGRATE_IMAGE) \
-	-path=/migration -database "$(1)"
+	-path=/migration -database "$(DB_URL)"
 
-.PHONY: db-start db-down db-wait db-psql db-psql-test db-test-create \
+.PHONY: db-start db-down db-wait db-psql db-test-create \
         migrate-up migrate-down migrate-drop migrate-version \
-        migrate-test-up migrate-test-drop \
         sqlc-gen build test test-cover mocks \
         lint fmt fmt-check \
         server web web-install
@@ -31,7 +24,6 @@ migrate = docker run --rm \
 db-start:
 	$(COMPOSE) up -d
 	@$(MAKE) db-wait
-	@$(MAKE) db-test-create
 
 db-down:
 	$(COMPOSE) down
@@ -45,35 +37,21 @@ db-wait:
 db-psql:
 	$(COMPOSE) exec -it postgres psql -U $(DB_USER) -d $(DB_NAME)
 
-db-psql-test:
-	$(COMPOSE) exec -it postgres psql -U $(DB_USER) -d $(TEST_DB_NAME)
-
-# Postgres has no CREATE DATABASE IF NOT EXISTS, so ask first. Creating it here
-# rather than from an init script means an existing volume gets the test
-# database without being wiped.
 db-test-create:
-	@$(COMPOSE) exec -T postgres psql -U $(DB_USER) -d $(DB_NAME) -tAc \
-		"SELECT 1 FROM pg_database WHERE datname = '$(TEST_DB_NAME)'" | grep -q 1 \
-		|| $(COMPOSE) exec -T postgres createdb -U $(DB_USER) $(TEST_DB_NAME)
-	@echo "test database $(TEST_DB_NAME) ready"
+	@$(COMPOSE) exec -T postgres createdb -U $(DB_USER) $(TEST_DB_NAME) 2>/dev/null \
+		|| echo "$(TEST_DB_NAME) already exists"
 
 migrate-up:
-	$(call migrate,$(DB_URL)) up
+	$(MIGRATE) up
 
 migrate-down:
-	$(call migrate,$(DB_URL)) down 1
+	$(MIGRATE) down 1
 
 migrate-drop:
-	$(call migrate,$(DB_URL)) drop -f
+	$(MIGRATE) drop -f
 
 migrate-version:
-	$(call migrate,$(DB_URL)) version
-
-migrate-test-up:
-	$(call migrate,$(TEST_DB_URL)) up
-
-migrate-test-drop:
-	$(call migrate,$(TEST_DB_URL)) drop -f
+	$(MIGRATE) version
 
 sqlc-gen:
 	docker run --rm -v "$(PWD):/src" -w /src sqlc/sqlc:$(SQLC_VERSION) generate
@@ -92,9 +70,7 @@ web-install:
 web:
 	npm --prefix web run dev
 
-# Migrating first means a new migration cannot be forgotten and turn up as a
-# puzzling query failure.
-test: migrate-test-up
+test:
 	go test -race -v -coverprofile=coverage.out ./...
 
 cover-check:

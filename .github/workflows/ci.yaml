@@ -87,9 +87,11 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
-      # make test migrates the test database itself.
+      - name: Run migrations
+        run: make migrate-up DB_NAME=deuce_test MIGRATE_NETWORK=host
+
       - name: Test
-        run: make test MIGRATE_NETWORK=host
+        run: make test
 
       - name: Coverage
         run: make cover-check
