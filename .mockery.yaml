@@ -13,6 +13,7 @@ packages:
       UserCreator:
       CredentialFinder:
       SessionStore:
+      SessionCache:
       PasswordHasher:
       VenueRepo:
       VenueFinder:

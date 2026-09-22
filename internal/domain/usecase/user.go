@@ -36,6 +36,7 @@ type User struct {
 	hasher      PasswordHasher
 	credentials CredentialFinder
 	sessions    SessionStore
+	cache       SessionCache
 	sessionTTL  time.Duration
 }
 
@@ -44,13 +45,21 @@ func NewUser(
 	hasher PasswordHasher,
 	credentials CredentialFinder,
 	sessions SessionStore,
+	cache SessionCache,
 	sessionTTL time.Duration,
 ) *User {
+	// A nil cache means there is no cache, rather than a panic on the first
+	// request.
+	if cache == nil {
+		cache = nopSessionCache{}
+	}
+
 	return &User{
 		userCreator: userCreator,
 		hasher:      hasher,
 		credentials: credentials,
 		sessions:    sessions,
+		cache:       cache,
 		sessionTTL:  sessionTTL,
 	}
 }

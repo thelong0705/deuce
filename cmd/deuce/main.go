@@ -69,10 +69,10 @@ func run() error {
 		hasher      = crypto.NewBcryptHasher()
 	)
 
-	sessions := sessionStore(ctx, sessionRepo, redisAddr)
+	cache := sessionCache(ctx, redisAddr)
 
 	var (
-		userUC    = usecase.NewUser(userRepo, hasher, userRepo, sessions, sessionTTL)
+		userUC    = usecase.NewUser(userRepo, hasher, userRepo, sessionRepo, cache, sessionTTL)
 		venueUC   = usecase.NewVenue(venueRepo, userRepo)
 		courtUC   = usecase.NewCourt(courtRepo, venueRepo)
 		bookingUC = usecase.NewBooking(bookingRepo, bookingRepo, userRepo)
@@ -129,27 +129,27 @@ func env(key, fallback string) string {
 	return fallback
 }
 
-// sessionStore puts Redis in front of the given store when REDIS_ADDR is set.
-// An unreachable Redis is logged and skipped rather than fatal: the cache is an
+// sessionCache builds the session cache, or returns nil for none. An
+// unreachable Redis is logged and skipped rather than fatal: the cache is an
 // optimisation, and refusing to start without it would make the server less
 // available than it was before the cache existed.
-func sessionStore(ctx context.Context, inner usecase.SessionStore, redisAddr string) usecase.SessionStore {
+func sessionCache(ctx context.Context, redisAddr string) usecase.SessionCache {
 	// REDIS_ADDR=off is the way to ask for no cache at all. Leaving it unset
 	// takes the default, and a Redis that is not there disables the cache too,
 	// just after a failed ping rather than before one.
 	if redisAddr == cacheOff {
 		slog.Info("session cache disabled", "reason", "REDIS_ADDR="+cacheOff)
-		return inner
+		return nil
 	}
 
 	client := redis.NewClient(rediscache.Options(redisAddr))
 	if err := client.Ping(ctx).Err(); err != nil {
 		slog.Error("session cache disabled", "addr", redisAddr, "error", err)
 		_ = client.Close()
-		return inner
+		return nil
 	}
 
 	slog.Info("session cache enabled", "addr", redisAddr, "ttl", sessionCacheTTL)
 
-	return rediscache.NewSessionStore(inner, client, sessionCacheTTL)
+	return rediscache.NewSessionCache(client, sessionCacheTTL)
 }

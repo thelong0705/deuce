@@ -30,6 +30,25 @@ type SessionStore interface {
 	DeleteSession(ctx context.Context, tokenHash string) error
 }
 
+// SessionCache remembers session lookups. A miss and a failure are the same
+// thing to a caller, so it reports neither: every one falls through to the
+// SessionStore, and the cache never decides whether a request succeeds.
+type SessionCache interface {
+	GetSessionUser(ctx context.Context, tokenHash string) (*entity.Session, *entity.User, bool)
+	PutSessionUser(ctx context.Context, tokenHash string, session *entity.Session, user *entity.User)
+	DeleteSession(ctx context.Context, tokenHash string)
+}
+
+// nopSessionCache stands in when there is no cache, so Authenticate and Logout
+// read the same either way.
+type nopSessionCache struct{}
+
+func (nopSessionCache) GetSessionUser(context.Context, string) (*entity.Session, *entity.User, bool) {
+	return nil, nil, false
+}
+func (nopSessionCache) PutSessionUser(context.Context, string, *entity.Session, *entity.User) {}
+func (nopSessionCache) DeleteSession(context.Context, string)                                 {}
+
 // Login checks the credentials and starts a session, returning the raw token
 // once. Only its hash is stored.
 func (s *User) Login(ctx context.Context, in entity.LoginInput) (string, *entity.Session, error) {
@@ -68,14 +87,29 @@ func (s *User) Login(ctx context.Context, in entity.LoginInput) (string, *entity
 }
 
 // Authenticate returns the user behind a session token.
+//
+// The cache is consulted first and filled on a miss, but it decides nothing:
+// expiry and the account being active are checked on the way out, so a cached
+// session that has since lapsed is still refused.
 func (s *User) Authenticate(ctx context.Context, token string) (*entity.User, error) {
 	if token == "" {
 		return nil, entity.ErrSessionInvalid
 	}
 
-	session, user, err := s.sessions.GetSessionUser(ctx, hashSessionToken(token))
-	if err != nil {
-		return nil, err
+	tokenHash := hashSessionToken(token)
+
+	session, user, cached := s.cache.GetSessionUser(ctx, tokenHash)
+	if !cached {
+		var err error
+
+		session, user, err = s.sessions.GetSessionUser(ctx, tokenHash)
+		if err != nil {
+			// A rejection is not remembered: refusing an unknown token again is
+			// cheap, and holding the absence would have to be undone at login.
+			return nil, err
+		}
+
+		s.cache.PutSessionUser(ctx, tokenHash, session, user)
 	}
 
 	if !session.IsActive(time.Now()) {
@@ -95,7 +129,13 @@ func (s *User) Logout(ctx context.Context, token string) error {
 		return nil
 	}
 
-	return s.sessions.DeleteSession(ctx, hashSessionToken(token))
+	tokenHash := hashSessionToken(token)
+
+	// Evicted before the row goes. The other order would leave the session
+	// usable from the cache if this step failed.
+	s.cache.DeleteSession(ctx, tokenHash)
+
+	return s.sessions.DeleteSession(ctx, tokenHash)
 }
 
 func newSessionToken() (raw, hash string, err error) {

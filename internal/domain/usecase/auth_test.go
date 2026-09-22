@@ -130,7 +130,7 @@ func TestAuthLogin(t *testing.T) {
 				tt.mutate(&in)
 			}
 
-			svc := usecase.NewUser(mocks.NewMockUserCreator(t), pw, creds, sessions, sessionTTL)
+			svc := usecase.NewUser(mocks.NewMockUserCreator(t), pw, creds, sessions, nil, sessionTTL)
 			token, session, err := svc.Login(context.Background(), in)
 
 			if tt.wantErr != nil {
@@ -170,7 +170,7 @@ func TestLoginTokensAreUnique(t *testing.T) {
 		sessions.EXPECT().CreateSession(mock.Anything, mock.Anything, mock.Anything).
 			Return(&entity.Session{}, nil).Once()
 
-		svc := usecase.NewUser(mocks.NewMockUserCreator(t), pw, creds, sessions, sessionTTL)
+		svc := usecase.NewUser(mocks.NewMockUserCreator(t), pw, creds, sessions, nil, sessionTTL)
 		token, _, err := svc.Login(context.Background(), validLogin())
 		require.NoError(t, err)
 
@@ -254,6 +254,7 @@ func TestAuthAuthenticate(t *testing.T) {
 				mocks.NewMockPasswordHasher(t),
 				mocks.NewMockCredentialFinder(t),
 				sessions,
+				nil,
 				sessionTTL,
 			)
 
@@ -283,6 +284,7 @@ func TestAuthLogout(t *testing.T) {
 			mocks.NewMockPasswordHasher(t),
 			mocks.NewMockCredentialFinder(t),
 			sessions,
+			nil,
 			sessionTTL,
 		)
 
@@ -297,10 +299,155 @@ func TestAuthLogout(t *testing.T) {
 			mocks.NewMockPasswordHasher(t),
 			mocks.NewMockCredentialFinder(t),
 			sessions,
+			nil,
 			sessionTTL,
 		)
 
 		require.NoError(t, svc.Logout(context.Background(), ""))
 		sessions.AssertNotCalled(t, "DeleteSession")
 	})
+}
+
+// newCachedUser builds a use case whose only interesting dependencies are the
+// session store and the cache in front of it.
+func newCachedUser(t *testing.T, sessions *mocks.MockSessionStore, cache *mocks.MockSessionCache) *usecase.User {
+	t.Helper()
+
+	return usecase.NewUser(
+		mocks.NewMockUserCreator(t),
+		mocks.NewMockPasswordHasher(t),
+		mocks.NewMockCredentialFinder(t),
+		sessions,
+		cache,
+		sessionTTL,
+	)
+}
+
+func liveSession() *entity.Session {
+	return &entity.Session{UserID: authUserID, ExpiresAt: time.Now().Add(time.Hour)}
+}
+
+func activeUser() *entity.User {
+	return &entity.User{ID: authUserID, IsActive: true}
+}
+
+func TestAuthAuthenticateUsesTheCache(t *testing.T) {
+	const token = "a-token"
+
+	tests := []struct {
+		name  string
+		token string
+		setup func(sessions *mocks.MockSessionStore, cache *mocks.MockSessionCache)
+		// wantErr is what Authenticate must return
+		wantErr error
+	}{
+		{
+			// The store expectation is absent, so reaching it fails the test.
+			name:  "a hit is served without touching the store",
+			token: token,
+			setup: func(_ *mocks.MockSessionStore, cache *mocks.MockSessionCache) {
+				cache.EXPECT().GetSessionUser(mock.Anything, hashOf(token)).
+					Return(liveSession(), activeUser(), true).Once()
+			},
+		},
+		{
+			name:  "a miss reads through and fills the cache",
+			token: token,
+			setup: func(sessions *mocks.MockSessionStore, cache *mocks.MockSessionCache) {
+				session, user := liveSession(), activeUser()
+
+				cache.EXPECT().GetSessionUser(mock.Anything, hashOf(token)).
+					Return(nil, nil, false).Once()
+				sessions.EXPECT().GetSessionUser(mock.Anything, hashOf(token)).
+					Return(session, user, nil).Once()
+				cache.EXPECT().PutSessionUser(mock.Anything, hashOf(token), session, user).Once()
+			},
+		},
+		{
+			// Caching a rejection would have to be undone at login.
+			name:  "a rejection is not cached",
+			token: token,
+			setup: func(sessions *mocks.MockSessionStore, cache *mocks.MockSessionCache) {
+				cache.EXPECT().GetSessionUser(mock.Anything, mock.Anything).
+					Return(nil, nil, false).Once()
+				sessions.EXPECT().GetSessionUser(mock.Anything, mock.Anything).
+					Return(nil, nil, entity.ErrSessionInvalid).Once()
+			},
+			wantErr: entity.ErrSessionInvalid,
+		},
+		{
+			// Expiry is checked after the cache, not by it, so an entry that has
+			// outlived its session cannot let the session through.
+			name:  "a cached session that has since expired is still refused",
+			token: token,
+			setup: func(_ *mocks.MockSessionStore, cache *mocks.MockSessionCache) {
+				expired := liveSession()
+				expired.ExpiresAt = time.Now().Add(-time.Second)
+
+				cache.EXPECT().GetSessionUser(mock.Anything, mock.Anything).
+					Return(expired, activeUser(), true).Once()
+			},
+			wantErr: entity.ErrSessionInvalid,
+		},
+		{
+			name:  "a cached user who has since been deactivated is still refused",
+			token: token,
+			setup: func(_ *mocks.MockSessionStore, cache *mocks.MockSessionCache) {
+				inactive := activeUser()
+				inactive.IsActive = false
+
+				cache.EXPECT().GetSessionUser(mock.Anything, mock.Anything).
+					Return(liveSession(), inactive, true).Once()
+			},
+			wantErr: entity.ErrSessionInvalid,
+		},
+		{
+			name:    "an empty token is rejected without asking the cache",
+			setup:   func(*mocks.MockSessionStore, *mocks.MockSessionCache) {},
+			wantErr: entity.ErrSessionInvalid,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessions := mocks.NewMockSessionStore(t)
+			cache := mocks.NewMockSessionCache(t)
+			tt.setup(sessions, cache)
+
+			user, err := newCachedUser(t, sessions, cache).Authenticate(context.Background(), tt.token)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				require.Nil(t, user)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, authUserID, user.ID)
+		})
+	}
+}
+
+// Logging out has to reach the cache, or the session would keep working from it
+// until the entry expired.
+func TestAuthLogoutEvictsTheCachedSession(t *testing.T) {
+	const token = "a-token"
+
+	sessions := mocks.NewMockSessionStore(t)
+	cache := mocks.NewMockSessionCache(t)
+
+	cache.EXPECT().DeleteSession(mock.Anything, hashOf(token)).Once()
+	sessions.EXPECT().DeleteSession(mock.Anything, hashOf(token)).Return(nil).Once()
+
+	require.NoError(t, newCachedUser(t, sessions, cache).Logout(context.Background(), token))
+}
+
+func TestAuthLogoutWithNoTokenTouchesNeither(t *testing.T) {
+	sessions := mocks.NewMockSessionStore(t)
+	cache := mocks.NewMockSessionCache(t)
+
+	require.NoError(t, newCachedUser(t, sessions, cache).Logout(context.Background(), ""))
+
+	cache.AssertNotCalled(t, "DeleteSession")
+	sessions.AssertNotCalled(t, "DeleteSession")
 }
