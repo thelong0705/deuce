@@ -13,13 +13,12 @@ import (
 type CourtRepo interface {
 	CreateCourt(ctx context.Context, in entity.CreateCourtInput) (*entity.Court, error)
 	ListCourtsByVenue(ctx context.Context, venueID uuid.UUID) ([]entity.Court, error)
-	// SearchCourts returns the active courts at the active venues in a city,
-	// each with the venue it stands at.
+	// SearchCourts returns the active courts at the active venues in a city.
 	SearchCourts(ctx context.Context, city string) ([]entity.CourtAtVenue, error)
 }
 
-// BookedSlotFinder reports which slots are held, across several courts at
-// once, between from inclusive and to exclusive.
+// BookedSlotFinder reports the slots held across several courts, between from
+// inclusive and to exclusive.
 type BookedSlotFinder interface {
 	ListBookedSlotsForCourts(ctx context.Context, courtIDs []uuid.UUID, from, to time.Time) (map[uuid.UUID][]time.Time, error)
 }
@@ -76,15 +75,11 @@ func (s *Court) ListByVenue(ctx context.Context, venueID uuid.UUID) ([]entity.Co
 	return s.courtRepo.ListCourtsByVenue(ctx, venueID)
 }
 
-// Search returns the courts in a city with a free slot on the given date
-// between the given hours, along with those slots.
+// Search returns the courts in a city with a free slot on the date, between
+// the hours, and which slots those are. A court with nothing free is left out:
+// the answer is places that can take a booking.
 //
-// A court with nothing free is left out rather than returned empty: the answer
-// to "where can I play on Friday evening" is a list of places that can take a
-// booking.
-//
-// Like Availability it is a snapshot. A slot shown here can be taken before
-// the player acts on it, and Book is where that race is settled.
+// Like Availability it is a snapshot, and Book is where the race is settled.
 func (s *Court) Search(ctx context.Context, in entity.CourtSearch) ([]entity.CourtAvailability, error) {
 	if err := in.Validate(); err != nil {
 		return nil, err
@@ -97,8 +92,7 @@ func (s *Court) Search(ctx context.Context, in entity.CourtSearch) ([]entity.Cou
 
 	now := time.Now()
 
-	// Candidates first, so the hours actually in play bound the one query for
-	// what is already taken.
+	// Candidates first: they bound the one query for what is already taken.
 	candidates := make(map[uuid.UUID][]time.Time, len(courts))
 	courtIDs := make([]uuid.UUID, 0, len(courts))
 

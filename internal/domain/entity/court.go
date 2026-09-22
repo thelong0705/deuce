@@ -69,14 +69,12 @@ var (
 	ErrSearchHoursInvalid = apperr.New(apperr.KindInvalid, "search_hours_invalid", "from_hour must be before to_hour, both between 0 and 24")
 )
 
-// CourtSearch is what a player looks for: somewhere to play in a city, on a
-// date, between two hours of the day.
+// CourtSearch is somewhere to play in a city, on a date, between two hours.
 type CourtSearch struct {
 	City string
 	// Date is read for its calendar date only, in each venue's own timezone.
 	Date time.Time
-	// FromHour and ToHour bound the local start of a slot. A slot starting at
-	// ToHour is excluded, since it would run past the hour asked for.
+	// ToHour is excluded: a slot starting on it runs past the hour asked for.
 	FromHour int
 	ToHour   int
 }
@@ -95,9 +93,8 @@ func (in CourtSearch) Validate() error {
 	return nil
 }
 
-// CourtAtVenue is a court with the venue it stands at. A court's name says
-// nothing on its own, and its opening hours cannot be read without the venue's
-// timezone.
+// CourtAtVenue is a court with the venue it stands at, whose timezone its
+// opening hours are read in.
 type CourtAtVenue struct {
 	Court Court
 	Venue Venue
@@ -110,8 +107,7 @@ type CourtAvailability struct {
 	Slots []Slot
 }
 
-// SlotsWithin is SlotsOn narrowed to slots whose local start falls between
-// fromHour and toHour.
+// SlotsWithin is SlotsOn narrowed to local starts between fromHour and toHour.
 func (c Court) SlotsWithin(day time.Time, loc *time.Location, now time.Time, fromHour, toHour int) []time.Time {
 	var within []time.Time
 
