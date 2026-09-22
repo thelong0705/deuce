@@ -3,6 +3,12 @@ export const MAX_PASSWORD_BYTES = 72
 
 export type Role = 'player' | 'owner'
 
+// Only one so far. The union is what makes adding another a compiler's
+// problem rather than a search for string literals.
+export type Currency = 'VND'
+
+export const currencies: Currency[] = ['VND']
+
 export type SignupInput = {
   email: string
   password: string
@@ -40,6 +46,7 @@ export type CourtInput = {
   openHour: string
   closeHour: string
   pricePerHour: string
+  currency: Currency
 }
 
 export type CourtFieldErrors = Partial<Record<keyof CourtInput, string>>

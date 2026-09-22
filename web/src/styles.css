@@ -333,6 +333,60 @@ button.password-reveal:focus-visible {
   outline-offset: -2px;
 }
 
+/* Amount and currency drawn as one control, like the phone field. */
+.price-field {
+  display: flex;
+  align-items: stretch;
+  margin-top: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.price-field:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.price-field[data-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.price-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.price-field input:focus-visible,
+.price-field select:focus-visible {
+  outline: none;
+}
+
+select.price-currency {
+  flex: 0 0 auto;
+  width: auto;
+  padding-right: 26px;
+  background-color: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
+  appearance: none;
+  cursor: pointer;
+  color: var(--muted);
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    right 15px center,
+    right 10px center;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+
 .hint,
 .field-error {
   margin: 6px 0 0;

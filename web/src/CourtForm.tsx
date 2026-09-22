@@ -3,14 +3,15 @@ import type { FormEvent } from 'react'
 
 import { ApiError, createCourt } from './api'
 import type { Court } from './api'
-import { validateCourt } from './validation'
-import type { CourtFieldErrors, CourtInput } from './validation'
+import { currencies, validateCourt } from './validation'
+import type { CourtFieldErrors, CourtInput, Currency } from './validation'
 
 const empty: CourtInput = {
   name: '',
   openHour: '6',
   closeHour: '22',
   pricePerHour: '',
+  currency: currencies[0],
 }
 
 // Opening can be any hour of the day; closing runs to 24, midnight.
@@ -125,8 +126,10 @@ export function CourtForm({ venueID, onCreated, onUnauthorized }: Props) {
         </p>
       )}
 
-      <label htmlFor={`${id}-price`}>
-        Price per hour
+      <label htmlFor={`${id}-price`}>Price per hour</label>
+
+      {/* The amount and its currency are one value, so they are one control. */}
+      <div className="price-field" data-invalid={Boolean(fieldErrors.pricePerHour)}>
         <input
           id={`${id}-price`}
           type="number"
@@ -138,7 +141,20 @@ export function CourtForm({ venueID, onCreated, onUnauthorized }: Props) {
           aria-invalid={Boolean(fieldErrors.pricePerHour)}
           aria-describedby={fieldErrors.pricePerHour ? `${id}-price-error` : undefined}
         />
-      </label>
+
+        <select
+          className="price-currency"
+          aria-label="Currency"
+          value={input.currency}
+          onChange={(e) => update({ currency: e.target.value as Currency })}
+        >
+          {currencies.map((currency) => (
+            <option key={currency} value={currency}>
+              {currency}
+            </option>
+          ))}
+        </select>
+      </div>
       {fieldErrors.pricePerHour && (
         <p className="field-error" id={`${id}-price-error`}>
           {fieldErrors.pricePerHour}

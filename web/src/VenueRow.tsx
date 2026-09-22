@@ -29,7 +29,7 @@ export function VenueRow({ venue, onUnauthorized }: Props) {
               <span>{court.name}</span>
               <span className="court-detail">
                 {formatHour(court.open_hour)}&ndash;{formatHour(court.close_hour)} &middot;{' '}
-                {court.price_per_hour}/hour
+                {court.price_per_hour} {court.currency}/hour
               </span>
             </li>
           ))}
