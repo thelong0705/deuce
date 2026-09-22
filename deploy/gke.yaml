@@ -1,11 +1,38 @@
-# Everything deuce needs, in one file: Postgres, Redis, the migrations, the API
-# and the sweeper. Five commands, start to finish.
+# Everything deuce runs in the cluster: the migrations, the API and the
+# sweeper. Postgres is AlloyDB and Redis is Memorystore, both reached on their
+# private addresses in the same VPC, so neither is in here.
 #
-#   1. A cluster. Autopilot means Google runs the nodes.
+#   1. A range for the managed services to take their private addresses from.
 #
-#      gcloud container clusters create-auto deuce --region=asia-southeast1
+#      gcloud compute addresses create google-managed --global \
+#        --purpose=VPC_PEERING --prefix-length=16 --network=default
+#      gcloud services vpc-peerings connect \
+#        --service=servicenetworking.googleapis.com \
+#        --ranges=google-managed --network=default
 #
-#   2. The image, pushed somewhere the cluster can read.
+#   2. AlloyDB. The cluster holds the data, the instance serves it. Note the IP
+#      it prints.
+#
+#      gcloud alloydb clusters create deuce --region=asia-southeast1 \
+#        --network=default --password=PICK_ONE
+#      gcloud alloydb instances create deuce --cluster=deuce \
+#        --region=asia-southeast1 --instance-type=PRIMARY --cpu-count=2
+#      gcloud alloydb instances describe deuce --cluster=deuce \
+#        --region=asia-southeast1 --format='value(ipAddress)'
+#
+#   3. Memorystore. Note this IP too.
+#
+#      gcloud redis instances create deuce --region=asia-southeast1 \
+#        --size=1 --network=default
+#      gcloud redis instances describe deuce --region=asia-southeast1 \
+#        --format='value(host)'
+#
+#   4. A GKE cluster on the same network, or the pods cannot reach either.
+#
+#      gcloud container clusters create-auto deuce --region=asia-southeast1 \
+#        --network=default
+#
+#   5. The image.
 #
 #      REPO=asia-southeast1-docker.pkg.dev/$(gcloud config get project)/deuce
 #      gcloud artifacts repositories create deuce --repository-format=docker \
@@ -13,149 +40,23 @@
 #      gcloud auth configure-docker asia-southeast1-docker.pkg.dev
 #      docker build --platform linux/amd64 -t $REPO/api:v1 . && docker push $REPO/api:v1
 #
-#   3. A database password, and the migrations. Neither belongs in this file:
-#      the password should not be in git, and the migrations are already on
-#      disk.
+#   6. The two addresses from steps 2 and 3, and the migrations.
 #
 #      kubectl create secret generic deuce \
-#        --from-literal=POSTGRES_PASSWORD="$(openssl rand -hex 24)"
+#        --from-literal=DB_URL='postgres://postgres:PICK_ONE@ALLOYDB_IP:5432/postgres?sslmode=require' \
+#        --from-literal=REDIS_ADDR='MEMORYSTORE_IP:6379'
 #      kubectl create configmap migrations --from-file=db/postgres/migration
 #
-#      hex rather than base64: the password goes into a connection URL, and
-#      base64 produces / and + that a URL parser reads as part of the address.
-#
-#   4. Deploy.
+#   7. Deploy, then wait for a public address.
 #
 #      sed "s|IMAGE|$REPO/api:v1|" deploy/gke.yaml | kubectl apply -f -
-#
-#   5. Wait for a public address. EXTERNAL-IP is <pending> for a minute or two.
-#
 #      kubectl get service deuce --watch
 #
 # Then http://EXTERNAL-IP/healthz answers {"status":"ok"}.
 #
-# Order does not matter here. Postgres takes a while to start, so the migration
-# Job and the API fail and retry until it is up, then carry on. That is normal
-# and it resolves itself.
-#
-# This is a demo deployment. It runs its own Postgres rather than Cloud SQL,
-# and it serves plain HTTP with no domain or certificate. deploy/README.md says
-# what to change before it is anything more than that.
+# REDIS_ADDR is not a secret. It shares the Secret with DB_URL because one
+# object is one command, and splitting them buys nothing here.
 
----
-# Postgres. The claim is what survives a pod restart; without it the database
-# is gone every time the pod moves.
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: postgres
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources:
-    requests:
-      storage: 10Gi
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: postgres
-spec:
-  replicas: 1
-  strategy:
-    # One volume, one writer: the new pod cannot attach until the old one lets
-    # go, so replacing beats overlapping.
-    type: Recreate
-  selector:
-    matchLabels:
-      app: postgres
-  template:
-    metadata:
-      labels:
-        app: postgres
-    spec:
-      containers:
-        - name: postgres
-          image: postgres:18-alpine
-          env:
-            - name: POSTGRES_USER
-              value: deuce
-            - name: POSTGRES_DB
-              value: deuce
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: deuce
-                  key: POSTGRES_PASSWORD
-            # The volume mounts at /var/lib/postgresql, and postgres wants its
-            # data in a subdirectory of that, not the mount point itself.
-            - name: PGDATA
-              value: /var/lib/postgresql/data
-          ports:
-            - name: postgres
-              containerPort: 5432
-          volumeMounts:
-            - name: data
-              mountPath: /var/lib/postgresql
-          readinessProbe:
-            exec:
-              command: ["pg_isready", "-U", "deuce"]
-            initialDelaySeconds: 5
-          resources:
-            requests:
-              cpu: 250m
-              memory: 512Mi
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: postgres
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres
-spec:
-  selector:
-    app: postgres
-  ports:
-    - port: 5432
----
-# Redis. Sessions are cached here and read through to Postgres on a miss, so
-# nothing is lost when this restarts and it needs no volume.
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: redis
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: redis
-  template:
-    metadata:
-      labels:
-        app: redis
-    spec:
-      containers:
-        - name: redis
-          image: redis:8-alpine
-          args: ["redis-server", "--save", "", "--appendonly", "no"]
-          ports:
-            - name: redis
-              containerPort: 6379
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: redis
-spec:
-  selector:
-    app: redis
-  ports:
-    - port: 6379
 ---
 # Migrations run here, not when the API starts. Two API pods starting together
 # would both try, and racing to change a schema is the thing this avoids.
@@ -164,25 +65,20 @@ kind: Job
 metadata:
   name: migrate
 spec:
-  # Postgres is probably not up yet on the first apply. Each retry waits longer
-  # than the last, so this succeeds once it is.
-  backoffLimit: 10
+  backoffLimit: 6
   template:
     spec:
       restartPolicy: Never
       containers:
         - name: migrate
           image: migrate/migrate:v4.17.1
-          args:
-            - "-path=/migration"
-            - "-database=postgres://deuce:$(POSTGRES_PASSWORD)@postgres:5432/deuce?sslmode=disable"
-            - "up"
+          args: ["-path=/migration", "-database=$(DB_URL)", "up"]
           env:
-            - name: POSTGRES_PASSWORD
+            - name: DB_URL
               valueFrom:
                 secretKeyRef:
                   name: deuce
-                  key: POSTGRES_PASSWORD
+                  key: DB_URL
           volumeMounts:
             - name: migrations
               mountPath: /migration
@@ -214,15 +110,10 @@ spec:
           env:
             - name: PORT
               value: "8080"
-            - name: REDIS_ADDR
-              value: redis:6379
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: deuce
-                  key: POSTGRES_PASSWORD
-            - name: DB_URL
-              value: postgres://deuce:$(POSTGRES_PASSWORD)@postgres:5432/deuce?sslmode=disable
+          # DB_URL and REDIS_ADDR, both from the Secret made in step 6.
+          envFrom:
+            - secretRef:
+                name: deuce
           readinessProbe:
             httpGet:
               path: /healthz
@@ -246,10 +137,9 @@ spec:
               drop: ["ALL"]
 ---
 # The sweeper releases holds nobody paid for. Same image as the API, different
-# binary — one thing to build and push, one tag to keep track of.
+# binary, so a deploy is one build and one tag.
 #
-# One replica: a second would do the same work over again, and there is no
-# reason to.
+# One replica: a second would do the same work over again.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -268,14 +158,9 @@ spec:
         - name: sweeper
           image: IMAGE
           command: ["/sweeper"]
-          env:
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: deuce
-                  key: POSTGRES_PASSWORD
-            - name: DB_URL
-              value: postgres://deuce:$(POSTGRES_PASSWORD)@postgres:5432/deuce?sslmode=disable
+          envFrom:
+            - secretRef:
+                name: deuce
           resources:
             requests:
               cpu: 50m

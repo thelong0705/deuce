@@ -1,68 +1,76 @@
 # Deploying deuce
 
-`gke.yaml` is the whole deployment, and its header has the commands. This file
-is the part that does not fit in a comment: what it is not, and what to change
-before it is anything more than a demo.
+`gke.yaml` is the whole deployment and its header has the commands. This file is
+what does not fit in a comment: what it costs, and what is still missing.
 
-## What it gives you
+## What runs where
 
-A public IP serving the API over HTTP, with Postgres and Redis beside it in the
-cluster and the sweeper releasing unpaid holds. Good enough to show someone.
-Not production.
+| | |
+|---|---|
+| API and sweeper | GKE Autopilot, one image, different commands |
+| Postgres | AlloyDB, private IP in the VPC |
+| Redis | Memorystore, private IP in the VPC |
+| Migrations | a Job, before the API rolls out |
 
-The API and the sweeper are the same image, run with different commands. One
-build, one push, one tag — and `./cmd/...` in the Dockerfile means a third
-binary needs no change to the build.
+Nothing connects through a proxy. AlloyDB and Memorystore both hand out private
+addresses on the VPC, and an Autopilot cluster on the same network reaches them
+directly — so `DB_URL` and `REDIS_ADDR` are addresses and that is the whole of
+it. No Auth Proxy sidecar, no Workload Identity, no service account.
 
-## What to change first
+Worth knowing, because most of the GKE documentation shows the proxy. It buys
+IAM authentication instead of a password, which is the better answer for
+something real. It is not needed to connect.
 
-**Postgres is in the cluster.** One replica, one disk. A node upgrade takes the
-database down with it, and there are no backups. Cloud SQL costs about ten
-dollars a month and fixes both — the app reaches it through the Cloud SQL Auth
-Proxy as a second container in the API pod, and `DB_URL` then points at
-`127.0.0.1` so the database is never on the cluster network at all.
+## What it costs
+
+The part to decide before running it.
+
+| | |
+|---|---|
+| AlloyDB | smallest instance is 2 vCPU, on the order of **$100/month** |
+| Memorystore | 1 GB basic, on the order of **$35/month** |
+| GKE Autopilot | what the pods request, about **$20/month** here |
+| Load balancer | about **$18/month** |
+
+Call it **$170 a month**, so $300 of credit is about seven weeks. Check the
+pricing calculator rather than trusting these: they are the right order of
+magnitude, not a quote.
+
+AlloyDB has no small tier — 2 vCPU is the floor. Cloud SQL's `db-f1-micro` is
+around $10 a month and speaks the same protocol, so if the point is having the
+thing running rather than having AlloyDB specifically, that swap is one line in
+the Secret.
+
+Delete all of it when you have finished looking:
+
+    gcloud container clusters delete deuce --region=asia-southeast1
+    gcloud alloydb clusters delete deuce --region=asia-southeast1 --force
+    gcloud redis instances delete deuce --region=asia-southeast1
+
+## What is still missing
 
 **There is no HTTPS.** A `LoadBalancer` Service gives out a bare IP and speaks
-plain HTTP, which means the session cookie is sent in the clear. The cookie is
-already marked `Secure`, so browsers will refuse to store it over that IP —
-sign-in will appear to work and every request after it will look signed out.
-Fixing that needs a domain, an Ingress and a `ManagedCertificate`.
+plain HTTP. The session cookie is `Secure`, so a browser will not store it over
+that IP: sign-in will appear to succeed and every request after it will look
+signed out. The API answers; the web app does not work. Fixing it needs a
+domain, an Ingress and a `ManagedCertificate`.
 
-That is the one thing that makes this a demo rather than a deployment: it is
-enough to see the API answer, and not enough to actually sign in from a
-browser.
-
-**Redis is a single pod with no persistence.** That one is fine. Sessions are
-cached there and read through to Postgres when missing, so a restart costs
-latency rather than anyone's session.
-
-**The migration Job runs once.** `kubectl apply` will not re-run it on the next
-deploy, because a completed Job is immutable. Use
-`kubectl replace --force -f` when the migrations change.
+**The migration Job runs once.** `kubectl apply` will not re-run it, because a
+completed Job is immutable. Use `kubectl replace --force -f` when the migrations
+change.
 
 **Nothing serves the web app.** It builds to static files, which want a bucket
 and a CDN rather than a pod.
 
 ## If something looks wrong
 
-On the first apply the API and the migration Job fail a few times while
-Postgres starts, then settle. `kubectl get pods` showing `CrashLoopBackOff` for
-the first minute is expected.
+`kubectl logs job/migrate` and `kubectl logs -l app=deuce` say why.
 
-`kubectl logs job/migrate` and `kubectl logs -l app=deuce` say why if it does
-not settle.
+`connection refused` or a timeout means the pods cannot see the private
+addresses. The usual cause is the GKE cluster sitting on a different network
+from the peering in step 1.
 
-`password authentication failed for user "deuce"` means the disk outlived the
-password. Postgres only reads `POSTGRES_PASSWORD` when it first initialises its
-data directory, so changing the Secret afterwards changes nothing — the
-database still wants the old one. Either put the old password back, or delete
-the claim and start over:
-
-    kubectl delete deployment postgres && kubectl delete pvc postgres
-
-## Costs
-
-An Autopilot cluster bills for what the pods request. As written, about
-900 mCPU and 1 GiB, which lands near twenty to thirty dollars a month, plus a
-few dollars for the load balancer and the disk. `gcloud container clusters
-delete deuce` stops all of it.
+`extension "citext" is not available` would mean AlloyDB will not create it. The
+first migration needs it, so it would be the first thing to fail. AlloyDB
+carries the standard Postgres extensions, so it should not happen — but it is
+unverified here, and it is where I would look first.
