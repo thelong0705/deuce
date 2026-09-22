@@ -14,21 +14,29 @@ import (
 
 const createBooking = `-- name: CreateBooking :one
 INSERT INTO bookings (
-    court_id, player_id, starts_at
+    court_id, player_id, starts_at, status, amount
 ) VALUES (
-    $1, $2, $3
+    $1, $2, $3, $4, $5
 )
-RETURNING id, court_id, player_id, is_block, starts_at, cancelled_at, created_at, updated_at
+RETURNING id, court_id, player_id, is_block, starts_at, cancelled_at, created_at, updated_at, status, amount, hold_expires_at, payment_intent_id
 `
 
 type CreateBookingParams struct {
 	CourtID  uuid.UUID          `json:"court_id"`
 	PlayerID uuid.NullUUID      `json:"player_id"`
 	StartsAt pgtype.Timestamptz `json:"starts_at"`
+	Status   BookingStatus      `json:"status"`
+	Amount   pgtype.Int4        `json:"amount"`
 }
 
 func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (Booking, error) {
-	row := q.db.QueryRow(ctx, createBooking, arg.CourtID, arg.PlayerID, arg.StartsAt)
+	row := q.db.QueryRow(ctx, createBooking,
+		arg.CourtID,
+		arg.PlayerID,
+		arg.StartsAt,
+		arg.Status,
+		arg.Amount,
+	)
 	var i Booking
 	err := row.Scan(
 		&i.ID,
@@ -39,6 +47,10 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		&i.CancelledAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.Amount,
+		&i.HoldExpiresAt,
+		&i.PaymentIntentID,
 	)
 	return i, err
 }
@@ -158,7 +170,7 @@ func (q *Queries) ListBookedSlotsForCourts(ctx context.Context, arg ListBookedSl
 }
 
 const listPlayerBookings = `-- name: ListPlayerBookings :many
-SELECT bookings.id, bookings.court_id, bookings.player_id, bookings.is_block, bookings.starts_at, bookings.cancelled_at, bookings.created_at, bookings.updated_at, courts.id, courts.venue_id, courts.name, courts.open_hour, courts.close_hour, courts.price_per_hour, courts.is_active, courts.created_at, courts.updated_at, courts.currency, venues.id, venues.owner_id, venues.name, venues.city, venues.address, venues.is_active, venues.created_at, venues.updated_at, venues.timezone
+SELECT bookings.id, bookings.court_id, bookings.player_id, bookings.is_block, bookings.starts_at, bookings.cancelled_at, bookings.created_at, bookings.updated_at, bookings.status, bookings.amount, bookings.hold_expires_at, bookings.payment_intent_id, courts.id, courts.venue_id, courts.name, courts.open_hour, courts.close_hour, courts.price_per_hour, courts.is_active, courts.created_at, courts.updated_at, courts.currency, venues.id, venues.owner_id, venues.name, venues.city, venues.address, venues.is_active, venues.created_at, venues.updated_at, venues.timezone
 FROM bookings
 JOIN courts ON courts.id = bookings.court_id
 JOIN venues ON venues.id = courts.venue_id
@@ -197,6 +209,10 @@ func (q *Queries) ListPlayerBookings(ctx context.Context, arg ListPlayerBookings
 			&i.Booking.CancelledAt,
 			&i.Booking.CreatedAt,
 			&i.Booking.UpdatedAt,
+			&i.Booking.Status,
+			&i.Booking.Amount,
+			&i.Booking.HoldExpiresAt,
+			&i.Booking.PaymentIntentID,
 			&i.Court.ID,
 			&i.Court.VenueID,
 			&i.Court.Name,

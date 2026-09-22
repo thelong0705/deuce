@@ -1,8 +1,8 @@
 -- name: CreateBooking :one
 INSERT INTO bookings (
-    court_id, player_id, starts_at
+    court_id, player_id, starts_at, status, amount
 ) VALUES (
-    $1, $2, $3
+    $1, $2, $3, $4, $5
 )
 RETURNING *;
 

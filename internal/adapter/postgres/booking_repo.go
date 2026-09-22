@@ -39,6 +39,7 @@ func (r *BookingRepository) CreateBooking(ctx context.Context, in entity.BookSlo
 		CourtID:  in.CourtID,
 		PlayerID: uuid.NullUUID{UUID: in.PlayerID, Valid: in.PlayerID != uuid.Nil},
 		StartsAt: pgtype.Timestamptz{Time: in.StartsAt, Valid: true},
+		Status:   BookingStatusConfirmed,
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
