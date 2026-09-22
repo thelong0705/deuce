@@ -146,6 +146,53 @@ func (_c *MockBookingUsecase_Book_Call) RunAndReturn(run func(context.Context, e
 	return _c
 }
 
+// HandlePaymentEvent provides a mock function with given fields: ctx, ev
+func (_m *MockBookingUsecase) HandlePaymentEvent(ctx context.Context, ev entity.PaymentEvent) error {
+	ret := _m.Called(ctx, ev)
+
+	if len(ret) == 0 {
+		panic("no return value specified for HandlePaymentEvent")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, entity.PaymentEvent) error); ok {
+		r0 = rf(ctx, ev)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockBookingUsecase_HandlePaymentEvent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HandlePaymentEvent'
+type MockBookingUsecase_HandlePaymentEvent_Call struct {
+	*mock.Call
+}
+
+// HandlePaymentEvent is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ev entity.PaymentEvent
+func (_e *MockBookingUsecase_Expecter) HandlePaymentEvent(ctx interface{}, ev interface{}) *MockBookingUsecase_HandlePaymentEvent_Call {
+	return &MockBookingUsecase_HandlePaymentEvent_Call{Call: _e.mock.On("HandlePaymentEvent", ctx, ev)}
+}
+
+func (_c *MockBookingUsecase_HandlePaymentEvent_Call) Run(run func(ctx context.Context, ev entity.PaymentEvent)) *MockBookingUsecase_HandlePaymentEvent_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(entity.PaymentEvent))
+	})
+	return _c
+}
+
+func (_c *MockBookingUsecase_HandlePaymentEvent_Call) Return(_a0 error) *MockBookingUsecase_HandlePaymentEvent_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockBookingUsecase_HandlePaymentEvent_Call) RunAndReturn(run func(context.Context, entity.PaymentEvent) error) *MockBookingUsecase_HandlePaymentEvent_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListForPlayer provides a mock function with given fields: ctx, playerID
 func (_m *MockBookingUsecase) ListForPlayer(ctx context.Context, playerID uuid.UUID) ([]entity.PlayerBooking, error) {
 	ret := _m.Called(ctx, playerID)

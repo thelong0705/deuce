@@ -44,6 +44,7 @@ type BookingUsecase interface {
 	Book(ctx context.Context, in entity.BookSlotInput) (*entity.HeldBooking, error)
 	Availability(ctx context.Context, courtID uuid.UUID, day time.Time) ([]entity.Slot, error)
 	ListForPlayer(ctx context.Context, playerID uuid.UUID) ([]entity.PlayerBooking, error)
+	HandlePaymentEvent(ctx context.Context, ev entity.PaymentEvent) error
 }
 
 type Server struct {
@@ -51,6 +52,7 @@ type Server struct {
 	venues   VenueUsecase
 	courts   CourtUsecase
 	bookings BookingUsecase
+	webhooks PaymentWebhook
 	cities   CityUsecase
 	router   *chi.Mux
 }
@@ -60,6 +62,7 @@ func NewServer(
 	venues VenueUsecase,
 	courts CourtUsecase,
 	bookings BookingUsecase,
+	webhooks PaymentWebhook,
 	cities CityUsecase,
 ) *Server {
 	s := &Server{
@@ -67,6 +70,7 @@ func NewServer(
 		venues:   venues,
 		courts:   courts,
 		bookings: bookings,
+		webhooks: webhooks,
 		cities:   cities,
 		router:   chi.NewRouter(),
 	}
@@ -91,6 +95,8 @@ func (s *Server) routes() {
 	s.router.Post("/users", s.createUser)
 	s.router.Post("/sessions", s.login)
 	s.router.Delete("/sessions", s.logout)
+	// Signed rather than authenticated: the gateway has no session.
+	s.router.Post("/stripe/webhook", s.paymentWebhook)
 	s.router.Group(func(r chi.Router) {
 		r.Use(s.requireAuth)
 

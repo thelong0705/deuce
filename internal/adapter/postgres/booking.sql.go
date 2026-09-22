@@ -39,6 +39,42 @@ func (q *Queries) CancelBooking(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const confirmBooking = `-- name: ConfirmBooking :exec
+UPDATE bookings
+SET status = 'confirmed', hold_expires_at = NULL
+WHERE id = $1
+`
+
+func (q *Queries) ConfirmBooking(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, confirmBooking, id)
+	return err
+}
+
+const getBookingByPayment = `-- name: GetBookingByPayment :one
+SELECT id, court_id, player_id, is_block, starts_at, cancelled_at, created_at, updated_at, status, amount, hold_expires_at, payment_intent_id FROM bookings
+WHERE payment_intent_id = $1
+`
+
+func (q *Queries) GetBookingByPayment(ctx context.Context, paymentIntentID pgtype.Text) (Booking, error) {
+	row := q.db.QueryRow(ctx, getBookingByPayment, paymentIntentID)
+	var i Booking
+	err := row.Scan(
+		&i.ID,
+		&i.CourtID,
+		&i.PlayerID,
+		&i.IsBlock,
+		&i.StartsAt,
+		&i.CancelledAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.Amount,
+		&i.HoldExpiresAt,
+		&i.PaymentIntentID,
+	)
+	return i, err
+}
+
 const getCourtVenue = `-- name: GetCourtVenue :one
 SELECT courts.id, courts.venue_id, courts.name, courts.open_hour, courts.close_hour, courts.price_per_hour, courts.is_active, courts.created_at, courts.updated_at, courts.currency, venues.id, venues.owner_id, venues.name, venues.city, venues.address, venues.is_active, venues.created_at, venues.updated_at, venues.timezone
 FROM courts

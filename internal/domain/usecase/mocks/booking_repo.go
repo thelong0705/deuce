@@ -121,6 +121,112 @@ func (_c *MockBookingRepo_CancelBooking_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
+// ConfirmBooking provides a mock function with given fields: ctx, bookingID
+func (_m *MockBookingRepo) ConfirmBooking(ctx context.Context, bookingID uuid.UUID) error {
+	ret := _m.Called(ctx, bookingID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ConfirmBooking")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) error); ok {
+		r0 = rf(ctx, bookingID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockBookingRepo_ConfirmBooking_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ConfirmBooking'
+type MockBookingRepo_ConfirmBooking_Call struct {
+	*mock.Call
+}
+
+// ConfirmBooking is a helper method to define mock.On call
+//   - ctx context.Context
+//   - bookingID uuid.UUID
+func (_e *MockBookingRepo_Expecter) ConfirmBooking(ctx interface{}, bookingID interface{}) *MockBookingRepo_ConfirmBooking_Call {
+	return &MockBookingRepo_ConfirmBooking_Call{Call: _e.mock.On("ConfirmBooking", ctx, bookingID)}
+}
+
+func (_c *MockBookingRepo_ConfirmBooking_Call) Run(run func(ctx context.Context, bookingID uuid.UUID)) *MockBookingRepo_ConfirmBooking_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *MockBookingRepo_ConfirmBooking_Call) Return(_a0 error) *MockBookingRepo_ConfirmBooking_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockBookingRepo_ConfirmBooking_Call) RunAndReturn(run func(context.Context, uuid.UUID) error) *MockBookingRepo_ConfirmBooking_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetBookingByPayment provides a mock function with given fields: ctx, paymentIntentID
+func (_m *MockBookingRepo) GetBookingByPayment(ctx context.Context, paymentIntentID string) (*entity.Booking, error) {
+	ret := _m.Called(ctx, paymentIntentID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetBookingByPayment")
+	}
+
+	var r0 *entity.Booking
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*entity.Booking, error)); ok {
+		return rf(ctx, paymentIntentID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *entity.Booking); ok {
+		r0 = rf(ctx, paymentIntentID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*entity.Booking)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, paymentIntentID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockBookingRepo_GetBookingByPayment_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetBookingByPayment'
+type MockBookingRepo_GetBookingByPayment_Call struct {
+	*mock.Call
+}
+
+// GetBookingByPayment is a helper method to define mock.On call
+//   - ctx context.Context
+//   - paymentIntentID string
+func (_e *MockBookingRepo_Expecter) GetBookingByPayment(ctx interface{}, paymentIntentID interface{}) *MockBookingRepo_GetBookingByPayment_Call {
+	return &MockBookingRepo_GetBookingByPayment_Call{Call: _e.mock.On("GetBookingByPayment", ctx, paymentIntentID)}
+}
+
+func (_c *MockBookingRepo_GetBookingByPayment_Call) Run(run func(ctx context.Context, paymentIntentID string)) *MockBookingRepo_GetBookingByPayment_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockBookingRepo_GetBookingByPayment_Call) Return(_a0 *entity.Booking, _a1 error) *MockBookingRepo_GetBookingByPayment_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockBookingRepo_GetBookingByPayment_Call) RunAndReturn(run func(context.Context, string) (*entity.Booking, error)) *MockBookingRepo_GetBookingByPayment_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // HoldSlot provides a mock function with given fields: ctx, in, amount, holdExpiresAt
 func (_m *MockBookingRepo) HoldSlot(ctx context.Context, in entity.BookSlotInput, amount int, holdExpiresAt time.Time) (*entity.Booking, error) {
 	ret := _m.Called(ctx, in, amount, holdExpiresAt)
