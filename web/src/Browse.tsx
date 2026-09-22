@@ -2,7 +2,9 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 
 import { BrowseVenue } from './BrowseVenue'
+import { CitySelect } from './CitySelect'
 import { ApiError, searchVenues } from './api'
+import { useCities } from './useCities'
 import type { Venue } from './api'
 
 type Props = {
@@ -11,6 +13,7 @@ type Props = {
 }
 
 export function Browse({ onBooked, onUnauthorized }: Props) {
+  const { cities, error: citiesError } = useCities(onUnauthorized)
   const [city, setCity] = useState('')
   // null means nothing has been searched for yet, which is not the same as a
   // city with no venues.
@@ -21,8 +24,8 @@ export function Browse({ onBooked, onUnauthorized }: Props) {
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (city.trim() === '') {
-      setError('Enter a city')
+    if (city === '') {
+      setError('Choose a city')
       return
     }
 
@@ -48,19 +51,17 @@ export function Browse({ onBooked, onUnauthorized }: Props) {
       <h2>Book a court</h2>
 
       <form onSubmit={handleSearch} noValidate>
-        <label htmlFor="browse-city">
-          City
-          <input
-            id="browse-city"
-            autoComplete="address-level2"
-            placeholder="Da Nang"
-            value={city}
-            onChange={(e) => {
-              setCity(e.target.value)
-              setError(null)
-            }}
-          />
-        </label>
+        <CitySelect
+          id="browse-city"
+          label="City"
+          value={city}
+          cities={cities}
+          error={citiesError ?? undefined}
+          onChange={(next) => {
+            setCity(next)
+            setError(null)
+          }}
+        />
 
         <button type="submit" disabled={searching}>
           {searching ? 'Searching…' : 'Search'}

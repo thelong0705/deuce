@@ -25,9 +25,6 @@ export type VenueInput = {
   name: string
   city: string
   address: string
-  // timezone is an IANA name. The courts' opening hours are read in it, so a
-  // venue cannot be registered without one.
-  timezone: string
 }
 
 export type FieldErrors = Partial<Record<keyof SignupInput, string>>
@@ -136,17 +133,11 @@ export function validateVenue(input: VenueInput): VenueFieldErrors {
   }
 
   if (input.city.trim() === '') {
-    errors.city = 'City is required'
+    errors.city = 'Choose a city'
   }
 
   if (input.address.trim() === '') {
     errors.address = 'Address is required'
-  }
-
-  // The select is populated from the browser's own zone list, so an invalid
-  // name is not reachable from the form; only an empty one is.
-  if (input.timezone.trim() === '') {
-    errors.timezone = 'Timezone is required'
   }
 
   return errors
