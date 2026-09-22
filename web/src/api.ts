@@ -270,6 +270,17 @@ export async function createBooking(courtID: string, startsAt: string): Promise<
   return (await response.json()) as HeldBooking
 }
 
+// resumePayment hands back the secret for a payment already opened, for a
+// player who walked away from one. It opens nothing: a hold that has lapsed
+// comes back 409 rather than quietly becoming a new charge.
+export async function resumePayment(bookingID: string): Promise<HeldBooking> {
+  const response = await request(`/bookings/${encodeURIComponent(bookingID)}/payment`, {
+    method: 'POST',
+  })
+
+  return (await response.json()) as HeldBooking
+}
+
 // A listed booking carries the court and venue names; a list of court ids
 // tells a player nothing.
 export type BookingListItem = Booking & {
