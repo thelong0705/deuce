@@ -108,14 +108,20 @@ paths:
         "400":
           $ref: "#/components/responses/Invalid"
         "409":
-          description: The email is already registered
+          description: The email or the phone number is already registered
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-              example:
-                code: email_taken
-                error: email already registered
+              examples:
+                email:
+                  value:
+                    code: email_taken
+                    error: email already registered
+                phone:
+                  value:
+                    code: phone_taken
+                    error: phone number already registered
 
   /sessions:
     post:
@@ -457,6 +463,7 @@ components:
           description: At most 72 bytes, which is what bcrypt reads.
         phone_number:
           type: string
+          description: One account per number.
           examples: ["+84901234567"]
         role:
           $ref: "#/components/schemas/Role"
