@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 
 	rediscache "github.com/thelong0705/deuce/internal/adapter/cache/redis"
@@ -36,6 +37,10 @@ const (
 )
 
 func run() error {
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("load .env: %w", err)
+	}
+
 	var (
 		dsn       = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
 		addr      = env("HTTP_ADDR", ":8080")
