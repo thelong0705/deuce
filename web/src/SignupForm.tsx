@@ -3,8 +3,8 @@ import type { FormEvent } from 'react'
 
 import { PasswordField } from './PasswordField'
 import { PhoneField } from './PhoneField'
-import { ApiError, signup } from './api'
-import type { CreatedUser } from './api'
+import { ApiError, login, signup } from './api'
+import type { Session } from './api'
 import { defaultCountry } from './countries'
 import { MIN_PASSWORD_BYTES, validate } from './validation'
 import type { FieldErrors, Role, SignupInput } from './validation'
@@ -19,17 +19,18 @@ const empty: SignupInput = {
 }
 
 type Props = {
-  // onSignIn hands the new account's email to the sign-in form. Registering
-  // does not start a session, so the user still has to log in.
-  onSignIn: (email: string) => void
+  // onSignedIn hands over the session the new account was signed in with.
+  onSignedIn: (session: Session) => void
+  // onNeedsSignIn is the fallback: the account exists but signing in failed,
+  // so the sign-in form takes over with the email already filled.
+  onNeedsSignIn: (email: string) => void
 }
 
-export function SignupForm({ onSignIn }: Props) {
+export function SignupForm({ onSignedIn, onNeedsSignIn }: Props) {
   const [input, setInput] = useState<SignupInput>(empty)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [created, setCreated] = useState<CreatedUser | null>(null)
 
   function update(patch: Partial<SignupInput>) {
     setInput((prev) => ({ ...prev, ...patch }))
@@ -49,48 +50,35 @@ export function SignupForm({ onSignIn }: Props) {
     setSubmitting(true)
     setFormError(null)
     try {
-      setCreated(await signup(input))
+      await signup(input)
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
+      // A conflict is about one particular field, so it has to be routed by
+      // code. Going on the 409 alone put "phone number already registered"
+      // under the email.
+      if (err instanceof ApiError && err.code === 'email_taken') {
         setFieldErrors({ email: err.message })
+      } else if (err instanceof ApiError && err.code === 'phone_taken') {
+        setFieldErrors({ phoneNumber: err.message })
       } else if (err instanceof ApiError) {
         setFormError(err.message)
       } else {
         setFormError('Something went wrong.')
       }
+      setSubmitting(false)
+      return
+    }
+
+    // Registering does not start a session, so signing up signs in too rather
+    // than asking for the same password again on the next screen.
+    try {
+      onSignedIn(await login({ email: input.email, password: input.password }))
+    } catch {
+      // The account is real either way; only the session is missing, and the
+      // sign-in form is the one screen that can say so honestly.
+      onNeedsSignIn(input.email.trim())
     } finally {
       setSubmitting(false)
     }
-  }
-
-  if (created) {
-    return (
-      <div className="card">
-        <h1>You&rsquo;re in</h1>
-        <p className="lede">
-          Welcome, <strong>{created.display_name}</strong>.
-        </p>
-        <dl className="summary">
-          <dt>Email</dt>
-          <dd>{created.email}</dd>
-          <dt>Account</dt>
-          <dd>{created.role === 'owner' ? 'Court owner' : 'Player'}</dd>
-        </dl>
-        <button type="button" onClick={() => onSignIn(created.email)}>
-          Sign in
-        </button>
-        <button
-          type="button"
-          className="secondary quiet"
-          onClick={() => {
-            setCreated(null)
-            setInput(empty)
-          }}
-        >
-          Create another account
-        </button>
-      </div>
-    )
   }
 
   return (
