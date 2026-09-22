@@ -2,6 +2,8 @@ COMPOSE   := docker compose
 DB_USER   := deuce
 DB_NAME   ?= deuce
 CONTAINER := deuce-postgres
+DB_SERVICE := postgres
+DB_VOLUME  := deuce-pgdata
 TEST_DB_NAME := deuce_test
 MIGRATIONS_DIR := db/postgres/migration
 MIGRATE_IMAGE := migrate/migrate:v4.17.1
@@ -15,18 +17,18 @@ MIGRATE := docker run --rm \
 	$(MIGRATE_IMAGE) \
 	-path=/migration -database "$(DB_URL)"
 
-.PHONY: db-start db-down db-wait db-psql db-test-create \
-        migrate-up migrate-down migrate-drop migrate-version \
+.PHONY: db-start db-down db-wait db-psql db-test-create db-reset \
+        migrate-up migrate-down migrate-version \
         sqlc-gen build test test-cover mocks \
         lint fmt fmt-check \
         server web web-install
 
 db-start:
-	$(COMPOSE) up -d
+	$(COMPOSE) up -d $(DB_SERVICE)
 	@$(MAKE) db-wait
 
 db-down:
-	$(COMPOSE) down
+	$(COMPOSE) down $(DB_SERVICE)
 
 db-wait:
 	@echo "waiting for postgres..."
@@ -41,14 +43,19 @@ db-test-create:
 	@$(COMPOSE) exec -T postgres createdb -U $(DB_USER) $(TEST_DB_NAME) 2>/dev/null \
 		|| echo "$(TEST_DB_NAME) already exists"
 
+db-reset:
+	$(COMPOSE) down $(DB_SERVICE)
+	-@docker volume rm $(DB_VOLUME) >/dev/null 2>&1
+	@$(MAKE) db-start
+	@$(MAKE) db-test-create
+	@$(MAKE) migrate-up
+	@$(MAKE) migrate-up DB_NAME=$(TEST_DB_NAME)
+
 migrate-up:
 	$(MIGRATE) up
 
 migrate-down:
 	$(MIGRATE) down 1
-
-migrate-drop:
-	$(MIGRATE) drop -f
 
 migrate-version:
 	$(MIGRATE) version
