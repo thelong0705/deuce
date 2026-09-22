@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 
+import { CitySelect } from './CitySelect'
 import { ApiError, createVenue } from './api'
 import type { Venue } from './api'
-import { browserTimezone, supportedTimezones } from './timezones'
+import { useCities } from './useCities'
 import { validateVenue } from './validation'
 import type { VenueFieldErrors, VenueInput } from './validation'
 
@@ -11,11 +12,7 @@ const empty: VenueInput = {
   name: '',
   city: '',
   address: '',
-  timezone: browserTimezone(),
 }
-
-// Read once: the list is long and does not change while the page is open.
-const timezones = supportedTimezones()
 
 type Props = {
   onCreated: (venue: Venue) => void
@@ -23,6 +20,7 @@ type Props = {
 }
 
 export function VenueForm({ onCreated, onUnauthorized }: Props) {
+  const { cities, error: citiesError } = useCities(onUnauthorized)
   const [input, setInput] = useState<VenueInput>(empty)
   const [fieldErrors, setFieldErrors] = useState<VenueFieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
@@ -81,22 +79,14 @@ export function VenueForm({ onCreated, onUnauthorized }: Props) {
         </p>
       )}
 
-      <label htmlFor="venue-city">
-        City
-        <input
-          id="venue-city"
-          autoComplete="address-level2"
-          value={input.city}
-          onChange={(e) => update({ city: e.target.value })}
-          aria-invalid={Boolean(fieldErrors.city)}
-          aria-describedby={fieldErrors.city ? 'venue-city-error' : undefined}
-        />
-      </label>
-      {fieldErrors.city && (
-        <p className="field-error" id="venue-city-error">
-          {fieldErrors.city}
-        </p>
-      )}
+      <CitySelect
+        id="venue-city"
+        label="City"
+        value={input.city}
+        cities={cities}
+        error={fieldErrors.city ?? citiesError ?? undefined}
+        onChange={(city) => update({ city })}
+      />
 
       <label htmlFor="venue-address">
         Address
@@ -112,32 +102,6 @@ export function VenueForm({ onCreated, onUnauthorized }: Props) {
       {fieldErrors.address && (
         <p className="field-error" id="venue-address-error">
           {fieldErrors.address}
-        </p>
-      )}
-
-      <label htmlFor="venue-timezone">
-        Timezone
-        <select
-          id="venue-timezone"
-          value={input.timezone}
-          onChange={(e) => update({ timezone: e.target.value })}
-          aria-invalid={Boolean(fieldErrors.timezone)}
-          aria-describedby={fieldErrors.timezone ? 'venue-timezone-error' : 'venue-timezone-hint'}
-        >
-          {timezones.map((zone) => (
-            <option key={zone} value={zone}>
-              {zone}
-            </option>
-          ))}
-        </select>
-      </label>
-      {fieldErrors.timezone ? (
-        <p className="field-error" id="venue-timezone-error">
-          {fieldErrors.timezone}
-        </p>
-      ) : (
-        <p className="hint" id="venue-timezone-hint">
-          Court opening hours are read in this zone.
         </p>
       )}
 
