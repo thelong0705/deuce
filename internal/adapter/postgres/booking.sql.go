@@ -305,3 +305,19 @@ func (q *Queries) ListPlayerBookings(ctx context.Context, arg ListPlayerBookings
 	}
 	return items, nil
 }
+
+const releaseLapsedHolds = `-- name: ReleaseLapsedHolds :execrows
+UPDATE bookings
+SET cancelled_at = now()
+WHERE status = 'pending_payment'
+  AND cancelled_at IS NULL
+  AND hold_expires_at <= $1
+`
+
+func (q *Queries) ReleaseLapsedHolds(ctx context.Context, holdExpiresAt pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, releaseLapsedHolds, holdExpiresAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

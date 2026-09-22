@@ -565,3 +565,54 @@ func TestBookingRepositoryRecordEventSettlesRacesInTheDatabase(t *testing.T) {
 
 	require.Equal(t, 1, firsts, "exactly one delivery may be told it is first")
 }
+
+func TestBookingRepositoryReleaseLapsedHolds(t *testing.T) {
+	repo := NewBookingRepository(testQueries)
+	ctx := context.Background()
+
+	lapsed, err := repo.HoldSlot(ctx, validBookSlotInput(t), 240000, time.Now().Add(-time.Minute))
+	require.NoError(t, err)
+
+	live, err := repo.HoldSlot(ctx, validBookSlotInput(t), 240000, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	paid, err := repo.HoldSlot(ctx, validBookSlotInput(t), 240000, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	require.NoError(t, repo.ConfirmBooking(ctx, paid.ID))
+
+	released, err := repo.ReleaseLapsedHolds(ctx, time.Now())
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, released, 1)
+
+	// The lapsed hold is gone, so its slot can be taken again.
+	retaken, err := repo.HoldSlot(ctx, entity.BookSlotInput{
+		PlayerID: createRandomPlayer(t), CourtID: lapsed.CourtID, StartsAt: lapsed.StartsAt,
+	}, 240000, time.Now().Add(entity.PaymentHold))
+	require.NoError(t, err)
+	require.NotEqual(t, lapsed.ID, retaken.ID)
+
+	// A hold with time left still holds its slot.
+	_, err = repo.HoldSlot(ctx, entity.BookSlotInput{
+		PlayerID: createRandomPlayer(t), CourtID: live.CourtID, StartsAt: live.StartsAt,
+	}, 240000, time.Now().Add(entity.PaymentHold))
+	require.ErrorIs(t, err, entity.ErrSlotTaken)
+
+	// A booking that was paid for is not a hold, however long ago it was made.
+	_, err = repo.HoldSlot(ctx, entity.BookSlotInput{
+		PlayerID: createRandomPlayer(t), CourtID: paid.CourtID, StartsAt: paid.StartsAt,
+	}, 240000, time.Now().Add(entity.PaymentHold))
+	require.ErrorIs(t, err, entity.ErrSlotTaken)
+}
+
+// Nothing overdue is a quiet no-op rather than an error.
+func TestBookingRepositoryReleaseLapsedHoldsWithNothingToDo(t *testing.T) {
+	repo := NewBookingRepository(testQueries)
+	ctx := context.Background()
+
+	_, err := repo.ReleaseLapsedHolds(ctx, time.Now())
+	require.NoError(t, err)
+
+	released, err := repo.ReleaseLapsedHolds(ctx, time.Now())
+	require.NoError(t, err)
+	require.Zero(t, released)
+}

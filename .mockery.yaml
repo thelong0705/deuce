@@ -22,6 +22,7 @@ packages:
       BookedSlotFinder:
       PaymentGateway:
       PaymentEventLog:
+      HoldReleaser:
       BookingRepo:
       CourtFinder:
       UserFinder:
