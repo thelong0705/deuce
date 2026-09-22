@@ -1,7 +1,8 @@
 COMPOSE   := docker compose
 DB_USER   := deuce
-DB_NAME   := deuce
+DB_NAME   ?= deuce
 CONTAINER := deuce-postgres
+TEST_DB_NAME := deuce_test
 MIGRATIONS_DIR := db/postgres/migration
 MIGRATE_IMAGE := migrate/migrate:v4.17.1
 DB_URL        := postgres://$(DB_USER):$(DB_USER)@localhost:5432/$(DB_NAME)?sslmode=disable
@@ -14,7 +15,7 @@ MIGRATE := docker run --rm \
 	$(MIGRATE_IMAGE) \
 	-path=/migration -database "$(DB_URL)"
 
-.PHONY: db-start db-down db-wait db-psql \
+.PHONY: db-start db-down db-wait db-psql db-test-create \
         migrate-up migrate-down migrate-drop migrate-version \
         sqlc-gen build test test-cover mocks \
         lint fmt fmt-check \
@@ -35,6 +36,10 @@ db-wait:
 
 db-psql:
 	$(COMPOSE) exec -it postgres psql -U $(DB_USER) -d $(DB_NAME)
+
+db-test-create:
+	@$(COMPOSE) exec -T postgres createdb -U $(DB_USER) $(TEST_DB_NAME) 2>/dev/null \
+		|| echo "$(TEST_DB_NAME) already exists"
 
 migrate-up:
 	$(MIGRATE) up
