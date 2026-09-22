@@ -18,11 +18,10 @@ var ownerID = uuid.New()
 
 func validVenueInput() entity.CreateVenueInput {
 	return entity.CreateVenueInput{
-		OwnerID:  ownerID,
-		Name:     "Ace Tennis Club",
-		City:     "Hanoi",
-		Address:  "12 Le Loi",
-		Timezone: "Asia/Ho_Chi_Minh",
+		OwnerID: ownerID,
+		Name:    "Ace Tennis Club",
+		City:    "Ha Noi",
+		Address: "12 Le Loi",
 	}
 }
 
@@ -55,7 +54,7 @@ func TestVenueCreate(t *testing.T) {
 			wantStored: func(t *testing.T, in entity.CreateVenueInput) {
 				require.Equal(t, ownerID, in.OwnerID)
 				require.Equal(t, "Ace Tennis Club", in.Name)
-				require.Equal(t, "Hanoi", in.City)
+				require.Equal(t, "Ha Noi", in.City)
 				require.Equal(t, "12 Le Loi", in.Address)
 			},
 		},

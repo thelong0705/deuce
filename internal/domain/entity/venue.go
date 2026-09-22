@@ -37,7 +37,6 @@ var (
 	ErrVenueNameRequired    = apperr.New(apperr.KindInvalid, "venue_name_required", "venue name is required")
 	ErrVenueCityRequired    = apperr.New(apperr.KindInvalid, "venue_city_required", "venue city is required")
 	ErrVenueAddressRequired = apperr.New(apperr.KindInvalid, "venue_address_required", "venue address is required")
-	ErrVenueTimezoneInvalid = apperr.New(apperr.KindInvalid, "venue_timezone_invalid", "timezone must be an IANA name such as Asia/Ho_Chi_Minh")
 	ErrNotAnOwner           = apperr.New(apperr.KindForbidden, "not_an_owner", "only an owner can register a venue")
 	ErrOwnerInactive        = apperr.New(apperr.KindForbidden, "owner_inactive", "owner account is not active")
 )
@@ -48,8 +47,6 @@ type CreateVenueInput struct {
 	Name    string
 	City    string
 	Address string
-	// Timezone is an IANA name; the courts' opening hours are read in it.
-	Timezone string
 }
 
 // Validate returns the first rule the input breaks.
@@ -65,9 +62,6 @@ func (in CreateVenueInput) Validate() error {
 	}
 	if strings.TrimSpace(in.Address) == "" {
 		return ErrVenueAddressRequired
-	}
-	if _, err := time.LoadLocation(in.Timezone); err != nil || in.Timezone == "" || in.Timezone == "Local" {
-		return ErrVenueTimezoneInvalid
 	}
 	return nil
 }

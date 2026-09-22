@@ -40,7 +40,7 @@ func TestExecTx(t *testing.T) {
 				venue, err := q.CreateVenue(ctx, CreateVenueParams{
 					OwnerID: ownerID,
 					Name:    gofakeit.Company() + " Tennis Club",
-					City:    gofakeit.City(),
+					City:    supportedCity(),
 					Address: gofakeit.Street(),
 				})
 				require.NoError(t, err)
@@ -79,7 +79,7 @@ func TestExecTxIsolatesUncommittedWrites(t *testing.T) {
 		venue, err := q.CreateVenue(ctx, CreateVenueParams{
 			OwnerID: ownerID,
 			Name:    gofakeit.Company() + " Tennis Club",
-			City:    gofakeit.City(),
+			City:    supportedCity(),
 			Address: gofakeit.Street(),
 		})
 		require.NoError(t, err)

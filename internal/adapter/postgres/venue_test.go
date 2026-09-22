@@ -21,11 +21,10 @@ func TestCreateVenue(t *testing.T) {
 			name: "valid venue",
 			arg: func(t *testing.T) CreateVenueParams {
 				return CreateVenueParams{
-					OwnerID:  createRandomOwner(t),
-					Name:     gofakeit.Company() + " Tennis Club",
-					City:     gofakeit.City(),
-					Address:  gofakeit.Street(),
-					Timezone: "Asia/Ho_Chi_Minh",
+					OwnerID: createRandomOwner(t),
+					Name:    gofakeit.Company() + " Tennis Club",
+					City:    supportedCity(),
+					Address: gofakeit.Street(),
 				}
 			},
 		},
@@ -33,11 +32,10 @@ func TestCreateVenue(t *testing.T) {
 			name: "unknown owner",
 			arg: func(t *testing.T) CreateVenueParams {
 				return CreateVenueParams{
-					OwnerID:  uuid.New(),
-					Name:     gofakeit.Company() + " Tennis Club",
-					City:     gofakeit.City(),
-					Address:  gofakeit.Street(),
-					Timezone: "Asia/Ho_Chi_Minh",
+					OwnerID: uuid.New(),
+					Name:    gofakeit.Company() + " Tennis Club",
+					City:    supportedCity(),
+					Address: gofakeit.Street(),
 				}
 			},
 			wantErr: true,
@@ -134,9 +132,9 @@ func TestUpdateVenue(t *testing.T) {
 		newCity string
 		newAddr string
 	}{
-		{"rename only", "Renamed Club", "Hanoi", "12 Le Loi"},
-		{"move city", "Ace Tennis Club", "Da Nang", "12 Le Loi"},
-		{"change everything", "Deuce Club", "Ho Chi Minh", "99 New Road"},
+		{"rename only", "Renamed Club", "Ha Noi", "12 Le Loi"},
+		{"move city", "Ace Tennis Club", "Ho Chi Minh City", "12 Le Loi"},
+		{"change everything", "Deuce Club", "Ho Chi Minh City", "99 New Road"},
 	}
 
 	for _, tt := range tests {
@@ -221,11 +219,10 @@ func createRandomVenue(t *testing.T) Venue {
 	t.Helper()
 
 	venue, err := testQueries.CreateVenue(context.Background(), CreateVenueParams{
-		OwnerID:  createRandomOwner(t),
-		Name:     gofakeit.Company() + " Tennis Club",
-		City:     gofakeit.City(),
-		Address:  gofakeit.Street(),
-		Timezone: "Asia/Ho_Chi_Minh",
+		OwnerID: createRandomOwner(t),
+		Name:    gofakeit.Company() + " Tennis Club",
+		City:    supportedCity(),
+		Address: gofakeit.Street(),
 	})
 	require.NoError(t, err)
 

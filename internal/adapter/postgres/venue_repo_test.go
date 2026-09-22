@@ -17,11 +17,10 @@ func validVenueInput(t *testing.T) entity.CreateVenueInput {
 	t.Helper()
 
 	return entity.CreateVenueInput{
-		OwnerID:  createRandomOwner(t),
-		Name:     gofakeit.Company() + " Tennis Club",
-		City:     gofakeit.City(),
-		Address:  gofakeit.Street(),
-		Timezone: "Asia/Ho_Chi_Minh",
+		OwnerID: createRandomOwner(t),
+		Name:    gofakeit.Company() + " Tennis Club",
+		City:    supportedCity(),
+		Address: gofakeit.Street(),
 	}
 }
 
@@ -127,17 +126,17 @@ func TestVenueRepositoryListVenuesByOwner(t *testing.T) {
 	other := createRandomOwner(t)
 
 	first, err := repo.CreateVenue(ctx, entity.CreateVenueInput{
-		OwnerID: owner, Name: "Ace Club", City: "Hanoi", Address: "1 A St", Timezone: "Asia/Ho_Chi_Minh",
+		OwnerID: owner, Name: "Ace Club", City: "Ha Noi", Address: "1 A St",
 	})
 	require.NoError(t, err)
 
 	second, err := repo.CreateVenue(ctx, entity.CreateVenueInput{
-		OwnerID: owner, Name: "Baseline Club", City: "Hanoi", Address: "2 B St", Timezone: "Asia/Ho_Chi_Minh",
+		OwnerID: owner, Name: "Baseline Club", City: "Ha Noi", Address: "2 B St",
 	})
 	require.NoError(t, err)
 
 	_, err = repo.CreateVenue(ctx, entity.CreateVenueInput{
-		OwnerID: other, Name: "Someone Else", City: "Hanoi", Address: "3 C St", Timezone: "Asia/Ho_Chi_Minh",
+		OwnerID: other, Name: "Someone Else", City: "Ha Noi", Address: "3 C St",
 	})
 	require.NoError(t, err)
 
@@ -164,18 +163,19 @@ func TestVenueRepositorySearchVenuesByCity(t *testing.T) {
 	repo := NewVenueRepository(testQueries)
 	ctx := context.Background()
 
-	// A city of this run's own, so other rows cannot drift into the results.
-	city := "Testville " + gofakeit.LetterN(8)
+	// A venue can only be in a seeded city now, so this run shares one with
+	// every other test. The venue names are unique instead, and the results
+	// are filtered down to them below.
+	city := supportedCity()
 
 	owner := createRandomOwner(t)
 	var want []string
 	for range 2 {
 		venue, err := testQueries.CreateVenue(ctx, CreateVenueParams{
-			OwnerID:  owner,
-			Name:     gofakeit.Company() + " " + gofakeit.LetterN(6),
-			City:     city,
-			Address:  gofakeit.Street(),
-			Timezone: "Asia/Ho_Chi_Minh",
+			OwnerID: owner,
+			Name:    gofakeit.Company() + " " + gofakeit.LetterN(6),
+			City:    city,
+			Address: gofakeit.Street(),
 		})
 		require.NoError(t, err)
 		want = append(want, venue.Name)
@@ -184,21 +184,19 @@ func TestVenueRepositorySearchVenuesByCity(t *testing.T) {
 	// A venue of another owner's in the same city: browsing is not scoped to
 	// the caller, so it belongs in the results.
 	other, err := testQueries.CreateVenue(ctx, CreateVenueParams{
-		OwnerID:  createRandomOwner(t),
-		Name:     "Aardvark " + gofakeit.LetterN(6),
-		City:     city,
-		Address:  gofakeit.Street(),
-		Timezone: "Asia/Ho_Chi_Minh",
+		OwnerID: createRandomOwner(t),
+		Name:    "Aardvark " + gofakeit.LetterN(6),
+		City:    city,
+		Address: gofakeit.Street(),
 	})
 	require.NoError(t, err)
 	want = append(want, other.Name)
 
 	deactivated, err := testQueries.CreateVenue(ctx, CreateVenueParams{
-		OwnerID:  owner,
-		Name:     gofakeit.Company() + " " + gofakeit.LetterN(6),
-		City:     city,
-		Address:  gofakeit.Street(),
-		Timezone: "Asia/Ho_Chi_Minh",
+		OwnerID: owner,
+		Name:    gofakeit.Company() + " " + gofakeit.LetterN(6),
+		City:    city,
+		Address: gofakeit.Street(),
 	})
 	require.NoError(t, err)
 	_, err = testQueries.DeactivateVenue(ctx, deactivated.ID)
@@ -233,10 +231,17 @@ func TestVenueRepositorySearchVenuesByCity(t *testing.T) {
 			got, err := repo.SearchVenuesByCity(ctx, tt.city)
 			require.NoError(t, err)
 
+			mine := make(map[string]bool, len(want))
+			for _, name := range want {
+				mine[name] = true
+			}
+
 			names := make([]string, 0, len(got))
 			for _, venue := range got {
-				names = append(names, venue.Name)
 				require.True(t, venue.IsActive, "a deactivated venue must not be browsable")
+				if mine[venue.Name] {
+					names = append(names, venue.Name)
+				}
 			}
 			require.Equal(t, tt.wantNames, names)
 		})

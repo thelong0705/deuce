@@ -390,7 +390,7 @@ func TestListBookings(t *testing.T) {
 	playerBooking := entity.PlayerBooking{
 		Booking: *createdBooking(),
 		Court:   entity.Court{ID: bookingCourtID, Name: "Court 1", PricePerHour: 150},
-		Venue:   entity.Venue{ID: uuid.New(), Name: "Ace Tennis Club", City: "Hanoi"},
+		Venue:   entity.Venue{ID: uuid.New(), Name: "Ace Tennis Club", City: "Ha Noi"},
 	}
 
 	tests := []struct {
@@ -428,7 +428,7 @@ func TestListBookings(t *testing.T) {
 				require.Equal(t, "Court 1", got.Bookings[0].Court.Name)
 				require.Equal(t, 150, got.Bookings[0].Court.PricePerHour)
 				require.Equal(t, "Ace Tennis Club", got.Bookings[0].Venue.Name)
-				require.Equal(t, "Hanoi", got.Bookings[0].Venue.City)
+				require.Equal(t, "Ha Noi", got.Bookings[0].Venue.City)
 
 				// The embedded booking's fields stay at the top level.
 				require.NotEmpty(t, got.Bookings[0].ID)

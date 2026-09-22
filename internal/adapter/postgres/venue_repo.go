@@ -28,13 +28,17 @@ func NewVenueRepository(q *Queries) *VenueRepository {
 
 func (r *VenueRepository) CreateVenue(ctx context.Context, in entity.CreateVenueInput) (*entity.Venue, error) {
 	row, err := r.q.CreateVenue(ctx, CreateVenueParams{
-		OwnerID:  in.OwnerID,
-		Name:     in.Name,
-		City:     in.City,
-		Address:  in.Address,
-		Timezone: in.Timezone,
+		OwnerID: in.OwnerID,
+		Name:    in.Name,
+		City:    in.City,
+		Address: in.Address,
 	})
 	if err != nil {
+		// The insert selects from cities, so an unsupported one matches no row
+		// and writes nothing rather than failing a constraint.
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, entity.ErrVenueCityUnsupported
+		}
 		return nil, fmt.Errorf("create venue: %w", err)
 	}
 

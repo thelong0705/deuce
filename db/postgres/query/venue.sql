@@ -1,9 +1,12 @@
 -- name: CreateVenue :one
+-- Selecting from cities takes the timezone from it and writes no row at all
+-- for a city that is not in the table.
 INSERT INTO venues (
     owner_id, name, city, address, timezone
-) VALUES (
-    $1, $2, $3, $4, $5
 )
+SELECT sqlc.arg(owner_id), sqlc.arg(name), cities.name, sqlc.arg(address), cities.timezone
+FROM cities
+WHERE cities.name = sqlc.arg(city)
 RETURNING *;
 
 -- name: GetVenue :one

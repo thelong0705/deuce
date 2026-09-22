@@ -14,6 +14,7 @@ packages:
       CredentialFinder:
       SessionStore:
       PasswordHasher:
+      CityRepo:
       VenueRepo:
       VenueFinder:
       CourtRepo:
@@ -29,6 +30,7 @@ packages:
       filename: "{{.InterfaceName | snakecase}}.go"
     interfaces:
       UserUsecase:
+      CityUsecase:
       VenueUsecase:
       CourtUsecase:
       BookingUsecase:

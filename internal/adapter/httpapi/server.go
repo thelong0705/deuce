@@ -33,6 +33,11 @@ type CourtUsecase interface {
 	ListByVenue(ctx context.Context, venueID uuid.UUID) ([]entity.Court, error)
 }
 
+// CityUsecase reads the cities deuce operates in.
+type CityUsecase interface {
+	List(ctx context.Context) ([]entity.City, error)
+}
+
 // BookingUsecase books slots on a court and reads back what is booked.
 type BookingUsecase interface {
 	Book(ctx context.Context, in entity.BookSlotInput) (*entity.Booking, error)
@@ -45,15 +50,23 @@ type Server struct {
 	venues   VenueUsecase
 	courts   CourtUsecase
 	bookings BookingUsecase
+	cities   CityUsecase
 	router   *chi.Mux
 }
 
-func NewServer(users UserUsecase, venues VenueUsecase, courts CourtUsecase, bookings BookingUsecase) *Server {
+func NewServer(
+	users UserUsecase,
+	venues VenueUsecase,
+	courts CourtUsecase,
+	bookings BookingUsecase,
+	cities CityUsecase,
+) *Server {
 	s := &Server{
 		users:    users,
 		venues:   venues,
 		courts:   courts,
 		bookings: bookings,
+		cities:   cities,
 		router:   chi.NewRouter(),
 	}
 	s.routes()
@@ -92,6 +105,7 @@ func (s *Server) routes() {
 		r.Get("/venues/{venueID}/courts", s.listCourts)
 		r.Get("/courts/{courtID}/availability", s.courtAvailability)
 		r.Get("/bookings", s.listBookings)
+		r.Get("/cities", s.listCities)
 	})
 }
 

@@ -14,27 +14,28 @@ import (
 const createVenue = `-- name: CreateVenue :one
 INSERT INTO venues (
     owner_id, name, city, address, timezone
-) VALUES (
-    $1, $2, $3, $4, $5
 )
+SELECT $1, $2, cities.name, $3, cities.timezone
+FROM cities
+WHERE cities.name = $4
 RETURNING id, owner_id, name, city, address, is_active, created_at, updated_at, timezone
 `
 
 type CreateVenueParams struct {
-	OwnerID  uuid.UUID `json:"owner_id"`
-	Name     string    `json:"name"`
-	City     string    `json:"city"`
-	Address  string    `json:"address"`
-	Timezone string    `json:"timezone"`
+	OwnerID uuid.UUID `json:"owner_id"`
+	Name    string    `json:"name"`
+	Address string    `json:"address"`
+	City    string    `json:"city"`
 }
 
+// The timezone comes from the city rather than the caller: the city decides
+// what it is, and a venue whose city is not in the table inserts no row at all.
 func (q *Queries) CreateVenue(ctx context.Context, arg CreateVenueParams) (Venue, error) {
 	row := q.db.QueryRow(ctx, createVenue,
 		arg.OwnerID,
 		arg.Name,
-		arg.City,
 		arg.Address,
-		arg.Timezone,
+		arg.City,
 	)
 	var i Venue
 	err := row.Scan(

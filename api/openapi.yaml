@@ -32,6 +32,8 @@ tags:
     description: Playable courts at a venue
   - name: bookings
     description: Hour-long slots on a court
+  - name: cities
+    description: Where deuce operates
   - name: ops
     description: Liveness
 
@@ -514,6 +516,34 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /cities:
+    get:
+      tags: [cities]
+      summary: The cities deuce operates in
+      operationId: listCities
+      description: |
+        The complete set, alphabetically. A venue can only be registered in one
+        of these and a search only finds venues in one of these, so a client
+        should offer this list rather than a free-text field.
+
+        Cities arrive by migration, not by anyone typing one in, so the list
+        changes only when deuce opens somewhere new.
+      responses:
+        "200":
+          description: Every city deuce operates in
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [cities]
+                properties:
+                  cities:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/City"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
 components:
   securitySchemes:
     session:
@@ -661,20 +691,31 @@ components:
 
     CreateVenueRequest:
       type: object
-      required: [name, city, address, timezone]
+      required: [name, city, address]
       properties:
         name:
           type: string
           examples: [Ace Tennis Club]
         city:
           type: string
-          examples: [Hanoi]
+          description: One of the names from `GET /cities`. Anything else is rejected.
+          examples: [Ha Noi]
         address:
           type: string
           examples: [12 Le Loi]
+
+    City:
+      type: object
+      required: [name, timezone]
+      properties:
+        name:
+          type: string
+          examples: [Ha Noi]
         timezone:
           type: string
-          description: An IANA name. "Local" is rejected — it would mean the server's timezone, not the venue's.
+          description: |
+            The IANA zone a venue in this city keeps its hours in. The city
+            decides it, so registering a venue does not ask for one.
           examples: [Asia/Ho_Chi_Minh]
 
     Venue:

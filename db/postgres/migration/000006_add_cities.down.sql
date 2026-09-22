@@ -1,0 +1,3 @@
+ALTER TABLE venues DROP CONSTRAINT IF EXISTS venues_city_fkey;
+
+DROP TABLE IF EXISTS cities;
