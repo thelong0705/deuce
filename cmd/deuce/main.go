@@ -44,11 +44,11 @@ func run() error {
 	}
 
 	var (
-		dsn       = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
-		addr      = listenAddr()
-		stripeKey = os.Getenv("STRIPE_SECRET_KEY")
-    stripeSecret = os.Getenv("STRIPE_WEBHOOK_SECRET")
-		redisAddr = env("REDIS_ADDR", "localhost:6379")
+		dsn          = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
+		addr         = listenAddr()
+		stripeKey    = os.Getenv("STRIPE_SECRET_KEY")
+		stripeSecret = os.Getenv("STRIPE_WEBHOOK_SECRET")
+		redisAddr    = env("REDIS_ADDR", "localhost:6379")
 	)
 
 	ctx := context.Background()
