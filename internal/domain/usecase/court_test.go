@@ -28,6 +28,7 @@ func validCourtInput() entity.CreateCourtInput {
 		OpenHour:     6,
 		CloseHour:    22,
 		PricePerHour: 120000,
+		Currency:     entity.CurrencyVND,
 	}
 }
 

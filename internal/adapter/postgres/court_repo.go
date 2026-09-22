@@ -24,12 +24,18 @@ func NewCourtRepository(q *Queries) *CourtRepository {
 }
 
 func (r *CourtRepository) CreateCourt(ctx context.Context, in entity.CreateCourtInput) (*entity.Court, error) {
+	currency, err := toCurrency(in.Currency)
+	if err != nil {
+		return nil, err
+	}
+
 	row, err := r.q.CreateCourt(ctx, CreateCourtParams{
 		VenueID:      in.VenueID,
 		Name:         in.Name,
 		OpenHour:     int16(in.OpenHour),
 		CloseHour:    int16(in.CloseHour),
 		PricePerHour: int32(in.PricePerHour),
+		Currency:     currency,
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -56,6 +62,15 @@ func (r *CourtRepository) ListCourtsByVenue(ctx context.Context, venueID uuid.UU
 	return courts, nil
 }
 
+func toCurrency(c entity.Currency) (Currency, error) {
+	switch c {
+	case entity.CurrencyVND:
+		return CurrencyVND, nil
+	default:
+		return "", fmt.Errorf("unknown currency %q", c)
+	}
+}
+
 func toEntityCourt(c Court) *entity.Court {
 	return &entity.Court{
 		ID:           c.ID,
@@ -64,6 +79,7 @@ func toEntityCourt(c Court) *entity.Court {
 		OpenHour:     int(c.OpenHour),
 		CloseHour:    int(c.CloseHour),
 		PricePerHour: int(c.PricePerHour),
+		Currency:     entity.Currency(c.Currency),
 		IsActive:     c.IsActive,
 		CreatedAt:    c.CreatedAt.Time,
 	}

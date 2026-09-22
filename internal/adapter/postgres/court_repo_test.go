@@ -24,6 +24,7 @@ func validCourtInput(t *testing.T) entity.CreateCourtInput {
 		OpenHour:     6,
 		CloseHour:    22,
 		PricePerHour: 120000,
+		Currency:     entity.CurrencyVND,
 	}
 }
 
@@ -174,6 +175,7 @@ func TestCourtRepositoryListCourtsByVenue(t *testing.T) {
 			OpenHour:     6,
 			CloseHour:    22,
 			PricePerHour: 150,
+			Currency:     CurrencyVND,
 		})
 		require.NoError(t, err)
 		want = append(want, court.Name)
@@ -187,6 +189,7 @@ func TestCourtRepositoryListCourtsByVenue(t *testing.T) {
 		OpenHour:     6,
 		CloseHour:    22,
 		PricePerHour: 150,
+		Currency:     CurrencyVND,
 	})
 	require.NoError(t, err)
 
@@ -229,6 +232,7 @@ func TestCourtRepositorySearchCourts(t *testing.T) {
 		OpenHour:     6,
 		CloseHour:    22,
 		PricePerHour: 120000,
+		Currency:     CurrencyVND,
 	})
 	require.NoError(t, err)
 
@@ -279,6 +283,7 @@ func TestCourtRepositorySearchCourtsSkipsWhatIsNotBookable(t *testing.T) {
 			OpenHour:     6,
 			CloseHour:    22,
 			PricePerHour: 1,
+			Currency:     CurrencyVND,
 		})
 		require.NoError(t, err)
 		return c

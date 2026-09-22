@@ -18,6 +18,7 @@ func validCourtInput() entity.CreateCourtInput {
 		OpenHour:     6,
 		CloseHour:    22,
 		PricePerHour: 120000,
+		Currency:     entity.CurrencyVND,
 	}
 }
 
@@ -230,5 +231,44 @@ func TestCourtSlotsWithin(t *testing.T) {
 
 			require.Equal(t, tt.wantHours, hours)
 		})
+	}
+}
+
+func TestCourtCurrency(t *testing.T) {
+	tests := []struct {
+		name      string
+		currency  entity.Currency
+		wantValid bool
+	}{
+		{name: "VND", currency: entity.CurrencyVND, wantValid: true},
+		{name: "unset", currency: ""},
+		{name: "a currency deuce does not take yet", currency: "USD"},
+		{name: "the right currency in the wrong case", currency: "vnd"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.wantValid, tt.currency.Valid())
+
+			in := validCourtInput()
+			in.Currency = tt.currency
+
+			if tt.wantValid {
+				require.NoError(t, in.Validate())
+				return
+			}
+			require.ErrorIs(t, in.Validate(), entity.ErrCurrencyInvalid)
+		})
+	}
+}
+
+// Whatever a form offers has to be something Validate accepts, or the dropdown
+// and the rule disagree.
+func TestSupportedCurrenciesAreAllValid(t *testing.T) {
+	supported := entity.SupportedCurrencies()
+	require.NotEmpty(t, supported)
+
+	for _, currency := range supported {
+		require.True(t, currency.Valid(), "%s is offered but not accepted", currency)
 	}
 }

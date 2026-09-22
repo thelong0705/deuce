@@ -20,6 +20,7 @@ type createCourtRequest struct {
 	OpenHour     int    `json:"open_hour"`
 	CloseHour    int    `json:"close_hour"`
 	PricePerHour int    `json:"price_per_hour"`
+	Currency     string `json:"currency"`
 }
 
 type courtResponse struct {
@@ -29,6 +30,7 @@ type courtResponse struct {
 	OpenHour     int       `json:"open_hour"`
 	CloseHour    int       `json:"close_hour"`
 	PricePerHour int       `json:"price_per_hour"`
+	Currency     string    `json:"currency"`
 	IsActive     bool      `json:"is_active"`
 	CreatedAt    time.Time `json:"created_at"`
 }
@@ -41,6 +43,7 @@ func newCourtResponse(c entity.Court) courtResponse {
 		OpenHour:     c.OpenHour,
 		CloseHour:    c.CloseHour,
 		PricePerHour: c.PricePerHour,
+		Currency:     c.Currency.String(),
 		IsActive:     c.IsActive,
 		CreatedAt:    c.CreatedAt,
 	}
@@ -75,6 +78,7 @@ func (s *Server) createCourt(w http.ResponseWriter, r *http.Request) {
 		OpenHour:     req.OpenHour,
 		CloseHour:    req.CloseHour,
 		PricePerHour: req.PricePerHour,
+		Currency:     entity.Currency(req.Currency),
 	})
 	if err != nil {
 		writeAppError(w, err)
