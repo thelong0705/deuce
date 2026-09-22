@@ -1,6 +1,13 @@
 import { countryByISO } from './countries'
 import { toE164 } from './validation'
-import type { CourtInput, LoginInput, Role, SignupInput, VenueInput } from './validation'
+import type {
+  CourtInput,
+  Currency,
+  LoginInput,
+  Role,
+  SignupInput,
+  VenueInput,
+} from './validation'
 
 // The shape /users and /me both return.
 export type User = {
@@ -129,6 +136,7 @@ export type Court = {
   open_hour: number
   close_hour: number
   price_per_hour: number
+  currency: Currency
   is_active: boolean
   created_at: string
 }
@@ -143,6 +151,7 @@ export async function createCourt(venueID: string, input: CourtInput): Promise<C
       open_hour: Number(input.openHour),
       close_hour: Number(input.closeHour),
       price_per_hour: Number(input.pricePerHour),
+      currency: input.currency,
     }),
   })
 
@@ -247,7 +256,7 @@ export async function createBooking(courtID: string, startsAt: string): Promise<
 // A listed booking carries the court and venue names; a list of court ids
 // tells a player nothing.
 export type BookingListItem = Booking & {
-  court: { name: string; price_per_hour: number }
+  court: { name: string; price_per_hour: number; currency: Currency }
   venue: { id: string; name: string; city: string }
 }
 

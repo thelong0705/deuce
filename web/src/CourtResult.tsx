@@ -48,7 +48,7 @@ export function CourtResult({ result, onBooked, onUnauthorized, onTaken }: Props
       <div className="court-result-head">
         <span className="venue-name">{venue.name}</span>
         <span className="venue-where">
-          {court.name} &middot; {venue.address} &middot; {court.price_per_hour}
+          {court.name} &middot; {venue.address} &middot; {court.price_per_hour} {court.currency}
         </span>
       </div>
 
