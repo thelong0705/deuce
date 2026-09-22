@@ -192,6 +192,36 @@ export async function listAvailability(courtID: string, date: string): Promise<S
   return body.slots ?? []
 }
 
+// CourtSearchResult is a court that still has room, with the venue it stands
+// at: a court called "Court 1" says nothing on its own.
+export type CourtSearchResult = {
+  court: Court
+  venue: Venue
+  slots: Slot[]
+}
+
+// An absent hour is the whole day, so the window is only sent when it narrows
+// something.
+export async function searchCourts(
+  city: string,
+  date: string,
+  fromHour: number | null,
+  toHour: number | null,
+): Promise<CourtSearchResult[]> {
+  const params = new URLSearchParams({ city: city.trim(), date })
+  if (fromHour !== null) {
+    params.set('from_hour', String(fromHour))
+  }
+  if (toHour !== null) {
+    params.set('to_hour', String(toHour))
+  }
+
+  const response = await request(`/courts/search?${params.toString()}`, { method: 'GET' })
+
+  const body = (await response.json()) as { courts?: CourtSearchResult[] }
+  return body.courts ?? []
+}
+
 // Booking is what POST returns: the row, and nothing about the court beyond
 // its id.
 export type Booking = {
