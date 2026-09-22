@@ -46,6 +46,9 @@ export function MyBookings({ version, onUnauthorized }: Props) {
               <span className="booking-when">
                 {formatWhen(booking.starts_at)} &ndash; {formatEnd(booking.ends_at)}
               </span>
+              {/* A held slot is not a booking, and a list that does not say so
+                  reads as though it were paid for. */}
+              {booking.status === 'pending_payment' && <span className="badge">Awaiting payment</span>}
               <span className="booking-where">
                 {booking.court.name} at {booking.venue.name}, {booking.venue.city}
               </span>

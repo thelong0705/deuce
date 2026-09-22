@@ -115,26 +115,23 @@ Those hours are read in the venue's timezone, which the city decides — so
 registering a venue does not ask for one, and the response carries the zone
 back without the form ever having sent it.
 
-**There is no endpoint to read courts back** for an owner. Only `POST` exists,
-so the list under each venue holds what was added in this session and starts
-empty on every reload. The `GET /venues/{venueID}/courts` proposed below would
-fix that too, and the list would then work like the venue list does.
+`GET /venues/{venueID}/courts` reads them back, so the list under a venue
+survives a reload.
 
 ## Booking
 
 A player sees the booking screens where an owner sees venues: search a city,
 open a venue, pick a court, pick a two-hour window, book.
 
-**Only the booking itself is implemented.** Everything a player needs to reach
-one — browsing, listing courts, availability, and their own bookings — is
-still a proposal, returns 404 today, and the screens say so. This is the same
-way the signup form started.
+Booking a slot does not book it outright: it takes the slot and opens a
+payment.
 
 ```
-POST /courts/{courtID}/bookings        (implemented)
+POST /courts/{courtID}/bookings
 { "starts_at": "2026-09-22T06:00:00+07:00" }
 
-201 -> { "id", "court_id", "player_id", "starts_at", "ends_at", "created_at" }
+201 -> { "id", "court_id", "player_id", "starts_at", "ends_at",
+         "status", "amount", "created_at", "client_secret" }
 400 -> { "code": "slot_not_on_the_hour" | "slot_not_on_the_grid"
                 | "slot_in_the_past" | "slot_too_far_ahead"
                 | "slot_outside_opening_hours"
@@ -149,7 +146,7 @@ does not repeat the court beyond its id. `slot_taken` is the one the
 `bookings (court_id, starts_at) WHERE cancelled_at IS NULL` index enforces;
 the UI reloads the times and says someone just took it.
 
-### Still proposed
+### The rest of the flow
 
 ```
 GET /venues/search?city=...            (session cookie required)
@@ -209,11 +206,40 @@ a secure context and store it anyway; **Safari does not**, so sign-in appears
 to succeed and the next request arrives without a cookie. Use Chrome or Firefox
 for local development, or serve the API over HTTPS.
 
+## Paying
+
+`POST /courts/{courtID}/bookings` holds the slot and returns a
+`client_secret`. The browser pays with Stripe's Payment Element, and **Stripe
+tells the server the result, not this code** — the webhook is what moves the
+booking to `confirmed`. Nothing here can confirm a booking, which is the
+point: a client that could would be a client that could book for free.
+
+So the UI only ever reports what it saw. `confirmPayment` succeeding shows
+"paid and booked"; anything else says the payment is still going through and
+leaves the list to catch up.
+
+An unpaid hold lapses after fifteen minutes. Until then it appears under
+**Your bookings** marked *Awaiting payment*, because a held slot that looked
+like a booking would be a lie about something someone owes money on.
+
+### The publishable key
+
+`STRIPE_PUBLISHABLE_KEY` in the repo root `.env`, beside the server's Stripe
+keys. `vite.config.ts` reads it from there and injects it, so there is one
+name for it rather than a `VITE_`-prefixed copy. It is safe in the bundle by
+design: it can start a payment and nothing else.
+
+Without it the booking still holds the slot, and the panel says payments are
+not configured rather than rendering an empty box.
+
 ## Not wired up yet
 
-`GET /me` exists but nothing calls it. A reload still trusts the stored hint
-until some request comes back 401 — on the signed-in view that happens
-immediately, because loading the venue list is the first thing it does. Calling
-`/me` on mount would confirm the session directly and, since it returns the
-role, let the venue form be hidden from players instead of letting them find
-out by submitting it.
+Nothing polls after a payment. `confirmPayment` returning `succeeded` is taken
+at its word for the message on screen, and **Your bookings** shows whatever the
+next load finds — so a booking confirmed by the webhook a second later reads as
+*Awaiting payment* until the section is opened again. Refetching the list a few
+times after a payment, or having the server hold the response until the webhook
+lands, would close that.
+
+Nothing cancels a hold either. Walking away leaves the slot held for fifteen
+minutes; a "not now" only closes the panel.
