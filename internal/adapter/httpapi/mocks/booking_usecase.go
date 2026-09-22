@@ -88,23 +88,23 @@ func (_c *MockBookingUsecase_Availability_Call) RunAndReturn(run func(context.Co
 }
 
 // Book provides a mock function with given fields: ctx, in
-func (_m *MockBookingUsecase) Book(ctx context.Context, in entity.BookSlotInput) (*entity.Booking, error) {
+func (_m *MockBookingUsecase) Book(ctx context.Context, in entity.BookSlotInput) (*entity.HeldBooking, error) {
 	ret := _m.Called(ctx, in)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Book")
 	}
 
-	var r0 *entity.Booking
+	var r0 *entity.HeldBooking
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, entity.BookSlotInput) (*entity.Booking, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, entity.BookSlotInput) (*entity.HeldBooking, error)); ok {
 		return rf(ctx, in)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, entity.BookSlotInput) *entity.Booking); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, entity.BookSlotInput) *entity.HeldBooking); ok {
 		r0 = rf(ctx, in)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*entity.Booking)
+			r0 = ret.Get(0).(*entity.HeldBooking)
 		}
 	}
 
@@ -136,12 +136,12 @@ func (_c *MockBookingUsecase_Book_Call) Run(run func(ctx context.Context, in ent
 	return _c
 }
 
-func (_c *MockBookingUsecase_Book_Call) Return(_a0 *entity.Booking, _a1 error) *MockBookingUsecase_Book_Call {
+func (_c *MockBookingUsecase_Book_Call) Return(_a0 *entity.HeldBooking, _a1 error) *MockBookingUsecase_Book_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockBookingUsecase_Book_Call) RunAndReturn(run func(context.Context, entity.BookSlotInput) (*entity.Booking, error)) *MockBookingUsecase_Book_Call {
+func (_c *MockBookingUsecase_Book_Call) RunAndReturn(run func(context.Context, entity.BookSlotInput) (*entity.HeldBooking, error)) *MockBookingUsecase_Book_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -20,6 +20,7 @@ packages:
       VenueFinder:
       CourtRepo:
       BookedSlotFinder:
+      PaymentGateway:
       BookingRepo:
       CourtFinder:
       UserFinder:
