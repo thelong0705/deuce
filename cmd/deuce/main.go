@@ -43,10 +43,11 @@ func run() error {
 	}
 
 	var (
-		dsn       = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
-		addr      = env("HTTP_ADDR", ":8080")
-		stripeKey = os.Getenv("STRIPE_SECRET_KEY")
-		redisAddr = env("REDIS_ADDR", "localhost:6379")
+		dsn          = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
+		addr         = env("HTTP_ADDR", ":8080")
+		stripeKey    = os.Getenv("STRIPE_SECRET_KEY")
+		stripeSecret = os.Getenv("STRIPE_WEBHOOK_SECRET")
+		redisAddr    = env("REDIS_ADDR", "localhost:6379")
 	)
 
 	ctx := context.Background()
@@ -84,9 +85,10 @@ func run() error {
 		venueUC     = usecase.NewVenue(venueRepo, userRepo)
 		courtUC     = usecase.NewCourt(courtRepo, venueRepo, bookingRepo)
 		payments    = stripe.NewGateway(stripeKey)
-		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo, payments)
+		webhooks    = stripe.NewVerifier(stripeSecret)
+		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo, payments, bookingRepo)
 		cityUC      = usecase.NewCity(cityRepo)
-		api         = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC, cityUC)
+		api         = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC, webhooks, cityUC)
 	)
 
 	srv := &http.Server{

@@ -84,6 +84,53 @@ paths:
               schema:
                 type: string
 
+  /stripe/webhook:
+    post:
+      tags: [ops]
+      summary: Payment notifications from Stripe
+      operationId: paymentWebhook
+      security: []
+      description: |
+        Not called by clients. Stripe posts here when a payment moves, and the
+        `Stripe-Signature` header is what stands in for a session: a body
+        without a valid signature is refused before anything reads it.
+
+        Stripe delivers an event at least once, so the event id is recorded
+        before the booking is touched and a repeat is dropped.
+
+        A `payment_intent.succeeded` confirms the booking; a
+        `payment_intent.payment_failed` releases the slot. Anything else is
+        accepted and ignored.
+
+        204 ends the delivery, including when nothing could be done about it —
+        a payment for a hold that had already lapsed, say, which a retry would
+        reach the same conclusion about. 500 asks Stripe to try again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: A Stripe event. The raw bytes are what the signature covers.
+      parameters:
+        - name: Stripe-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+          example: t=1729000000,v1=5257a869e7...
+      responses:
+        "204":
+          description: The delivery is finished with, whatever it turned out to be
+        "400":
+          $ref: "#/components/responses/Invalid"
+        "500":
+          description: Something that may come good; Stripe should retry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /users:
     post:
       tags: [users]

@@ -11,6 +11,15 @@ UPDATE bookings
 SET payment_intent_id = $2
 WHERE id = $1;
 
+-- name: ConfirmBooking :exec
+UPDATE bookings
+SET status = 'confirmed', hold_expires_at = NULL
+WHERE id = $1;
+
+-- name: GetBookingByPayment :one
+SELECT * FROM bookings
+WHERE payment_intent_id = $1;
+
 -- name: CancelBooking :exec
 UPDATE bookings
 SET cancelled_at = now()

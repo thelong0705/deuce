@@ -218,3 +218,21 @@ type Payment struct {
 	IntentID     string
 	ClientSecret string
 }
+
+// PaymentEventType is what a gateway is telling us about a payment. The
+// gateway's own names are its adapter's business.
+type PaymentEventType string
+
+const (
+	PaymentSucceeded PaymentEventType = "payment_succeeded"
+	PaymentFailed    PaymentEventType = "payment_failed"
+)
+
+// PaymentEvent is a gateway telling us a payment moved. ID is the gateway's
+// own id for the notification, which is what makes handling it once possible
+// when it arrives twice.
+type PaymentEvent struct {
+	ID       string
+	Type     PaymentEventType
+	IntentID string
+}
