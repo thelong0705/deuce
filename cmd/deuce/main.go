@@ -12,10 +12,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/redis/go-redis/v9"
-	"github.com/thelong0705/deuce/internal/adapter/crypto"
 
+	"github.com/thelong0705/deuce/internal/adapter/crypto"
 	"github.com/thelong0705/deuce/internal/adapter/httpapi"
 	"github.com/thelong0705/deuce/internal/adapter/postgres"
 	"github.com/thelong0705/deuce/internal/adapter/rediscache"
