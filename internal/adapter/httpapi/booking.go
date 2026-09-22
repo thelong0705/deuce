@@ -39,20 +39,25 @@ type bookingResponse struct {
 	Status string `json:"status"`
 	// Amount is what the slot cost when it was held, so a client does not have
 	// to know how long a slot runs to work out what is owed.
-	Amount    *int      `json:"amount"`
-	CreatedAt time.Time `json:"created_at"`
+	Amount *int `json:"amount"`
+	// HoldExpiresAt is when an unpaid slot goes back, and is null once it is
+	// paid for. It comes from the server so a client counting down is counting
+	// against the clock that will actually release the slot.
+	HoldExpiresAt *time.Time `json:"hold_expires_at"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 func newBookingResponse(b entity.Booking) bookingResponse {
 	return bookingResponse{
-		ID:        b.ID,
-		CourtID:   b.CourtID,
-		PlayerID:  b.PlayerID,
-		StartsAt:  b.StartsAt,
-		EndsAt:    b.EndsAt(),
-		Status:    b.Status.String(),
-		Amount:    b.Amount,
-		CreatedAt: b.CreatedAt,
+		ID:            b.ID,
+		CourtID:       b.CourtID,
+		PlayerID:      b.PlayerID,
+		StartsAt:      b.StartsAt,
+		EndsAt:        b.EndsAt(),
+		Status:        b.Status.String(),
+		Amount:        b.Amount,
+		HoldExpiresAt: b.HoldExpiresAt,
+		CreatedAt:     b.CreatedAt,
 	}
 }
 
