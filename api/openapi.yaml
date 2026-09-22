@@ -419,8 +419,13 @@ paths:
       summary: Book a slot
       operationId: createBooking
       description: |
-        The player is the signed-in account and the slot runs one hour from
+        The player is the signed-in account and the slot runs two hours from
         `starts_at`.
+
+        This holds the slot; it does not book it. The response carries a
+        `client_secret` the browser pays with, and the booking is only
+        confirmed when Stripe reports the payment succeeded. An unpaid hold
+        is released after fifteen minutes.
 
         `starts_at` keeps the offset you send it with: `2026-09-23T16:00:00+07:00`
         and `2026-09-23T09:00:00Z` are the same moment, and the venue's timezone
@@ -440,11 +445,13 @@ paths:
               $ref: "#/components/schemas/CreateBookingRequest"
       responses:
         "201":
-          description: The slot is held
+          description: |
+            The slot is held and a payment is waiting. The hold lapses in
+            fifteen minutes if nothing pays for it.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Booking"
+                $ref: "#/components/schemas/HeldBooking"
         "400":
           description: |
             The slot does not start on the hour, has already started, is more
@@ -989,9 +996,22 @@ components:
                 city:
                   type: string
 
+    HeldBooking:
+      allOf:
+        - $ref: "#/components/schemas/Booking"
+        - type: object
+          required: [client_secret]
+          properties:
+            client_secret:
+              type: string
+              description: |
+                What the browser completes the payment with. It is not stored,
+                and this is the only response that carries it.
+              examples: [pi_3QabcNotReal_secret_xyz]
+
     Booking:
       type: object
-      required: [id, court_id, player_id, starts_at, ends_at, created_at]
+      required: [id, court_id, player_id, starts_at, ends_at, status, amount, created_at]
       properties:
         id:
           type: string
@@ -1009,6 +1029,19 @@ components:
           type: string
           format: date-time
           description: Two hours after starts_at.
+        status:
+          type: string
+          enum: [pending_payment, confirmed]
+          description: |
+            A held slot is not a booking yet. It becomes confirmed when Stripe
+            reports the payment succeeded, and is released if the hold lapses
+            first.
+        amount:
+          type: [integer, "null"]
+          description: |
+            What the slot cost when it was held, in the smallest unit of the
+            court's currency. The court's price may change afterwards; this
+            does not.
         created_at:
           type: string
           format: date-time
