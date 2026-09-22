@@ -64,7 +64,10 @@ export function PaymentForm({ amount, currency, onPaid, onCancel }: Props) {
 
   return (
     <form className="payment-form" onSubmit={handleSubmit}>
-      <PaymentElement />
+      {/* Link's inline signup asks for an email, a phone number and a name to
+          open a Stripe account. None of that is deuce's to collect at a court
+          booking, and the player already has an account here. */}
+      <PaymentElement options={{ wallets: { link: 'never' } }} />
 
       {error && (
         <p className="form-error" role="alert">
