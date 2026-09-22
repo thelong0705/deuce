@@ -247,6 +247,8 @@ export type Booking = {
   // What the slot cost when it was held, in the smallest unit of the court's
   // currency.
   amount: number | null
+  // When an unpaid slot goes back. Null once it is paid for.
+  hold_expires_at: string | null
   created_at: string
 }
 
