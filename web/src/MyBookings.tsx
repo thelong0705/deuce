@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import { PendingBooking } from './PendingBooking'
 import { ApiError, listBookings } from './api'
 import type { BookingListItem } from './api'
-import { formatCountdown, useCountdown } from './useCountdown'
 
 type Props = {
   // version changes when a booking is made, which reloads the list.
@@ -49,7 +49,14 @@ export function MyBookings({ version, onUnauthorized }: Props) {
               </span>
               {/* A held slot is not a booking, and a list that does not say so
                   reads as though it were paid for. */}
-              {booking.status === 'pending_payment' && <HoldBadge until={booking.hold_expires_at} />}
+              {booking.status === 'pending_payment' && (
+                <PendingBooking
+                  booking={booking}
+                  onPaid={() => void load()}
+                  onGone={() => void load()}
+                  onUnauthorized={onUnauthorized}
+                />
+              )}
               <span className="booking-where">
                 {booking.court.name} at {booking.venue.name}, {booking.venue.city}
               </span>
@@ -64,22 +71,6 @@ export function MyBookings({ version, onUnauthorized }: Props) {
         </p>
       )}
     </section>
-  )
-}
-
-// A hold that says how long is left is the difference between "pay now" and
-// "why is this still here".
-function HoldBadge({ until }: { until: string | null }) {
-  const remaining = useCountdown(until)
-
-  if (remaining !== null && remaining <= 0) {
-    return <span className="badge">Hold expired</span>
-  }
-
-  return (
-    <span className="badge">
-      Awaiting payment{remaining === null ? '' : ` · ${formatCountdown(remaining)} left`}
-    </span>
   )
 }
 
