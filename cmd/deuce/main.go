@@ -13,9 +13,12 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/thelong0705/deuce/internal/adapter/crypto"
+
 	"github.com/thelong0705/deuce/internal/adapter/httpapi"
 	"github.com/thelong0705/deuce/internal/adapter/postgres"
+	"github.com/thelong0705/deuce/internal/adapter/rediscache"
 	"github.com/thelong0705/deuce/internal/domain/usecase"
 )
 
@@ -26,12 +29,19 @@ func main() {
 	}
 }
 
-const sessionTTL = 7 * 24 * time.Hour
+const (
+	sessionTTL = 7 * 24 * time.Hour
+	// sessionCacheTTL bounds how long a deactivated account can keep using a
+	// session it had already made requests with: nothing evicts on
+	// deactivation, so the entry has to lapse on its own.
+	sessionCacheTTL = 30 * time.Second
+)
 
 func run() error {
 	var (
-		dsn  = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
-		addr = env("HTTP_ADDR", ":8080")
+		dsn       = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
+		addr      = env("HTTP_ADDR", ":8080")
+		redisAddr = os.Getenv("REDIS_ADDR")
 	)
 
 	ctx := context.Background()
@@ -56,11 +66,18 @@ func run() error {
 		bookingRepo = postgres.NewBookingRepository(queries)
 		sessionRepo = postgres.NewSessionRepository(queries)
 		hasher      = crypto.NewBcryptHasher()
-		userUC      = usecase.NewUser(userRepo, hasher, userRepo, sessionRepo, sessionTTL)
-		venueUC     = usecase.NewVenue(venueRepo, userRepo)
-		courtUC     = usecase.NewCourt(courtRepo, venueRepo)
-		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo)
-		api         = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC)
+	)
+
+	// The cache is a decorator on the same port, so leaving REDIS_ADDR unset
+	// takes it out of the picture entirely and nothing else changes.
+	sessions := sessionStore(ctx, sessionRepo, redisAddr)
+
+	var (
+		userUC    = usecase.NewUser(userRepo, hasher, userRepo, sessions, sessionTTL)
+		venueUC   = usecase.NewVenue(venueRepo, userRepo)
+		courtUC   = usecase.NewCourt(courtRepo, venueRepo)
+		bookingUC = usecase.NewBooking(bookingRepo, bookingRepo, userRepo)
+		api       = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC)
 	)
 
 	srv := &http.Server{
@@ -111,4 +128,26 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// sessionStore puts Redis in front of the given store when REDIS_ADDR is set.
+// An unreachable Redis is logged and skipped rather than fatal: the cache is an
+// optimisation, and refusing to start without it would make the server less
+// available than it was before the cache existed.
+func sessionStore(ctx context.Context, inner usecase.SessionStore, redisAddr string) usecase.SessionStore {
+	if redisAddr == "" {
+		slog.Info("session cache disabled", "reason", "REDIS_ADDR not set")
+		return inner
+	}
+
+	client := redis.NewClient(rediscache.Options(redisAddr))
+	if err := client.Ping(ctx).Err(); err != nil {
+		slog.Error("session cache disabled", "addr", redisAddr, "error", err)
+		_ = client.Close()
+		return inner
+	}
+
+	slog.Info("session cache enabled", "addr", redisAddr, "ttl", sessionCacheTTL)
+
+	return rediscache.NewSessionStore(inner, client, sessionCacheTTL)
 }

@@ -10,5 +10,14 @@ services:
       - "5432:5432"
     volumes:
       - deuce-pgdata:/var/lib/postgresql
+  redis:
+    image: redis:8-alpine
+    container_name: deuce-redis
+    ports:
+      - "6379:6379"
+    # Sessions are cached, not stored, so nothing here needs to survive a
+    # restart and there is no volume.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
 volumes:
   deuce-pgdata:
