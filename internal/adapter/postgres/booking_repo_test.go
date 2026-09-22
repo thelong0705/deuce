@@ -616,3 +616,30 @@ func TestBookingRepositoryReleaseLapsedHoldsWithNothingToDo(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, released)
 }
+
+func TestBookingRepositoryGetBooking(t *testing.T) {
+	repo := NewBookingRepository(testQueries)
+	ctx := context.Background()
+
+	in := validBookSlotInput(t)
+	held, err := repo.HoldSlot(ctx, in, 240000, time.Now().Add(time.Minute))
+	require.NoError(t, err)
+
+	t.Run("reads the booking back whole", func(t *testing.T) {
+		got, err := repo.GetBooking(ctx, held.ID)
+		require.NoError(t, err)
+
+		require.Equal(t, held.ID, got.ID)
+		require.Equal(t, in.PlayerID, got.PlayerID)
+		require.Equal(t, in.CourtID, got.CourtID)
+		require.Equal(t, entity.StatusPendingPayment, got.Status)
+		require.NotNil(t, got.Amount)
+		require.Equal(t, 240000, *got.Amount)
+		require.NotNil(t, got.HoldExpiresAt)
+	})
+
+	t.Run("an unknown id is ErrBookingNotFound", func(t *testing.T) {
+		_, err := repo.GetBooking(ctx, uuid.New())
+		require.ErrorIs(t, err, entity.ErrBookingNotFound)
+	})
+}

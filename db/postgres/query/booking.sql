@@ -63,3 +63,7 @@ SET cancelled_at = now()
 WHERE status = 'pending_payment'
   AND cancelled_at IS NULL
   AND hold_expires_at <= $1;
+
+-- name: GetBooking :one
+SELECT * FROM bookings
+WHERE id = $1;

@@ -81,6 +81,65 @@ func (_c *MockPaymentGateway_CreatePayment_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// GetPayment provides a mock function with given fields: ctx, intentID
+func (_m *MockPaymentGateway) GetPayment(ctx context.Context, intentID string) (*entity.Payment, error) {
+	ret := _m.Called(ctx, intentID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetPayment")
+	}
+
+	var r0 *entity.Payment
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*entity.Payment, error)); ok {
+		return rf(ctx, intentID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *entity.Payment); ok {
+		r0 = rf(ctx, intentID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*entity.Payment)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, intentID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockPaymentGateway_GetPayment_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPayment'
+type MockPaymentGateway_GetPayment_Call struct {
+	*mock.Call
+}
+
+// GetPayment is a helper method to define mock.On call
+//   - ctx context.Context
+//   - intentID string
+func (_e *MockPaymentGateway_Expecter) GetPayment(ctx interface{}, intentID interface{}) *MockPaymentGateway_GetPayment_Call {
+	return &MockPaymentGateway_GetPayment_Call{Call: _e.mock.On("GetPayment", ctx, intentID)}
+}
+
+func (_c *MockPaymentGateway_GetPayment_Call) Run(run func(ctx context.Context, intentID string)) *MockPaymentGateway_GetPayment_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockPaymentGateway_GetPayment_Call) Return(_a0 *entity.Payment, _a1 error) *MockPaymentGateway_GetPayment_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockPaymentGateway_GetPayment_Call) RunAndReturn(run func(context.Context, string) (*entity.Payment, error)) *MockPaymentGateway_GetPayment_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockPaymentGateway creates a new instance of MockPaymentGateway. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockPaymentGateway(t interface {

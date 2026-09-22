@@ -655,6 +655,67 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /bookings/{bookingID}/payment:
+    post:
+      tags: [bookings]
+      summary: Resume paying for a held slot
+      operationId: resumePayment
+      description: |
+        Hands back the `client_secret` for a payment already opened, so a
+        player who walked away from one can finish it while the hold stands.
+
+        It opens nothing. A slot that can no longer be paid for is refused
+        rather than quietly given a fresh payment, because why it cannot be
+        paid for is the answer the player needs.
+
+        POST rather than GET because the response carries a payment secret,
+        and a GET is the one a proxy or a browser history is liable to keep.
+      parameters:
+        - name: bookingID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The hold stands and the payment can be finished
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HeldBooking"
+        "400":
+          $ref: "#/components/responses/Invalid"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: |
+            No such booking, or not this player's. Somebody else's booking is
+            not found rather than forbidden: whether it exists is not theirs
+            to learn.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: booking_not_found
+                error: booking not found
+        "409":
+          description: The hold ran out, or the booking is already paid for
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                lapsed:
+                  value:
+                    code: hold_lapsed
+                    error: the slot was not paid for in time and has been released
+                paid:
+                  value:
+                    code: already_paid
+                    error: that booking is already paid for
+
   /cities:
     get:
       tags: [cities]

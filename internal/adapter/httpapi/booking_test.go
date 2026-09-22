@@ -539,3 +539,124 @@ func TestListBookingsRequiresASession(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
 	bookings.AssertNotCalled(t, "ListForPlayer")
 }
+
+func TestResumePayment(t *testing.T) {
+	bookingID := uuid.New()
+	path := "/bookings/" + bookingID.String() + "/payment"
+
+	tests := []struct {
+		name string
+		// path defaults to the valid booking path when empty
+		path       string
+		setup      func(bookings *mocks.MockBookingUsecase)
+		wantNoCall bool
+		wantStatus int
+		wantCode   string
+		check      func(t *testing.T, body []byte)
+	}{
+		{
+			name: "hands back the secret for a standing hold",
+			setup: func(bookings *mocks.MockBookingUsecase) {
+				bookings.EXPECT().ResumePayment(mock.Anything, venueOwnerID, bookingID).
+					Return(heldBooking(), nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body []byte) {
+				var got map[string]any
+				require.NoError(t, json.Unmarshal(body, &got))
+				require.Equal(t, "pi_1_secret_abc", got["client_secret"])
+				require.Equal(t, "pending_payment", got["status"])
+			},
+		},
+		{
+			// The player comes from the session, so a booking id alone cannot
+			// reach somebody else's payment.
+			name: "the player is the session's",
+			setup: func(bookings *mocks.MockBookingUsecase) {
+				bookings.EXPECT().
+					ResumePayment(mock.Anything, venueOwnerID, mock.Anything).
+					Return(heldBooking(), nil).Once()
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "a booking id that is not a uuid is 400",
+			path:       "/bookings/not-a-uuid/payment",
+			wantNoCall: true,
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "invalid_booking_id",
+		},
+		{
+			name: "an unknown booking is 404",
+			setup: func(bookings *mocks.MockBookingUsecase) {
+				bookings.EXPECT().ResumePayment(mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, entity.ErrBookingNotFound).Once()
+			},
+			wantStatus: http.StatusNotFound,
+			wantCode:   "booking_not_found",
+		},
+		{
+			name: "a lapsed hold is 409",
+			setup: func(bookings *mocks.MockBookingUsecase) {
+				bookings.EXPECT().ResumePayment(mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, entity.ErrHoldLapsed).Once()
+			},
+			wantStatus: http.StatusConflict,
+			wantCode:   "hold_lapsed",
+		},
+		{
+			name: "a booking already paid for is 409",
+			setup: func(bookings *mocks.MockBookingUsecase) {
+				bookings.EXPECT().ResumePayment(mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, entity.ErrAlreadyPaid).Once()
+			},
+			wantStatus: http.StatusConflict,
+			wantCode:   "already_paid",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bookings := mocks.NewMockBookingUsecase(t)
+			if tt.setup != nil {
+				tt.setup(bookings)
+			}
+
+			at := tt.path
+			if at == "" {
+				at = path
+			}
+
+			rec := doAuthed(t, deps{users: signedInOwner(t), bookings: bookings}, http.MethodPost, at, "")
+
+			require.Equal(t, tt.wantStatus, rec.Code)
+
+			if tt.wantNoCall {
+				bookings.AssertNotCalled(t, "ResumePayment")
+			}
+
+			if tt.wantCode != "" {
+				var got errorBody
+				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+				require.Equal(t, tt.wantCode, got.Code)
+			}
+
+			if tt.check != nil {
+				tt.check(t, rec.Body.Bytes())
+			}
+		})
+	}
+}
+
+func TestResumePaymentRequiresASession(t *testing.T) {
+	users := mocks.NewMockUserUsecase(t)
+	users.EXPECT().Authenticate(mock.Anything, "").Return(nil, entity.ErrSessionInvalid).Once()
+
+	bookings := mocks.NewMockBookingUsecase(t)
+
+	rec := do(t, deps{users: users, bookings: bookings},
+		http.MethodPost, "/bookings/"+uuid.New().String()+"/payment", "")
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	bookings.AssertNotCalled(t, "ResumePayment")
+}

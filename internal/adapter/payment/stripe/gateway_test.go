@@ -89,3 +89,38 @@ func TestCreatePaymentPropagatesAFailure(t *testing.T) {
 	require.Nil(t, payment)
 	require.Contains(t, err.Error(), "create payment intent")
 }
+
+func TestGetPayment(t *testing.T) {
+	t.Run("reads back the secret for an open payment", func(t *testing.T) {
+		var gotPath, gotMethod string
+
+		gateway := newTestGateway(t, func(w http.ResponseWriter, r *http.Request) {
+			gotPath, gotMethod = r.URL.Path, r.Method
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"id":"pi_1","client_secret":"pi_1_secret_abc"}`)
+		})
+
+		payment, err := gateway.GetPayment(context.Background(), "pi_1")
+		require.NoError(t, err)
+
+		require.Equal(t, "pi_1", payment.IntentID)
+		require.Equal(t, "pi_1_secret_abc", payment.ClientSecret)
+
+		// Reading an existing payment, not opening another one.
+		require.Equal(t, http.MethodGet, gotMethod)
+		require.Equal(t, "/v1/payment_intents/pi_1", gotPath)
+	})
+
+	t.Run("a gateway failure is wrapped", func(t *testing.T) {
+		gateway := newTestGateway(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = io.WriteString(w, `{"error":{"message":"boom"}}`)
+		})
+
+		payment, err := gateway.GetPayment(context.Background(), "pi_1")
+
+		require.Error(t, err)
+		require.Nil(t, payment)
+		require.Contains(t, err.Error(), "retrieve payment intent")
+	})
+}

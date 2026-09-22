@@ -42,6 +42,7 @@ type CityUsecase interface {
 // BookingUsecase books slots on a court and reads back what is booked.
 type BookingUsecase interface {
 	Book(ctx context.Context, in entity.BookSlotInput) (*entity.HeldBooking, error)
+	ResumePayment(ctx context.Context, playerID, bookingID uuid.UUID) (*entity.HeldBooking, error)
 	Availability(ctx context.Context, courtID uuid.UUID, day time.Time) ([]entity.Slot, error)
 	ListForPlayer(ctx context.Context, playerID uuid.UUID) ([]entity.PlayerBooking, error)
 	HandlePaymentEvent(ctx context.Context, ev entity.PaymentEvent) error
@@ -111,6 +112,7 @@ func (s *Server) routes() {
 		r.Get("/courts/search", s.searchCourts)
 		r.Get("/courts/{courtID}/availability", s.courtAvailability)
 		r.Get("/bookings", s.listBookings)
+		r.Post("/bookings/{bookingID}/payment", s.resumePayment)
 		r.Get("/cities", s.listCities)
 	})
 }

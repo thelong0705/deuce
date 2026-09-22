@@ -19,6 +19,8 @@ type BookingRepo interface {
 	AttachPayment(ctx context.Context, bookingID uuid.UUID, paymentIntentID string) error
 	// CancelBooking releases the slot.
 	CancelBooking(ctx context.Context, bookingID uuid.UUID) error
+	// GetBooking reads one booking by id.
+	GetBooking(ctx context.Context, bookingID uuid.UUID) (*entity.Booking, error)
 	// ConfirmBooking marks a held slot paid for.
 	ConfirmBooking(ctx context.Context, bookingID uuid.UUID) error
 	// GetBookingByPayment finds the booking a payment belongs to.
@@ -33,6 +35,9 @@ type BookingRepo interface {
 // PaymentGateway collects money for a slot.
 type PaymentGateway interface {
 	CreatePayment(ctx context.Context, in entity.PaymentRequest) (*entity.Payment, error)
+	// GetPayment reads back an open payment. The client secret is stored
+	// nowhere, so finishing a payment means asking the gateway again.
+	GetPayment(ctx context.Context, intentID string) (*entity.Payment, error)
 }
 
 // PaymentEventLog remembers which gateway events have been handled. Recording
@@ -134,6 +139,46 @@ func (s *Booking) Book(ctx context.Context, in entity.BookSlotInput) (*entity.He
 	held.PaymentIntentID = payment.IntentID
 
 	return &entity.HeldBooking{Booking: *held, ClientSecret: payment.ClientSecret}, nil
+}
+
+// ResumePayment hands back the secret for a payment already opened, so a
+// player who walked away from one can finish it while the hold stands.
+//
+// It opens nothing: a slot that can no longer be paid for is refused rather
+// than quietly given a fresh payment, because the reason it cannot be paid
+// for is the answer the player needs.
+func (s *Booking) ResumePayment(
+	ctx context.Context, playerID, bookingID uuid.UUID,
+) (*entity.HeldBooking, error) {
+	if playerID == uuid.Nil {
+		return nil, entity.ErrPlayerRequired
+	}
+
+	booking, err := s.bookings.GetBooking(ctx, bookingID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Somebody else's booking is not found rather than forbidden: whether it
+	// exists is not theirs to learn.
+	if booking.PlayerID != playerID {
+		return nil, entity.ErrBookingNotFound
+	}
+
+	if booking.Status == entity.StatusConfirmed {
+		return nil, entity.ErrAlreadyPaid
+	}
+
+	if !booking.AwaitsPayment(time.Now()) {
+		return nil, entity.ErrHoldLapsed
+	}
+
+	payment, err := s.payments.GetPayment(ctx, booking.PaymentIntentID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &entity.HeldBooking{Booking: *booking, ClientSecret: payment.ClientSecret}, nil
 }
 
 // Availability reports the court's windows on one calendar date and whether

@@ -41,6 +41,21 @@ func (g *Gateway) CreatePayment(ctx context.Context, in entity.PaymentRequest) (
 	}, nil
 }
 
+// GetPayment reads back an open payment so a player can finish one they
+// started. The client secret is stored nowhere, so the gateway is the only
+// place left to ask.
+func (g *Gateway) GetPayment(ctx context.Context, intentID string) (*entity.Payment, error) {
+	intent, err := g.client.V1PaymentIntents.Retrieve(ctx, intentID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("retrieve payment intent: %w", err)
+	}
+
+	return &entity.Payment{
+		IntentID:     intent.ID,
+		ClientSecret: intent.ClientSecret,
+	}, nil
+}
+
 // currencyOf is Stripe's spelling of a currency: lower case throughout.
 func currencyOf(c entity.Currency) string {
 	return strings.ToLower(string(c))

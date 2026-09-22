@@ -50,6 +50,31 @@ func (q *Queries) ConfirmBooking(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const getBooking = `-- name: GetBooking :one
+SELECT id, court_id, player_id, is_block, starts_at, cancelled_at, created_at, updated_at, status, amount, hold_expires_at, payment_intent_id FROM bookings
+WHERE id = $1
+`
+
+func (q *Queries) GetBooking(ctx context.Context, id uuid.UUID) (Booking, error) {
+	row := q.db.QueryRow(ctx, getBooking, id)
+	var i Booking
+	err := row.Scan(
+		&i.ID,
+		&i.CourtID,
+		&i.PlayerID,
+		&i.IsBlock,
+		&i.StartsAt,
+		&i.CancelledAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.Amount,
+		&i.HoldExpiresAt,
+		&i.PaymentIntentID,
+	)
+	return i, err
+}
+
 const getBookingByPayment = `-- name: GetBookingByPayment :one
 SELECT id, court_id, player_id, is_block, starts_at, cancelled_at, created_at, updated_at, status, amount, hold_expires_at, payment_intent_id FROM bookings
 WHERE payment_intent_id = $1
