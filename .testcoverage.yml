@@ -10,3 +10,7 @@ exclude:
     - ^cmd/
     # mockery output, in any package
     - /mocks/
+    # sqlc output. The repositories that wrap it are still measured; what is
+    # excluded is generated scanning and error plumbing nobody wrote.
+    - ^internal/adapter/postgres/(db|models)\.go$
+    - \.sql\.go$
