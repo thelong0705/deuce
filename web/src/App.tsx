@@ -12,6 +12,9 @@ export function App() {
   const [session, setSession] = useState<Session | null>(loadSession)
   const [tab, setTab] = useState<Tab>('login')
   const [email, setEmail] = useState('')
+  // Set only when signing up created the account but could not start the
+  // session, so the sign-in form can explain why it is being asked again.
+  const [notice, setNotice] = useState<string | null>(null)
 
   function signIn(next: Session) {
     saveSession(next)
@@ -60,11 +63,13 @@ export function App() {
 
       {tab === 'login' ? (
         // Remounting on email change lets a fresh signup prefill the field.
-        <LoginForm key={email} initialEmail={email} onSignedIn={signIn} />
+        <LoginForm key={email} initialEmail={email} notice={notice} onSignedIn={signIn} />
       ) : (
         <SignupForm
-          onSignIn={(created) => {
+          onSignedIn={signIn}
+          onNeedsSignIn={(created) => {
             setEmail(created)
+            setNotice('Your account is ready. Sign in to continue.')
             setTab('login')
           }}
         />

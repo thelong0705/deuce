@@ -10,10 +10,13 @@ import type { LoginFieldErrors, LoginInput } from './validation'
 type Props = {
   // initialEmail prefills the field after a fresh signup.
   initialEmail?: string
+  // notice explains why this form is being shown, when something sent the
+  // user here rather than them choosing it.
+  notice?: string | null
   onSignedIn: (session: Session) => void
 }
 
-export function LoginForm({ initialEmail = '', onSignedIn }: Props) {
+export function LoginForm({ initialEmail = '', notice, onSignedIn }: Props) {
   const [input, setInput] = useState<LoginInput>({ email: initialEmail, password: '' })
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
@@ -58,6 +61,12 @@ export function LoginForm({ initialEmail = '', onSignedIn }: Props) {
     <form className="card" onSubmit={handleSubmit} noValidate>
       <h1>Sign in</h1>
       <p className="lede">Welcome back.</p>
+
+      {notice && (
+        <p className="notice" role="status">
+          {notice}
+        </p>
+      )}
 
       <label htmlFor="login-email">
         Email
