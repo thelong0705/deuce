@@ -233,24 +233,39 @@ export async function searchCourts(
 
 // Booking is what POST returns: the row, and nothing about the court beyond
 // its id.
+// pending_payment holds the slot; it is only a booking once Stripe says the
+// payment went through.
+export type BookingStatus = 'pending_payment' | 'confirmed'
+
 export type Booking = {
   id: string
   court_id: string
   player_id: string
   starts_at: string
   ends_at: string
+  status: BookingStatus
+  // What the slot cost when it was held, in the smallest unit of the court's
+  // currency.
+  amount: number | null
   created_at: string
 }
 
-// The court is named by the path, so the body is only the hour.
-export async function createBooking(courtID: string, startsAt: string): Promise<Booking> {
+// client_secret is sent once, on the response that takes the slot. It is not
+// stored and cannot be fetched again.
+export type HeldBooking = Booking & {
+  client_secret: string
+}
+
+// This holds the slot rather than booking it: pay with the client secret, and
+// Stripe tells the server the result, not this code.
+export async function createBooking(courtID: string, startsAt: string): Promise<HeldBooking> {
   const response = await request(`/courts/${encodeURIComponent(courtID)}/bookings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ starts_at: startsAt }),
   })
 
-  return (await response.json()) as Booking
+  return (await response.json()) as HeldBooking
 }
 
 // A listed booking carries the court and venue names; a list of court ids
