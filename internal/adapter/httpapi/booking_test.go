@@ -30,11 +30,15 @@ func validBookingBody() string {
 }
 
 func createdBooking() *entity.Booking {
+	amount := 300000
+
 	return &entity.Booking{
 		ID:        uuid.New(),
 		CourtID:   bookingCourtID,
 		PlayerID:  venueOwnerID,
 		StartsAt:  bookedSlot(),
+		Status:    entity.StatusPendingPayment,
+		Amount:    &amount,
 		CreatedAt: time.Now(),
 	}
 }
@@ -76,6 +80,11 @@ func TestCreateBooking(t *testing.T) {
 				// The browser needs the secret to pay, and this is the only
 				// response that carries it.
 				require.Equal(t, "pi_1_secret_abc", got["client_secret"])
+
+				// A held slot is not a booking yet, and the amount says what
+				// would settle it.
+				require.Equal(t, "pending_payment", got["status"])
+				require.Equal(t, float64(300000), got["amount"])
 
 				startsAt, err := time.Parse(time.RFC3339, got["starts_at"].(string))
 				require.NoError(t, err)
@@ -443,6 +452,8 @@ func TestListBookings(t *testing.T) {
 						ID       string `json:"id"`
 						StartsAt string `json:"starts_at"`
 						EndsAt   string `json:"ends_at"`
+						Status   string `json:"status"`
+						Amount   *int   `json:"amount"`
 						Court    struct {
 							Name         string `json:"name"`
 							PricePerHour int    `json:"price_per_hour"`
@@ -463,6 +474,9 @@ func TestListBookings(t *testing.T) {
 
 				// The embedded booking's fields stay at the top level.
 				require.NotEmpty(t, got.Bookings[0].ID)
+				// Without this a held slot reads as a booking.
+				require.Equal(t, "pending_payment", got.Bookings[0].Status)
+				require.NotNil(t, got.Bookings[0].Amount)
 				require.Equal(t, bookedSlot().Format(time.RFC3339), got.Bookings[0].StartsAt)
 				require.Equal(t,
 					bookedSlot().Add(entity.SlotDuration).Format(time.RFC3339),
