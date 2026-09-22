@@ -9,7 +9,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const defaultTestDSN = "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable"
+// defaultTestDSN points at a database of the tests' own. They write freely and
+// never clean up, so they must not run against the one the server uses.
+// Override with TEST_DB_URL.
+const defaultTestDSN = "postgres://deuce:deuce@localhost:5432/deuce_test?sslmode=disable"
 
 var (
 	testPool    *pgxpool.Pool
