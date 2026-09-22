@@ -5,3 +5,8 @@ INSERT INTO courts (
     $1, $2, $3, $4, $5
 )
 RETURNING *;
+
+-- name: ListCourtsByVenue :many
+SELECT * FROM courts
+WHERE venue_id = $1 AND is_active
+ORDER BY name;

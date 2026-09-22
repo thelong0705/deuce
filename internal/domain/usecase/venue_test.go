@@ -230,3 +230,65 @@ func TestVenueListByOwner(t *testing.T) {
 		})
 	}
 }
+
+func TestVenueSearch(t *testing.T) {
+	boom := errors.New("boom")
+
+	tests := []struct {
+		name string
+		city string
+		// wantCity is what storage should be asked for, when it is asked
+		wantCity string
+		repoErr  error
+		wantErr  error
+	}{
+		{
+			name:     "searches the city as given",
+			city:     "Da Nang",
+			wantCity: "Da Nang",
+		},
+		{
+			name:     "trims surrounding space",
+			city:     "  Da Nang  ",
+			wantCity: "Da Nang",
+		},
+		{
+			name:    "an empty city is refused without a lookup",
+			city:    "",
+			wantErr: entity.ErrVenueCityRequired,
+		},
+		{
+			name:    "a city of only space is refused too",
+			city:    "   ",
+			wantErr: entity.ErrVenueCityRequired,
+		},
+		{
+			name:     "propagates a storage failure",
+			city:     "Da Nang",
+			wantCity: "Da Nang",
+			repoErr:  boom,
+			wantErr:  boom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := mocks.NewMockVenueRepo(t)
+			if tt.wantCity != "" {
+				repo.EXPECT().SearchVenuesByCity(mock.Anything, tt.wantCity).
+					Return([]entity.Venue{{}}, tt.repoErr).Once()
+			}
+
+			svc := usecase.NewVenue(repo, mocks.NewMockUserFinder(t))
+			got, err := svc.Search(context.Background(), tt.city)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Len(t, got, 1)
+		})
+	}
+}

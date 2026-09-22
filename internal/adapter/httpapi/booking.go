@@ -83,3 +83,100 @@ func (s *Server) createBooking(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusCreated, newBookingResponse(*booking))
 }
+
+var errInvalidDate = apperr.New(apperr.KindInvalid, "invalid_date", "date must be YYYY-MM-DD")
+
+type slotResponse struct {
+	StartsAt  time.Time `json:"starts_at"`
+	Available bool      `json:"available"`
+}
+
+type availabilityResponse struct {
+	Slots []slotResponse `json:"slots"`
+}
+
+func (s *Server) courtAvailability(w http.ResponseWriter, r *http.Request) {
+	courtID, err := uuid.Parse(chi.URLParam(r, "courtID"))
+	if err != nil {
+		writeAppError(w, errInvalidCourtID)
+		return
+	}
+
+	// A bare date names a calendar day, not an instant. Which instants that
+	// day covers depends on the venue's timezone, so only the year, month and
+	// day are carried through and the use case resolves them there.
+	day, err := time.Parse(time.DateOnly, r.URL.Query().Get("date"))
+	if err != nil {
+		writeAppError(w, errInvalidDate)
+		return
+	}
+
+	slots, err := s.bookings.Availability(r.Context(), courtID, day)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+
+	out := make([]slotResponse, 0, len(slots))
+	for _, slot := range slots {
+		out = append(out, slotResponse{StartsAt: slot.StartsAt, Available: slot.Available})
+	}
+
+	writeJSON(w, http.StatusOK, availabilityResponse{Slots: out})
+}
+
+// playerBookingResponse is a booking with enough of the court and venue to
+// read it. A court id alone tells a player nothing, and looking each one up
+// would be a request per row.
+type playerBookingResponse struct {
+	bookingResponse
+	Court playerBookingCourt `json:"court"`
+	Venue playerBookingVenue `json:"venue"`
+}
+
+type playerBookingCourt struct {
+	Name         string `json:"name"`
+	PricePerHour int    `json:"price_per_hour"`
+}
+
+type playerBookingVenue struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+	City string    `json:"city"`
+}
+
+type bookingListResponse struct {
+	Bookings []playerBookingResponse `json:"bookings"`
+}
+
+func (s *Server) listBookings(w http.ResponseWriter, r *http.Request) {
+	player, ok := UserFromContext(r.Context())
+	if !ok {
+		writeInternalError(w)
+		return
+	}
+
+	bookings, err := s.bookings.ListForPlayer(r.Context(), player.ID)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+
+	out := make([]playerBookingResponse, 0, len(bookings))
+	for _, b := range bookings {
+		out = append(out, playerBookingResponse{
+			bookingResponse: newBookingResponse(b.Booking),
+			Court: playerBookingCourt{
+				Name:         b.Court.Name,
+				PricePerHour: b.Court.PricePerHour,
+			},
+			Venue: playerBookingVenue{
+				ID:   b.Venue.ID,
+				Name: b.Venue.Name,
+				City: b.Venue.City,
+			},
+		})
+	}
+
+	writeJSON(w, http.StatusOK, bookingListResponse{Bookings: out})
+}

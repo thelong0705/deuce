@@ -72,10 +72,23 @@ func (r *VenueRepository) ListVenuesByOwner(ctx context.Context, ownerID uuid.UU
 		return nil, fmt.Errorf("list venues by owner: %w", err)
 	}
 
+	return toEntityVenues(rows), nil
+}
+
+func (r *VenueRepository) SearchVenuesByCity(ctx context.Context, city string) ([]entity.Venue, error) {
+	rows, err := r.q.SearchVenuesByCity(ctx, city)
+	if err != nil {
+		return nil, fmt.Errorf("search venues by city: %w", err)
+	}
+
+	return toEntityVenues(rows), nil
+}
+
+func toEntityVenues(rows []Venue) []entity.Venue {
 	venues := make([]entity.Venue, 0, len(rows))
 	for _, row := range rows {
 		venues = append(venues, *toEntityVenue(row))
 	}
 
-	return venues, nil
+	return venues
 }

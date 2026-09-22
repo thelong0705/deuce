@@ -169,6 +169,43 @@ func (q *Queries) ListVenuesByOwner(ctx context.Context, ownerID uuid.UUID) ([]V
 	return items, nil
 }
 
+const searchVenuesByCity = `-- name: SearchVenuesByCity :many
+SELECT id, owner_id, name, city, address, is_active, created_at, updated_at, timezone FROM venues
+WHERE is_active AND city = $1
+ORDER BY name
+`
+
+// city is citext, so this matches regardless of how the caller capitalised it.
+func (q *Queries) SearchVenuesByCity(ctx context.Context, city string) ([]Venue, error) {
+	rows, err := q.db.Query(ctx, searchVenuesByCity, city)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Venue{}
+	for rows.Next() {
+		var i Venue
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Name,
+			&i.City,
+			&i.Address,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Timezone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateVenue = `-- name: UpdateVenue :one
 UPDATE venues
 SET name    = $2,

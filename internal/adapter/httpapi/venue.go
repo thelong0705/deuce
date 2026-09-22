@@ -96,3 +96,20 @@ func (s *Server) listVenues(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, venueListResponse{Venues: out})
 }
+
+// searchVenues browses everybody's active venues, unlike listVenues, which is
+// scoped to the caller's own.
+func (s *Server) searchVenues(w http.ResponseWriter, r *http.Request) {
+	venues, err := s.venues.Search(r.Context(), r.URL.Query().Get("city"))
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+
+	out := make([]venueResponse, 0, len(venues))
+	for _, v := range venues {
+		out = append(out, newVenueResponse(v))
+	}
+
+	writeJSON(w, http.StatusOK, venueListResponse{Venues: out})
+}

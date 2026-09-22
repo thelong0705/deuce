@@ -82,3 +82,28 @@ func (s *Server) createCourt(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusCreated, newCourtResponse(*court))
 }
+
+type courtListResponse struct {
+	Courts []courtResponse `json:"courts"`
+}
+
+func (s *Server) listCourts(w http.ResponseWriter, r *http.Request) {
+	venueID, err := uuid.Parse(chi.URLParam(r, "venueID"))
+	if err != nil {
+		writeAppError(w, errInvalidVenueID)
+		return
+	}
+
+	courts, err := s.courts.ListByVenue(r.Context(), venueID)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+
+	out := make([]courtResponse, 0, len(courts))
+	for _, c := range courts {
+		out = append(out, newCourtResponse(c))
+	}
+
+	writeJSON(w, http.StatusOK, courtListResponse{Courts: out})
+}

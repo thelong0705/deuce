@@ -50,3 +50,39 @@ func (q *Queries) CreateCourt(ctx context.Context, arg CreateCourtParams) (Court
 	)
 	return i, err
 }
+
+const listCourtsByVenue = `-- name: ListCourtsByVenue :many
+SELECT id, venue_id, name, open_hour, close_hour, price_per_hour, is_active, created_at, updated_at FROM courts
+WHERE venue_id = $1 AND is_active
+ORDER BY name
+`
+
+func (q *Queries) ListCourtsByVenue(ctx context.Context, venueID uuid.UUID) ([]Court, error) {
+	rows, err := q.db.Query(ctx, listCourtsByVenue, venueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Court{}
+	for rows.Next() {
+		var i Court
+		if err := rows.Scan(
+			&i.ID,
+			&i.VenueID,
+			&i.Name,
+			&i.OpenHour,
+			&i.CloseHour,
+			&i.PricePerHour,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

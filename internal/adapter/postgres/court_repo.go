@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/thelong0705/deuce/internal/domain/entity"
@@ -39,6 +40,20 @@ func (r *CourtRepository) CreateCourt(ctx context.Context, in entity.CreateCourt
 	}
 
 	return toEntityCourt(row), nil
+}
+
+func (r *CourtRepository) ListCourtsByVenue(ctx context.Context, venueID uuid.UUID) ([]entity.Court, error) {
+	rows, err := r.q.ListCourtsByVenue(ctx, venueID)
+	if err != nil {
+		return nil, fmt.Errorf("list courts by venue: %w", err)
+	}
+
+	courts := make([]entity.Court, 0, len(rows))
+	for _, row := range rows {
+		courts = append(courts, *toEntityCourt(row))
+	}
+
+	return courts, nil
 }
 
 func toEntityCourt(c Court) *entity.Court {

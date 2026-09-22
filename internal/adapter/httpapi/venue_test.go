@@ -317,3 +317,100 @@ func TestVenueRoutesRequireASession(t *testing.T) {
 		})
 	}
 }
+
+func TestSearchVenues(t *testing.T) {
+	tests := []struct {
+		name string
+		// query is appended to /venues/search
+		query      string
+		setup      func(venues *mocks.MockVenueUsecase)
+		wantStatus int
+		wantCode   string
+		check      func(t *testing.T, body []byte)
+	}{
+		{
+			name:  "lists the venues in a city",
+			query: "?city=Hanoi",
+			setup: func(venues *mocks.MockVenueUsecase) {
+				venues.EXPECT().Search(mock.Anything, "Hanoi").
+					Return([]entity.Venue{*createdVenue()}, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body []byte) {
+				var got struct {
+					Venues []map[string]any `json:"venues"`
+				}
+				require.NoError(t, json.Unmarshal(body, &got))
+				require.Len(t, got.Venues, 1)
+				require.Equal(t, "Ace Tennis Club", got.Venues[0]["name"])
+			},
+		},
+		{
+			name:  "a city with nothing in it is an empty list, not null",
+			query: "?city=Nowhere",
+			setup: func(venues *mocks.MockVenueUsecase) {
+				venues.EXPECT().Search(mock.Anything, "Nowhere").Return(nil, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body []byte) {
+				require.JSONEq(t, `{"venues":[]}`, string(body))
+			},
+		},
+		{
+			name:  "a missing city is the use case's to refuse",
+			query: "",
+			setup: func(venues *mocks.MockVenueUsecase) {
+				venues.EXPECT().Search(mock.Anything, "").
+					Return(nil, entity.ErrVenueCityRequired).Once()
+			},
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "venue_city_required",
+		},
+		{
+			name:  "an unexpected failure is 500 without leaking detail",
+			query: "?city=Hanoi",
+			setup: func(venues *mocks.MockVenueUsecase) {
+				venues.EXPECT().Search(mock.Anything, mock.Anything).
+					Return(nil, errors.New("pq: connection to 10.0.0.5 refused")).Once()
+			},
+			wantStatus: http.StatusInternalServerError,
+			check: func(t *testing.T, body []byte) {
+				require.NotContains(t, string(body), "10.0.0.5")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			venues := mocks.NewMockVenueUsecase(t)
+			tt.setup(venues)
+
+			rec := doAuthed(t, deps{users: signedInOwner(t), venues: venues},
+				http.MethodGet, "/venues/search"+tt.query, "")
+
+			require.Equal(t, tt.wantStatus, rec.Code)
+
+			if tt.wantCode != "" {
+				var got errorBody
+				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+				require.Equal(t, tt.wantCode, got.Code)
+			}
+
+			if tt.check != nil {
+				tt.check(t, rec.Body.Bytes())
+			}
+		})
+	}
+}
+
+func TestSearchVenuesRequiresASession(t *testing.T) {
+	users := mocks.NewMockUserUsecase(t)
+	users.EXPECT().Authenticate(mock.Anything, "").Return(nil, entity.ErrSessionInvalid).Once()
+
+	venues := mocks.NewMockVenueUsecase(t)
+
+	rec := do(t, deps{users: users, venues: venues}, http.MethodGet, "/venues/search?city=Hanoi", "")
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	venues.AssertNotCalled(t, "Search")
+}
