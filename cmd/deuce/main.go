@@ -69,8 +69,6 @@ func run() error {
 		hasher      = crypto.NewBcryptHasher()
 	)
 
-	// The cache is a decorator on the same port, so leaving REDIS_ADDR unset
-	// takes it out of the picture entirely and nothing else changes.
 	sessions := sessionStore(ctx, sessionRepo, redisAddr)
 
 	var (
