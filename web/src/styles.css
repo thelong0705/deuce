@@ -54,6 +54,13 @@ body {
   justify-content: flex-start;
 }
 
+/* Signed in, a card holds lists and slot grids rather than one column of
+   fields, so it gets the width of the bar above it. The signed-out forms stay
+   narrow: a login box the width of the page is harder to read, not easier. */
+.page-below-menu .card {
+  max-width: 880px;
+}
+
 .menubar {
   position: sticky;
   top: 0;
@@ -397,6 +404,18 @@ select.price-currency {
 
 .payment-panel .lede {
   margin-top: 0;
+}
+
+.countdown {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.countdown strong {
+  /* Tabular figures so the text does not shuffle as the seconds tick. */
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 .payment-form button {

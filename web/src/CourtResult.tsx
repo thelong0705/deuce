@@ -6,6 +6,7 @@ import { PaymentForm } from './PaymentForm'
 import { ApiError, createBooking } from './api'
 import type { CourtSearchResult, HeldBooking, Slot } from './api'
 import { formatWindow } from './datetime'
+import { formatCountdown, useCountdown } from './useCountdown'
 import { elementsAppearance, stripeConfigured, stripePromise } from './stripe'
 
 type Props = {
@@ -25,6 +26,11 @@ export function CourtResult({ result, onBooked, onUnauthorized, onTaken }: Props
   const [held, setHeld] = useState<{ booking: HeldBooking; slot: Slot } | null>(null)
   const [booked, setBooked] = useState<Slot | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const remaining = useCountdown(held?.booking.hold_expires_at ?? null)
+  // Nothing can be paid for after this: the slot is already back, and the
+  // server would refuse the payment anyway.
+  const lapsed = remaining !== null && remaining <= 0
 
   async function book(slot: Slot) {
     setBooking(slot.starts_at)
@@ -80,11 +86,26 @@ export function CourtResult({ result, onBooked, onUnauthorized, onTaken }: Props
       {held && (
         <div className="payment-panel">
           <p className="lede">
-            Holding {formatWindow(held.slot.starts_at, held.slot.ends_at)} on {court.name}. Pay
-            within fifteen minutes to keep it.
+            Holding {formatWindow(held.slot.starts_at, held.slot.ends_at)} on {court.name}.
           </p>
 
-          {stripeConfigured() ? (
+          {lapsed ? (
+            <p className="form-error" role="alert">
+              That hold ran out and the slot has gone back. Search again to pick another time.
+            </p>
+          ) : (
+            <p className="countdown" role="timer">
+              {remaining === null ? (
+                'Pay to keep it.'
+              ) : (
+                <>
+                  <strong>{formatCountdown(remaining)}</strong> left to pay
+                </>
+              )}
+            </p>
+          )}
+
+          {lapsed ? null : stripeConfigured() ? (
             <Elements
               // Remounting per hold is deliberate: Elements takes the client
               // secret once, and this is a different payment each time.
