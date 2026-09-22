@@ -40,6 +40,7 @@ type deps struct {
 	venues   httpapi.VenueUsecase
 	courts   httpapi.CourtUsecase
 	bookings httpapi.BookingUsecase
+	cities   httpapi.CityUsecase
 }
 
 func (d deps) handler(t *testing.T) http.Handler {
@@ -57,8 +58,11 @@ func (d deps) handler(t *testing.T) http.Handler {
 	if d.bookings == nil {
 		d.bookings = mocks.NewMockBookingUsecase(t)
 	}
+	if d.cities == nil {
+		d.cities = mocks.NewMockCityUsecase(t)
+	}
 
-	return httpapi.NewServer(d.users, d.venues, d.courts, d.bookings).Handler()
+	return httpapi.NewServer(d.users, d.venues, d.courts, d.bookings, d.cities).Handler()
 }
 
 // do sends a request through the router and returns the recorded response.

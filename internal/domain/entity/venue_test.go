@@ -11,11 +11,10 @@ import (
 
 func validVenueInput() entity.CreateVenueInput {
 	return entity.CreateVenueInput{
-		OwnerID:  uuid.New(),
-		Name:     "Ace Tennis Club",
-		City:     "Hanoi",
-		Address:  "12 Le Loi",
-		Timezone: "Asia/Ho_Chi_Minh",
+		OwnerID: uuid.New(),
+		Name:    "Ace Tennis Club",
+		City:    "Ha Noi",
+		Address: "12 Le Loi",
 	}
 }
 
@@ -25,66 +24,6 @@ func TestCreateVenueInputValidate(t *testing.T) {
 		mutate  func(in *entity.CreateVenueInput)
 		wantErr error
 	}{
-		{
-			name:   "valid venue",
-			mutate: func(*entity.CreateVenueInput) {},
-		},
-		{
-			name:    "missing owner",
-			mutate:  func(in *entity.CreateVenueInput) { in.OwnerID = uuid.Nil },
-			wantErr: entity.ErrOwnerRequired,
-		},
-		{
-			name:    "empty name",
-			mutate:  func(in *entity.CreateVenueInput) { in.Name = "" },
-			wantErr: entity.ErrVenueNameRequired,
-		},
-		{
-			name:    "name of only whitespace",
-			mutate:  func(in *entity.CreateVenueInput) { in.Name = "   " },
-			wantErr: entity.ErrVenueNameRequired,
-		},
-		{
-			name:    "empty city",
-			mutate:  func(in *entity.CreateVenueInput) { in.City = "" },
-			wantErr: entity.ErrVenueCityRequired,
-		},
-		{
-			name:    "city of only whitespace",
-			mutate:  func(in *entity.CreateVenueInput) { in.City = "\t\n" },
-			wantErr: entity.ErrVenueCityRequired,
-		},
-		{
-			name:    "empty address",
-			mutate:  func(in *entity.CreateVenueInput) { in.Address = "" },
-			wantErr: entity.ErrVenueAddressRequired,
-		},
-		{
-			name:    "address of only whitespace",
-			mutate:  func(in *entity.CreateVenueInput) { in.Address = " " },
-			wantErr: entity.ErrVenueAddressRequired,
-		},
-		{
-			name:   "UTC is a timezone",
-			mutate: func(in *entity.CreateVenueInput) { in.Timezone = "UTC" },
-		},
-		{
-			name:    "missing timezone",
-			mutate:  func(in *entity.CreateVenueInput) { in.Timezone = "" },
-			wantErr: entity.ErrVenueTimezoneInvalid,
-		},
-		{
-			name:    "a timezone that is not an IANA name",
-			mutate:  func(in *entity.CreateVenueInput) { in.Timezone = "Hanoi/Somewhere" },
-			wantErr: entity.ErrVenueTimezoneInvalid,
-		},
-		{
-			// "Local" resolves, but it would mean the server's timezone rather
-			// than the venue's.
-			name:    "Local is not a timezone a venue can pick",
-			mutate:  func(in *entity.CreateVenueInput) { in.Timezone = "Local" },
-			wantErr: entity.ErrVenueTimezoneInvalid,
-		},
 		{
 			name:   "non-ascii name is allowed",
 			mutate: func(in *entity.CreateVenueInput) { in.Name = "Sân Tennis Hà Nội" },

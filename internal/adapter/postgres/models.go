@@ -65,6 +65,11 @@ type Booking struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type City struct {
+	Name     string `json:"name"`
+	Timezone string `json:"timezone"`
+}
+
 type Court struct {
 	ID           uuid.UUID          `json:"id"`
 	VenueID      uuid.UUID          `json:"venue_id"`

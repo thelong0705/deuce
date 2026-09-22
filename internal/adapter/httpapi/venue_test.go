@@ -18,7 +18,7 @@ import (
 var venueOwnerID = uuid.New()
 
 func validVenueBody() string {
-	return `{"name":"Ace Tennis Club","city":"Hanoi","address":"12 Le Loi","timezone":"Asia/Ho_Chi_Minh"}`
+	return `{"name":"Ace Tennis Club","city":"Ha Noi","address":"12 Le Loi"}`
 }
 
 func venueOwner() *entity.User {
@@ -45,7 +45,7 @@ func createdVenue() *entity.Venue {
 		ID:        uuid.New(),
 		OwnerID:   venueOwnerID,
 		Name:      "Ace Tennis Club",
-		City:      "Hanoi",
+		City:      "Ha Noi",
 		Address:   "12 Le Loi",
 		IsActive:  true,
 		CreatedAt: time.Now(),
@@ -73,7 +73,7 @@ func TestCreateVenue(t *testing.T) {
 				require.NoError(t, json.Unmarshal(body, &got))
 
 				require.Equal(t, "Ace Tennis Club", got["name"])
-				require.Equal(t, "Hanoi", got["city"])
+				require.Equal(t, "Ha Noi", got["city"])
 				require.Equal(t, "12 Le Loi", got["address"])
 				require.Equal(t, venueOwnerID.String(), got["owner_id"])
 				require.Equal(t, true, got["is_active"])
@@ -124,14 +124,14 @@ func TestCreateVenue(t *testing.T) {
 			wantErrMsg: entity.ErrUserNotFound.Error(),
 		},
 		{
-			name: "an unusable timezone becomes 400",
-			body: `{"name":"A","city":"B","address":"C","timezone":"Hanoi/Somewhere"}`,
+			name: "a city deuce does not operate in becomes 400",
+			body: `{"name":"A","city":"Atlantis","address":"C"}`,
 			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().Create(mock.Anything, mock.Anything).
-					Return(nil, entity.ErrVenueTimezoneInvalid).Once()
+					Return(nil, entity.ErrVenueCityUnsupported).Once()
 			},
 			wantStatus: http.StatusBadRequest,
-			wantErrMsg: entity.ErrVenueTimezoneInvalid.Error(),
+			wantErrMsg: entity.ErrVenueCityUnsupported.Error(),
 		},
 		{
 			name: "a player becomes 403",
@@ -330,9 +330,9 @@ func TestSearchVenues(t *testing.T) {
 	}{
 		{
 			name:  "lists the venues in a city",
-			query: "?city=Hanoi",
+			query: "?city=Ha%20Noi",
 			setup: func(venues *mocks.MockVenueUsecase) {
-				venues.EXPECT().Search(mock.Anything, "Hanoi").
+				venues.EXPECT().Search(mock.Anything, "Ha Noi").
 					Return([]entity.Venue{*createdVenue()}, nil).Once()
 			},
 			wantStatus: http.StatusOK,
@@ -368,7 +368,7 @@ func TestSearchVenues(t *testing.T) {
 		},
 		{
 			name:  "an unexpected failure is 500 without leaking detail",
-			query: "?city=Hanoi",
+			query: "?city=Ha%20Noi",
 			setup: func(venues *mocks.MockVenueUsecase) {
 				venues.EXPECT().Search(mock.Anything, mock.Anything).
 					Return(nil, errors.New("pq: connection to 10.0.0.5 refused")).Once()
@@ -409,7 +409,7 @@ func TestSearchVenuesRequiresASession(t *testing.T) {
 
 	venues := mocks.NewMockVenueUsecase(t)
 
-	rec := do(t, deps{users: users, venues: venues}, http.MethodGet, "/venues/search?city=Hanoi", "")
+	rec := do(t, deps{users: users, venues: venues}, http.MethodGet, "/venues/search?city=Ha%20Noi", "")
 
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
 	venues.AssertNotCalled(t, "Search")
