@@ -19,18 +19,42 @@ const (
 	BookingHorizon = 14 * 24 * time.Hour
 	// CancellationNotice is how long before the slot a player may still cancel.
 	CancellationNotice = 24 * time.Hour
+	// PaymentHold is how long an unpaid slot is kept. It is short because
+	// nobody else can book the slot until it lapses.
+	PaymentHold = 15 * time.Minute
 )
+
+type BookingStatus string
+
+const (
+	// StatusPendingPayment holds the slot but is not a booking yet.
+	StatusPendingPayment BookingStatus = "pending_payment"
+	StatusConfirmed      BookingStatus = "confirmed"
+)
+
+func (s BookingStatus) Valid() bool {
+	return s == StatusPendingPayment || s == StatusConfirmed
+}
+
+func (s BookingStatus) String() string { return string(s) }
 
 // Booking is one slot on a court. A block is a booking an owner made to keep
 // the slot empty, and carries no player.
 type Booking struct {
-	ID          uuid.UUID
-	CourtID     uuid.UUID
-	PlayerID    uuid.UUID
-	IsBlock     bool
-	StartsAt    time.Time
-	CancelledAt *time.Time
-	CreatedAt   time.Time
+	ID       uuid.UUID
+	CourtID  uuid.UUID
+	PlayerID uuid.UUID
+	IsBlock  bool
+	StartsAt time.Time
+	Status   BookingStatus
+	// Amount is what the slot cost when it was held; the court's price may
+	// change afterwards. Nil on a block, which is not priced at all.
+	Amount *int
+	// HoldExpiresAt is set only while payment is outstanding.
+	HoldExpiresAt   *time.Time
+	PaymentIntentID string
+	CancelledAt     *time.Time
+	CreatedAt       time.Time
 }
 
 // IsActive reports whether the booking still holds its slot.
@@ -41,6 +65,19 @@ func (b Booking) IsActive() bool {
 // EndsAt is when the court frees up.
 func (b Booking) EndsAt() time.Time {
 	return b.StartsAt.Add(SlotDuration)
+}
+
+// HoldHasLapsed reports whether an unpaid hold has run out. It still occupies
+// the slot until something cancels it.
+func (b Booking) HoldHasLapsed(now time.Time) bool {
+	return b.Status == StatusPendingPayment &&
+		b.HoldExpiresAt != nil &&
+		!now.Before(*b.HoldExpiresAt)
+}
+
+// AwaitsPayment reports whether the player could still pay for the slot.
+func (b Booking) AwaitsPayment(now time.Time) bool {
+	return b.IsActive() && b.Status == StatusPendingPayment && !b.HoldHasLapsed(now)
 }
 
 var (
@@ -57,6 +94,10 @@ var (
 	ErrCourtInactive           = apperr.New(apperr.KindForbidden, "court_inactive", "court is not active")
 	ErrNotAPlayer              = apperr.New(apperr.KindForbidden, "not_a_player", "only a player can book a court")
 	ErrPlayerInactive          = apperr.New(apperr.KindForbidden, "player_inactive", "player account is not active")
+	ErrBookingNotFound         = apperr.New(apperr.KindNotFound, "booking_not_found", "booking not found")
+	ErrHoldLapsed              = apperr.New(apperr.KindConflict, "hold_lapsed", "the slot was not paid for in time and has been released")
+	ErrAlreadyPaid             = apperr.New(apperr.KindConflict, "already_paid", "that booking is already paid for")
+	ErrPaymentFailed           = apperr.New(apperr.KindInvalid, "payment_failed", "the payment did not go through")
 )
 
 // BookSlotInput is what a player supplies to book a slot.

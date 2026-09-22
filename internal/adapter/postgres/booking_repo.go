@@ -113,7 +113,22 @@ func toEntityBooking(b Booking) *entity.Booking {
 		CourtID:   b.CourtID,
 		IsBlock:   b.IsBlock,
 		StartsAt:  b.StartsAt.Time,
+		Status:    entity.BookingStatus(b.Status),
 		CreatedAt: b.CreatedAt.Time,
+	}
+
+	if b.Amount.Valid {
+		amount := int(b.Amount.Int32)
+		out.Amount = &amount
+	}
+
+	if b.HoldExpiresAt.Valid {
+		holdExpiresAt := b.HoldExpiresAt.Time
+		out.HoldExpiresAt = &holdExpiresAt
+	}
+
+	if b.PaymentIntentID.Valid {
+		out.PaymentIntentID = b.PaymentIntentID.String
 	}
 
 	if b.PlayerID.Valid {
