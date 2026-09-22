@@ -1,0 +1,9 @@
+*
+
+# The build stage copies what it needs; everything else stays out of the
+# context so an image is not rebuilt because the frontend or a doc changed.
+!go.mod
+!go.sum
+!cmd
+!internal
+!api
