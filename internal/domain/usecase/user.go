@@ -36,6 +36,7 @@ type User struct {
 	hasher      PasswordHasher
 	credentials CredentialFinder
 	sessions    SessionStore
+	cache       SessionCache
 	sessionTTL  time.Duration
 }
 
@@ -44,6 +45,7 @@ func NewUser(
 	hasher PasswordHasher,
 	credentials CredentialFinder,
 	sessions SessionStore,
+	cache SessionCache,
 	sessionTTL time.Duration,
 ) *User {
 	return &User{
@@ -51,6 +53,7 @@ func NewUser(
 		hasher:      hasher,
 		credentials: credentials,
 		sessions:    sessions,
+		cache:       cache,
 		sessionTTL:  sessionTTL,
 	}
 }

@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 
+	rediscache "github.com/thelong0705/deuce/internal/adapter/cache/redis"
 	"github.com/thelong0705/deuce/internal/adapter/crypto"
 	"github.com/thelong0705/deuce/internal/adapter/httpapi"
 	"github.com/thelong0705/deuce/internal/adapter/postgres"
@@ -26,12 +28,18 @@ func main() {
 	}
 }
 
-const sessionTTL = 7 * 24 * time.Hour
+const (
+	sessionTTL = 7 * 24 * time.Hour
+	// sessionCacheTTL bounds how long a deactivated account keeps working:
+	// nothing evicts on deactivation, so the entry has to lapse on its own.
+	sessionCacheTTL = 10 * time.Minute
+)
 
 func run() error {
 	var (
-		dsn  = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
-		addr = env("HTTP_ADDR", ":8080")
+		dsn       = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
+		addr      = env("HTTP_ADDR", ":8080")
+		redisAddr = env("REDIS_ADDR", "localhost:6379")
 	)
 
 	ctx := context.Background()
@@ -48,6 +56,13 @@ func run() error {
 		return fmt.Errorf("connect to db: %w", err)
 	}
 
+	rdb := redis.NewClient(rediscache.Options(redisAddr))
+	defer func() { _ = rdb.Close() }()
+
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("connect to redis: %w", err)
+	}
+
 	var (
 		queries     = postgres.New(pool)
 		userRepo    = postgres.NewUserRepository(queries)
@@ -57,7 +72,8 @@ func run() error {
 		sessionRepo = postgres.NewSessionRepository(queries)
 		cityRepo    = postgres.NewCityRepository(queries)
 		hasher      = crypto.NewBcryptHasher()
-		userUC      = usecase.NewUser(userRepo, hasher, userRepo, sessionRepo, sessionTTL)
+		cache       = rediscache.NewSessionCache(rdb, sessionCacheTTL)
+		userUC      = usecase.NewUser(userRepo, hasher, userRepo, sessionRepo, cache, sessionTTL)
 		venueUC     = usecase.NewVenue(venueRepo, userRepo)
 		courtUC     = usecase.NewCourt(courtRepo, venueRepo)
 		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo)
