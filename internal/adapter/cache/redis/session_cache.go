@@ -1,5 +1,5 @@
-// Package rediscache holds Redis-backed adapters.
-package rediscache
+// Package redis caches in Redis.
+package redis
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/thelong0705/deuce/internal/domain/entity"
 	"github.com/thelong0705/deuce/internal/domain/usecase"
@@ -22,15 +22,15 @@ var _ usecase.SessionCache = (*SessionCache)(nil)
 // logged, because the use case reads through on a miss and a cache must not be
 // able to fail a request.
 type SessionCache struct {
-	rdb *redis.Client
+	rdb *goredis.Client
 	ttl time.Duration
 }
 
 // Options is how the cache expects its client to be configured: a cache that
 // stalls is worse than no cache, so a slow or unreachable Redis gives up
 // quickly and the request reads through instead of waiting.
-func Options(addr string) *redis.Options {
-	return &redis.Options{
+func Options(addr string) *goredis.Options {
+	return &goredis.Options{
 		Addr:         addr,
 		DialTimeout:  200 * time.Millisecond,
 		ReadTimeout:  200 * time.Millisecond,
@@ -39,7 +39,7 @@ func Options(addr string) *redis.Options {
 	}
 }
 
-func NewSessionCache(rdb *redis.Client, ttl time.Duration) *SessionCache {
+func NewSessionCache(rdb *goredis.Client, ttl time.Duration) *SessionCache {
 	return &SessionCache{rdb: rdb, ttl: ttl}
 }
 
@@ -60,7 +60,7 @@ func sessionKey(tokenHash string) string {
 func (c *SessionCache) GetSessionUser(ctx context.Context, tokenHash string) (*entity.Session, *entity.User, bool) {
 	raw, err := c.rdb.Get(ctx, sessionKey(tokenHash)).Bytes()
 	if err != nil {
-		if err != redis.Nil {
+		if err != goredis.Nil {
 			slog.Error("read cached session", "error", err)
 		}
 		return nil, nil, false

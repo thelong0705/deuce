@@ -39,16 +39,6 @@ type SessionCache interface {
 	DeleteSession(ctx context.Context, tokenHash string)
 }
 
-// nopSessionCache stands in when there is no cache, so Authenticate and Logout
-// read the same either way.
-type nopSessionCache struct{}
-
-func (nopSessionCache) GetSessionUser(context.Context, string) (*entity.Session, *entity.User, bool) {
-	return nil, nil, false
-}
-func (nopSessionCache) PutSessionUser(context.Context, string, *entity.Session, *entity.User) {}
-func (nopSessionCache) DeleteSession(context.Context, string)                                 {}
-
 // Login checks the credentials and starts a session, returning the raw token
 // once. Only its hash is stored.
 func (s *User) Login(ctx context.Context, in entity.LoginInput) (string, *entity.Session, error) {

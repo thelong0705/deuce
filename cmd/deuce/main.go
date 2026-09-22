@@ -14,10 +14,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/thelong0705/deuce/internal/adapter/cache/noop"
+	rediscache "github.com/thelong0705/deuce/internal/adapter/cache/redis"
 	"github.com/thelong0705/deuce/internal/adapter/crypto"
 	"github.com/thelong0705/deuce/internal/adapter/httpapi"
 	"github.com/thelong0705/deuce/internal/adapter/postgres"
-	"github.com/thelong0705/deuce/internal/adapter/rediscache"
 	"github.com/thelong0705/deuce/internal/domain/usecase"
 )
 
@@ -129,7 +130,8 @@ func env(key, fallback string) string {
 	return fallback
 }
 
-// sessionCache builds the session cache, or returns nil for none. An
+// sessionCache builds the session cache, falling back to one that caches
+// nothing so the use case has something to call either way. An
 // unreachable Redis is logged and skipped rather than fatal: the cache is an
 // optimisation, and refusing to start without it would make the server less
 // available than it was before the cache existed.
@@ -139,14 +141,14 @@ func sessionCache(ctx context.Context, redisAddr string) usecase.SessionCache {
 	// just after a failed ping rather than before one.
 	if redisAddr == cacheOff {
 		slog.Info("session cache disabled", "reason", "REDIS_ADDR="+cacheOff)
-		return nil
+		return noop.NewSessionCache()
 	}
 
 	client := redis.NewClient(rediscache.Options(redisAddr))
 	if err := client.Ping(ctx).Err(); err != nil {
 		slog.Error("session cache disabled", "addr", redisAddr, "error", err)
 		_ = client.Close()
-		return nil
+		return noop.NewSessionCache()
 	}
 
 	slog.Info("session cache enabled", "addr", redisAddr, "ttl", sessionCacheTTL)

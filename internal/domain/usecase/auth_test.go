@@ -130,7 +130,7 @@ func TestAuthLogin(t *testing.T) {
 				tt.mutate(&in)
 			}
 
-			svc := usecase.NewUser(mocks.NewMockUserCreator(t), pw, creds, sessions, nil, sessionTTL)
+			svc := usecase.NewUser(mocks.NewMockUserCreator(t), pw, creds, sessions, missingCache(t), sessionTTL)
 			token, session, err := svc.Login(context.Background(), in)
 
 			if tt.wantErr != nil {
@@ -170,7 +170,7 @@ func TestLoginTokensAreUnique(t *testing.T) {
 		sessions.EXPECT().CreateSession(mock.Anything, mock.Anything, mock.Anything).
 			Return(&entity.Session{}, nil).Once()
 
-		svc := usecase.NewUser(mocks.NewMockUserCreator(t), pw, creds, sessions, nil, sessionTTL)
+		svc := usecase.NewUser(mocks.NewMockUserCreator(t), pw, creds, sessions, missingCache(t), sessionTTL)
 		token, _, err := svc.Login(context.Background(), validLogin())
 		require.NoError(t, err)
 
@@ -254,7 +254,7 @@ func TestAuthAuthenticate(t *testing.T) {
 				mocks.NewMockPasswordHasher(t),
 				mocks.NewMockCredentialFinder(t),
 				sessions,
-				nil,
+				missingCache(t),
 				sessionTTL,
 			)
 
@@ -284,7 +284,7 @@ func TestAuthLogout(t *testing.T) {
 			mocks.NewMockPasswordHasher(t),
 			mocks.NewMockCredentialFinder(t),
 			sessions,
-			nil,
+			missingCache(t),
 			sessionTTL,
 		)
 
@@ -299,7 +299,7 @@ func TestAuthLogout(t *testing.T) {
 			mocks.NewMockPasswordHasher(t),
 			mocks.NewMockCredentialFinder(t),
 			sessions,
-			nil,
+			missingCache(t),
 			sessionTTL,
 		)
 
@@ -310,6 +310,19 @@ func TestAuthLogout(t *testing.T) {
 
 // newCachedUser builds a use case whose only interesting dependencies are the
 // session store and the cache in front of it.
+// missingCache never has anything and remembers nothing, for the tests that are
+// about the store rather than the cache.
+func missingCache(t *testing.T) *mocks.MockSessionCache {
+	t.Helper()
+
+	cache := mocks.NewMockSessionCache(t)
+	cache.EXPECT().GetSessionUser(mock.Anything, mock.Anything).Return(nil, nil, false).Maybe()
+	cache.EXPECT().PutSessionUser(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Maybe()
+	cache.EXPECT().DeleteSession(mock.Anything, mock.Anything).Maybe()
+
+	return cache
+}
+
 func newCachedUser(t *testing.T, sessions *mocks.MockSessionStore, cache *mocks.MockSessionCache) *usecase.User {
 	t.Helper()
 

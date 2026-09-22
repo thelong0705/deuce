@@ -1,4 +1,4 @@
-package rediscache_test
+package redis_test
 
 import (
 	"context"
@@ -7,10 +7,10 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 
-	"github.com/thelong0705/deuce/internal/adapter/rediscache"
+	"github.com/thelong0705/deuce/internal/adapter/cache/redis"
 	"github.com/thelong0705/deuce/internal/domain/entity"
 )
 
@@ -46,17 +46,17 @@ func storedUser() *entity.User {
 
 // newCache returns a cache and the fake Redis behind it, so a test can expire
 // keys or take it away.
-func newCache(t *testing.T, ttl time.Duration) (*rediscache.SessionCache, *miniredis.Miniredis) {
+func newCache(t *testing.T, ttl time.Duration) (*redis.SessionCache, *miniredis.Miniredis) {
 	t.Helper()
 
 	server := miniredis.RunT(t)
 
 	// Same impatience as the server wires up: a test for the unreachable case
 	// should not spend seconds backing off.
-	client := redis.NewClient(rediscache.Options(server.Addr()))
+	client := goredis.NewClient(redis.Options(server.Addr()))
 	t.Cleanup(func() { _ = client.Close() })
 
-	return rediscache.NewSessionCache(client, ttl), server
+	return redis.NewSessionCache(client, ttl), server
 }
 
 func TestPutThenGetReturnsWhatWasStored(t *testing.T) {
