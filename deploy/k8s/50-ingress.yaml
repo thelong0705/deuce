@@ -1,0 +1,33 @@
+# GKE-only: ManagedCertificate is a GKE CRD and the Ingress class is Google's
+# external load balancer. Both need a domain and a reserved static IP.
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: deuce
+  namespace: deuce
+spec:
+  domains:
+    - DOMAIN
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: deuce
+  namespace: deuce
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    networking.gke.io/managed-certificates: deuce
+    # Reserve with: gcloud compute addresses create deuce --global
+    kubernetes.io/ingress.global-static-ip-name: deuce
+spec:
+  rules:
+    - host: DOMAIN
+      http:
+        paths:
+          - path: /*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: deuce
+                port:
+                  number: 80

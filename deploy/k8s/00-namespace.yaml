@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: deuce
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: deuce
+  namespace: deuce
+  annotations:
+    # Workload Identity: bind this to a Google service account that holds
+    # roles/cloudsql.client. See deploy/k8s/README.md.
+    iam.gke.io/gcp-service-account: REPLACE_ME@REPLACE_PROJECT.iam.gserviceaccount.com

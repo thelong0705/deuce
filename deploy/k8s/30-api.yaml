@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deuce
+  namespace: deuce
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: deuce
+  template:
+    metadata:
+      labels:
+        app: deuce
+    spec:
+      serviceAccountName: deuce
+      containers:
+        - name: api
+          image: IMAGE
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: REDIS_ADDR
+              value: redis.deuce.svc.cluster.local:6379
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: deuce
+                  key: DB_URL
+          # /healthz answers without touching the database, so it says the
+          # process is up, not that it can serve. The pool is pinged once at
+          # startup, which is what a failing pod restarts on.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+        # The proxy holds the only route to Cloud SQL, so DB_URL points at
+        # 127.0.0.1 and the database is never exposed to the cluster network.
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.1
+          args:
+            - "--structured-logs"
+            - "--port=5432"
+            - "INSTANCE_CONNECTION_NAME"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: deuce
+  namespace: deuce
+spec:
+  selector:
+    app: deuce
+  ports:
+    - port: 80
+      targetPort: http

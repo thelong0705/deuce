@@ -1,0 +1,49 @@
+# Run before rolling the API out. Migrations do not belong in the API's
+# startup: every replica would race for them, which is the problem
+# schema_migrations exists to catch rather than something to rely on.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  namespace: deuce
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: deuce
+      containers:
+        - name: migrate
+          image: MIGRATE_IMAGE
+          args: ["-database", "$(DB_URL)", "up"]
+          env:
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: deuce
+                  key: DB_URL
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+        # A Job's pod only finishes when every container exits, and the proxy
+        # never does on its own, so it runs as a native sidecar: started first,
+        # stopped once the migration container is done.
+      initContainers:
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.1
+          restartPolicy: Always
+          args:
+            - "--structured-logs"
+            - "--port=5432"
+            - "INSTANCE_CONNECTION_NAME"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

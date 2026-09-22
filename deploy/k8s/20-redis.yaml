@@ -1,0 +1,55 @@
+# Redis runs in the cluster rather than on Memorystore. SessionCache reads
+# through to Postgres on any miss or failure, so losing this costs latency, not
+# data — and Memorystore's smallest tier costs more per month than the rest of
+# the deployment put together.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: deuce
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:8-alpine
+          args: ["redis-server", "--save", "", "--appendonly", "no"]
+          ports:
+            - name: redis
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 2
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: deuce
+spec:
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: redis

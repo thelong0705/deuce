@@ -1,0 +1,19 @@
+# A template, and deliberately not in deploy/k8s: applying that directory
+# wholesale would create this Secret with REPLACE_ME as the password, and it
+# sorts ahead of the API. Create the real one with kubectl, or point External
+# Secrets at Secret Manager.
+#
+#   kubectl -n deuce create secret generic deuce \
+#     --from-literal=DB_URL='postgres://deuce:PASSWORD@127.0.0.1:5432/deuce?sslmode=disable'
+#
+# The host is 127.0.0.1 because the Cloud SQL Auth Proxy runs beside the API in
+# the same pod. sslmode=disable is right for the same reason: that hop never
+# leaves the pod, and the proxy encrypts everything past it.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: deuce
+  namespace: deuce
+type: Opaque
+stringData:
+  DB_URL: postgres://deuce:REPLACE_ME@127.0.0.1:5432/deuce?sslmode=disable
