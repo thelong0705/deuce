@@ -29,3 +29,11 @@ WHERE bookings.player_id = $1
   AND bookings.cancelled_at IS NULL
   AND bookings.starts_at >= $2
 ORDER BY bookings.starts_at;
+
+-- name: ListBookedSlotsForCourts :many
+SELECT court_id, starts_at FROM bookings
+WHERE court_id = ANY(@court_ids::uuid[])
+  AND cancelled_at IS NULL
+  AND starts_at >= @from_time
+  AND starts_at < @to_time
+ORDER BY court_id, starts_at;

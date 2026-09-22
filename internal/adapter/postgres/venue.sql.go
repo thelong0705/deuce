@@ -28,8 +28,8 @@ type CreateVenueParams struct {
 	City    string    `json:"city"`
 }
 
-// The timezone comes from the city rather than the caller: the city decides
-// what it is, and a venue whose city is not in the table inserts no row at all.
+// Selecting from cities takes the timezone from it and writes no row at all
+// for a city that is not in the table.
 func (q *Queries) CreateVenue(ctx context.Context, arg CreateVenueParams) (Venue, error) {
 	row := q.db.QueryRow(ctx, createVenue,
 		arg.OwnerID,

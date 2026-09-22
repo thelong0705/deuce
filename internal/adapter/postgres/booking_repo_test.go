@@ -359,3 +359,64 @@ func cancelBooking(t *testing.T, id uuid.UUID) {
 	)
 	require.NoError(t, err)
 }
+
+// One query answers for every court at once, keyed so each court's slots stay
+// its own.
+func TestBookingRepositoryListBookedSlotsForCourts(t *testing.T) {
+	repo := NewBookingRepository(testQueries)
+	ctx := context.Background()
+
+	first := createRandomCourt(t).ID
+	second := createRandomCourt(t).ID
+	untouched := createRandomCourt(t).ID
+
+	slot := nextSlot()
+
+	_, err := repo.CreateBooking(ctx, entity.BookSlotInput{
+		PlayerID: createRandomPlayer(t), CourtID: first, StartsAt: slot,
+	})
+	require.NoError(t, err)
+
+	_, err = repo.CreateBooking(ctx, entity.BookSlotInput{
+		PlayerID: createRandomPlayer(t), CourtID: second, StartsAt: slot,
+	})
+	require.NoError(t, err)
+
+	got, err := repo.ListBookedSlotsForCourts(ctx,
+		[]uuid.UUID{first, second, untouched},
+		slot, slot.Add(entity.SlotDuration),
+	)
+	require.NoError(t, err)
+
+	require.Len(t, got[first], 1)
+	require.True(t, slot.Equal(got[first][0]))
+	require.Len(t, got[second], 1)
+	require.Empty(t, got[untouched], "a court with nothing booked has no entry")
+}
+
+func TestBookingRepositoryListBookedSlotsForCourtsIsBoundedAndSkipsCancelled(t *testing.T) {
+	repo := NewBookingRepository(testQueries)
+	ctx := context.Background()
+
+	courtID := createRandomCourt(t).ID
+	slot := nextSlot()
+
+	booking, err := repo.CreateBooking(ctx, entity.BookSlotInput{
+		PlayerID: createRandomPlayer(t), CourtID: courtID, StartsAt: slot,
+	})
+	require.NoError(t, err)
+
+	// Outside the window asked for.
+	got, err := repo.ListBookedSlotsForCourts(ctx, []uuid.UUID{courtID},
+		slot.Add(entity.SlotDuration), slot.Add(2*entity.SlotDuration))
+	require.NoError(t, err)
+	require.Empty(t, got[courtID])
+
+	_, err = testPool.Exec(ctx, "UPDATE bookings SET cancelled_at = now() WHERE id = $1", booking.ID)
+	require.NoError(t, err)
+
+	// A cancelled booking holds nothing.
+	got, err = repo.ListBookedSlotsForCourts(ctx, []uuid.UUID{courtID}, slot, slot.Add(entity.SlotDuration))
+	require.NoError(t, err)
+	require.Empty(t, got[courtID])
+}

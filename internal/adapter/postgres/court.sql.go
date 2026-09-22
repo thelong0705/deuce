@@ -86,3 +86,57 @@ func (q *Queries) ListCourtsByVenue(ctx context.Context, venueID uuid.UUID) ([]C
 	}
 	return items, nil
 }
+
+const searchCourts = `-- name: SearchCourts :many
+SELECT courts.id, courts.venue_id, courts.name, courts.open_hour, courts.close_hour, courts.price_per_hour, courts.is_active, courts.created_at, courts.updated_at, venues.id, venues.owner_id, venues.name, venues.city, venues.address, venues.is_active, venues.created_at, venues.updated_at, venues.timezone
+FROM courts
+JOIN venues ON venues.id = courts.venue_id
+WHERE venues.city = $1
+  AND venues.is_active
+  AND courts.is_active
+ORDER BY venues.name, courts.name
+`
+
+type SearchCourtsRow struct {
+	Court Court `json:"court"`
+	Venue Venue `json:"venue"`
+}
+
+func (q *Queries) SearchCourts(ctx context.Context, city string) ([]SearchCourtsRow, error) {
+	rows, err := q.db.Query(ctx, searchCourts, city)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchCourtsRow{}
+	for rows.Next() {
+		var i SearchCourtsRow
+		if err := rows.Scan(
+			&i.Court.ID,
+			&i.Court.VenueID,
+			&i.Court.Name,
+			&i.Court.OpenHour,
+			&i.Court.CloseHour,
+			&i.Court.PricePerHour,
+			&i.Court.IsActive,
+			&i.Court.CreatedAt,
+			&i.Court.UpdatedAt,
+			&i.Venue.ID,
+			&i.Venue.OwnerID,
+			&i.Venue.Name,
+			&i.Venue.City,
+			&i.Venue.Address,
+			&i.Venue.IsActive,
+			&i.Venue.CreatedAt,
+			&i.Venue.UpdatedAt,
+			&i.Venue.Timezone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
