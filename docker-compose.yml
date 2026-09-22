@@ -12,3 +12,4 @@ services:
       - deuce-pgdata:/var/lib/postgresql
 volumes:
   deuce-pgdata:
+    name: deuce-pgdata
