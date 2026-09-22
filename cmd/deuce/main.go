@@ -34,13 +34,15 @@ const (
 	// session it had already made requests with: nothing evicts on
 	// deactivation, so the entry has to lapse on its own.
 	sessionCacheTTL = 10 * time.Minute
+	// cacheOff is the REDIS_ADDR value that asks for no cache.
+	cacheOff = "off"
 )
 
 func run() error {
 	var (
 		dsn       = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
 		addr      = env("HTTP_ADDR", ":8080")
-		redisAddr = os.Getenv("REDIS_ADDR")
+		redisAddr = env("REDIS_ADDR", "localhost:6379")
 	)
 
 	ctx := context.Background()
@@ -134,8 +136,11 @@ func env(key, fallback string) string {
 // optimisation, and refusing to start without it would make the server less
 // available than it was before the cache existed.
 func sessionStore(ctx context.Context, inner usecase.SessionStore, redisAddr string) usecase.SessionStore {
-	if redisAddr == "" {
-		slog.Info("session cache disabled", "reason", "REDIS_ADDR not set")
+	// REDIS_ADDR=off is the way to ask for no cache at all. Leaving it unset
+	// takes the default, and a Redis that is not there disables the cache too,
+	// just after a failed ping rather than before one.
+	if redisAddr == cacheOff {
+		slog.Info("session cache disabled", "reason", "REDIS_ADDR="+cacheOff)
 		return inner
 	}
 
