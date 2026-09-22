@@ -29,11 +29,17 @@ type heldBookingResponse struct {
 }
 
 type bookingResponse struct {
-	ID        uuid.UUID `json:"id"`
-	CourtID   uuid.UUID `json:"court_id"`
-	PlayerID  uuid.UUID `json:"player_id"`
-	StartsAt  time.Time `json:"starts_at"`
-	EndsAt    time.Time `json:"ends_at"`
+	ID       uuid.UUID `json:"id"`
+	CourtID  uuid.UUID `json:"court_id"`
+	PlayerID uuid.UUID `json:"player_id"`
+	StartsAt time.Time `json:"starts_at"`
+	EndsAt   time.Time `json:"ends_at"`
+	// Status separates a paid booking from a slot still being held, which is
+	// otherwise indistinguishable in a list.
+	Status string `json:"status"`
+	// Amount is what the slot cost when it was held, so a client does not have
+	// to know how long a slot runs to work out what is owed.
+	Amount    *int      `json:"amount"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -44,6 +50,8 @@ func newBookingResponse(b entity.Booking) bookingResponse {
 		PlayerID:  b.PlayerID,
 		StartsAt:  b.StartsAt,
 		EndsAt:    b.EndsAt(),
+		Status:    b.Status.String(),
+		Amount:    b.Amount,
 		CreatedAt: b.CreatedAt,
 	}
 }
