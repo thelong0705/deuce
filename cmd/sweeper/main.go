@@ -17,9 +17,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 
 	"github.com/thelong0705/deuce/internal/adapter/postgres"
+	"github.com/thelong0705/deuce/internal/config"
 	"github.com/thelong0705/deuce/internal/domain/usecase"
 )
 
@@ -31,19 +31,15 @@ func main() {
 }
 
 func run() error {
-	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("load .env: %w", err)
+	cfg, err := config.LoadSweeper()
+	if err != nil {
+		return err
 	}
-
-	var (
-		dsn      = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
-		interval = envDuration("SWEEP_INTERVAL", time.Minute)
-	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := pgxpool.New(ctx, dsn)
+	pool, err := pgxpool.New(ctx, cfg.DBURL)
 	if err != nil {
 		return fmt.Errorf("parse db config: %w", err)
 	}
@@ -55,13 +51,13 @@ func run() error {
 
 	sweeper := usecase.NewSweeper(postgres.NewBookingRepository(postgres.New(pool)))
 
-	slog.Info("sweeping", "interval", interval)
+	slog.Info("sweeping", "interval", cfg.Interval)
 
 	// Once on startup, so a restart does not wait out an interval with slots
 	// already overdue.
 	sweep(ctx, sweeper)
 
-	ticker := time.NewTicker(interval)
+	ticker := time.NewTicker(cfg.Interval)
 	defer ticker.Stop()
 
 	for {
@@ -91,26 +87,4 @@ func sweep(ctx context.Context, sweeper *usecase.Sweeper) {
 	if released > 0 {
 		slog.Info("released lapsed holds", "slots", released)
 	}
-}
-
-func env(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func envDuration(key string, fallback time.Duration) time.Duration {
-	raw := os.Getenv(key)
-	if raw == "" {
-		return fallback
-	}
-
-	d, err := time.ParseDuration(raw)
-	if err != nil {
-		slog.Warn("ignoring unreadable duration", "key", key, "value", raw, "error", err)
-		return fallback
-	}
-
-	return d
 }
