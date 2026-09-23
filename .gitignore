@@ -17,6 +17,6 @@ node_modules/
 dist/
 .vite/
 
-# local env overrides
+# local env. .env.example is the committed reference for what goes in it.
 .env
 .env.local

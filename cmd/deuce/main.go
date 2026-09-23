@@ -8,13 +8,10 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 
 	rediscache "github.com/thelong0705/deuce/internal/adapter/cache/redis"
@@ -22,6 +19,7 @@ import (
 	"github.com/thelong0705/deuce/internal/adapter/httpapi"
 	"github.com/thelong0705/deuce/internal/adapter/payment/stripe"
 	"github.com/thelong0705/deuce/internal/adapter/postgres"
+	"github.com/thelong0705/deuce/internal/config"
 	"github.com/thelong0705/deuce/internal/domain/usecase"
 )
 
@@ -40,22 +38,16 @@ const (
 )
 
 func run() error {
-	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("load .env: %w", err)
+	cfg, err := config.LoadServer()
+	if err != nil {
+		return err
 	}
 
-	var (
-		dsn          = env("DB_URL", "postgres://deuce:deuce@localhost:5432/deuce?sslmode=disable")
-		addr         = listenAddr()
-		stripeKey    = os.Getenv("STRIPE_SECRET_KEY")
-		stripeSecret = os.Getenv("STRIPE_WEBHOOK_SECRET")
-		redisAddr    = env("REDIS_ADDR", "localhost:6379")
-		corsOrigins  = splitOrigins(os.Getenv("CORS_ORIGINS"))
-	)
+	addr := cfg.Addr()
 
 	ctx := context.Background()
 
-	pool, err := pgxpool.New(ctx, dsn)
+	pool, err := pgxpool.New(ctx, cfg.DBURL)
 	if err != nil {
 		return fmt.Errorf("parse db config: %w", err)
 	}
@@ -67,7 +59,7 @@ func run() error {
 		return fmt.Errorf("connect to db: %w", err)
 	}
 
-	rdb := redis.NewClient(rediscache.Options(redisAddr))
+	rdb := redis.NewClient(rediscache.Options(cfg.RedisAddr))
 	defer func() { _ = rdb.Close() }()
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
@@ -87,11 +79,11 @@ func run() error {
 		userUC      = usecase.NewUser(userRepo, hasher, userRepo, sessionRepo, cache, sessionTTL)
 		venueUC     = usecase.NewVenue(venueRepo, userRepo)
 		courtUC     = usecase.NewCourt(courtRepo, venueRepo, bookingRepo)
-		payments    = stripe.NewGateway(stripeKey)
-		webhooks    = stripe.NewVerifier(stripeSecret)
+		payments    = stripe.NewGateway(cfg.StripeSecretKey)
+		webhooks    = stripe.NewVerifier(cfg.StripeWebhookSecret)
 		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo, payments, bookingRepo)
 		cityUC      = usecase.NewCity(cityRepo)
-		api         = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC, webhooks, cityUC, httpapi.WithAllowedOrigins(corsOrigins))
+		api         = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC, webhooks, cityUC, httpapi.WithAllowedOrigins(cfg.CORSOrigins))
 	)
 
 	srv := &http.Server{
@@ -135,38 +127,4 @@ func run() error {
 
 	slog.Info("stopped cleanly")
 	return nil
-}
-
-// listenAddr prefers PORT, which Cloud Run and similar platforms set to tell
-// the container where to listen. Kubernetes injects PORT too when a Service is
-// named "port", and its value is a URL rather than a number, so anything that
-// is not a plain port number is ignored.
-func listenAddr() string {
-	if port := os.Getenv("PORT"); port != "" {
-		if n, err := strconv.Atoi(port); err == nil && n > 0 && n < 65536 {
-			return ":" + port
-		}
-		slog.Warn("ignoring unusable PORT", "port", port)
-	}
-
-	return env("HTTP_ADDR", ":8080")
-}
-
-func splitOrigins(raw string) []string {
-	var origins []string
-
-	for _, o := range strings.Split(raw, ",") {
-		if o = strings.TrimSpace(o); o != "" {
-			origins = append(origins, o)
-		}
-	}
-
-	return origins
-}
-
-func env(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }
