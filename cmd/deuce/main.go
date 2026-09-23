@@ -79,7 +79,7 @@ func run() error {
 		userUC      = usecase.NewUser(userRepo, hasher, userRepo, sessionRepo, cache, sessionTTL)
 		venueUC     = usecase.NewVenue(venueRepo, userRepo)
 		courtUC     = usecase.NewCourt(courtRepo, venueRepo, bookingRepo)
-		payments    = stripe.NewGateway(cfg.StripeSecretKey)
+		payments    = stripe.NewGateway(cfg.StripeSecretKey, stripe.WithBaseURL(cfg.StripeBaseURL))
 		webhooks    = stripe.NewVerifier(cfg.StripeWebhookSecret)
 		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo, payments, bookingRepo)
 		cityUC      = usecase.NewCity(cityRepo)

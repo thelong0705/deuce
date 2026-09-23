@@ -18,8 +18,35 @@ type Gateway struct {
 	client *stripeapi.Client
 }
 
-func NewGateway(secretKey string) *Gateway {
-	return &Gateway{client: stripeapi.NewClient(secretKey)}
+type Option func(*options)
+
+type options struct {
+	baseURL string
+}
+
+func WithBaseURL(url string) Option {
+	return func(o *options) { o.baseURL = url }
+}
+
+func NewGateway(secretKey string, opts ...Option) *Gateway {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	if o.baseURL == "" {
+		return &Gateway{client: stripeapi.NewClient(secretKey)}
+	}
+
+	backend := stripeapi.GetBackendWithConfig(stripeapi.APIBackend, &stripeapi.BackendConfig{
+		URL: stripeapi.String(o.baseURL),
+	})
+
+	return &Gateway{client: stripeapi.NewClient(secretKey, stripeapi.WithBackends(&stripeapi.Backends{
+		API:     backend,
+		Uploads: backend,
+		Connect: backend,
+	}))}
 }
 
 // CreatePayment opens a PaymentIntent for a held slot. The booking id travels
