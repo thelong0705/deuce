@@ -89,7 +89,7 @@ func run() error {
 		webhooks    = stripe.NewVerifier(stripeSecret)
 		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo, payments, bookingRepo)
 		cityUC      = usecase.NewCity(cityRepo)
-		api         = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC, webhooks, cityUC, serverOptions()...)
+		api         = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC, webhooks, cityUC)
 	)
 
 	srv := &http.Server{
@@ -148,16 +148,6 @@ func listenAddr() string {
 	}
 
 	return env("HTTP_ADDR", ":8080")
-}
-
-// serverOptions reads the deployment-shaped knobs. COOKIE_SECURE=false is for
-// an environment with no TLS in front; anything else keeps Secure on.
-func serverOptions() []httpapi.Option {
-	if env("COOKIE_SECURE", "true") == "false" {
-		slog.Warn("session cookie sent without Secure; sessions are readable in transit")
-		return []httpapi.Option{httpapi.WithInsecureCookies()}
-	}
-	return nil
 }
 
 func env(key, fallback string) string {
