@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -49,6 +50,7 @@ func run() error {
 		stripeKey    = os.Getenv("STRIPE_SECRET_KEY")
 		stripeSecret = os.Getenv("STRIPE_WEBHOOK_SECRET")
 		redisAddr    = env("REDIS_ADDR", "localhost:6379")
+		corsOrigins  = splitOrigins(os.Getenv("CORS_ORIGINS"))
 	)
 
 	ctx := context.Background()
@@ -89,7 +91,7 @@ func run() error {
 		webhooks    = stripe.NewVerifier(stripeSecret)
 		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo, payments, bookingRepo)
 		cityUC      = usecase.NewCity(cityRepo)
-		api         = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC, webhooks, cityUC)
+		api         = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC, webhooks, cityUC, httpapi.WithAllowedOrigins(corsOrigins))
 	)
 
 	srv := &http.Server{
@@ -148,6 +150,18 @@ func listenAddr() string {
 	}
 
 	return env("HTTP_ADDR", ":8080")
+}
+
+func splitOrigins(raw string) []string {
+	var origins []string
+
+	for _, o := range strings.Split(raw, ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			origins = append(origins, o)
+		}
+	}
+
+	return origins
 }
 
 func env(key, fallback string) string {
