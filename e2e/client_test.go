@@ -76,7 +76,7 @@ func waitForHealth(within time.Duration) error {
 	for time.Now().Before(deadline) {
 		resp, err := http.Get(baseURL + "/healthz")
 		if err == nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 
 			if resp.StatusCode == http.StatusOK {
 				return nil
@@ -129,7 +129,7 @@ func (c *client) do(method, path string, body any) (int, []byte) {
 	resp, err := c.http.Do(req)
 	require.NoError(c.t, err)
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	got, err := io.ReadAll(resp.Body)
 	require.NoError(c.t, err)
@@ -312,7 +312,7 @@ func deliverWebhook(t *testing.T, eventType, intentID string) (int, []byte) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)

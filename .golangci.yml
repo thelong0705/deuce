@@ -1,7 +1,8 @@
 version: "2"
 
-build-tags:
-  - e2e
+run:
+  build-tags:
+    - e2e
 
 linters:
   # errcheck, govet, ineffassign, staticcheck and unused are on by default.
