@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/thelong0705/deuce/internal/adapter/httpapi"
 	"github.com/thelong0705/deuce/internal/adapter/httpapi/mocks"
 	"github.com/thelong0705/deuce/internal/domain/entity"
 )
@@ -164,6 +165,23 @@ func TestLogin(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWithInsecureCookies(t *testing.T) {
+	login := mocks.NewMockUserUsecase(t)
+	login.EXPECT().Login(mock.Anything, mock.Anything).
+		Return(rawToken, issuedSession(), nil).Once()
+
+	rec := send(t,
+		deps{users: login, opts: []httpapi.Option{httpapi.WithInsecureCookies()}},
+		newRequest(http.MethodPost, "/sessions", loginBody),
+	)
+
+	c := cookieNamed(t, rec, sessionName)
+	require.NotNil(t, c)
+	require.False(t, c.Secure, "the option exists to drop exactly this")
+	require.True(t, c.HttpOnly, "dropping Secure must not drop the other protections")
+	require.Equal(t, http.SameSiteLaxMode, c.SameSite)
 }
 
 func TestLoginPassesTheRequestContext(t *testing.T) {

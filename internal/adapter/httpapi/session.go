@@ -44,7 +44,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setSessionCookie(w, token, session.ExpiresAt)
+	s.setSessionCookie(w, token, session.ExpiresAt)
 
 	writeJSON(w, http.StatusCreated, sessionResponse{
 		UserID:    session.UserID,
@@ -58,7 +58,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clearSessionCookie(w)
+	s.clearSessionCookie(w)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -74,26 +74,28 @@ func sessionToken(r *http.Request) string {
 	return c.Value
 }
 
-func setSessionCookie(w http.ResponseWriter, token string, expiresAt time.Time) {
+func (s *Server) setSessionCookie(w http.ResponseWriter, token string, expiresAt time.Time) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
 		Value:    token,
 		Path:     "/",
 		Expires:  expiresAt,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   s.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
-func clearSessionCookie(w http.ResponseWriter) {
+func (s *Server) clearSessionCookie(w http.ResponseWriter) {
+	// Secure has to match the cookie being cleared, or the browser treats this
+	// as a different cookie and the old one survives.
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   s.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
