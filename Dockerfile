@@ -12,7 +12,9 @@ COPY api ./api
 
 # CGO off makes the binary static, which is what lets the final stage be an
 # image with no libc at all. -trimpath keeps build paths out of the binary.
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/deuce ./cmd/deuce
+# ./cmd/... builds every binary, so the sweeper ships in the same image as the
+# API and cannot drift a version behind it.
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/...
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
@@ -21,7 +23,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 # because LoadLocation's error is swallowed — and courts open at the wrong hour.
 COPY --from=build /usr/share/zoneinfo /usr/share/zoneinfo
 
-COPY --from=build /out/deuce /deuce
+COPY --from=build /out/ /
 
 # Cloud Run sends $PORT; 8080 is both its default and the server's.
 EXPOSE 8080
