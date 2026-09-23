@@ -23,8 +23,6 @@ spec:
           env:
             - name: PORT
               value: "8080"
-            - name: COOKIE_SECURE
-              value: "false"
           # Both keys of the Secret, as environment variables of the same name.
           envFrom:
             - secretRef:

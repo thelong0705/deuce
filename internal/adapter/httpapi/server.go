@@ -56,18 +56,6 @@ type Server struct {
 	webhooks PaymentWebhook
 	cities   CityUsecase
 	router   *chi.Mux
-
-	cookieSecure bool
-}
-
-// Option adjusts a Server after its dependencies are set.
-type Option func(*Server)
-
-// WithInsecureCookies drops Secure from the session cookie so it survives over
-// plain HTTP. Only for an environment that has no TLS yet: without Secure the
-// cookie travels in clear text and any network hop can read it.
-func WithInsecureCookies() Option {
-	return func(s *Server) { s.cookieSecure = false }
 }
 
 func NewServer(
@@ -77,7 +65,6 @@ func NewServer(
 	bookings BookingUsecase,
 	webhooks PaymentWebhook,
 	cities CityUsecase,
-	opts ...Option,
 ) *Server {
 	s := &Server{
 		users:    users,
@@ -87,13 +74,6 @@ func NewServer(
 		webhooks: webhooks,
 		cities:   cities,
 		router:   chi.NewRouter(),
-
-		// Secure unless something explicitly opts out, so a missing option is
-		// never the reason a cookie goes out in the clear.
-		cookieSecure: true,
-	}
-	for _, opt := range opts {
-		opt(s)
 	}
 	s.routes()
 	return s

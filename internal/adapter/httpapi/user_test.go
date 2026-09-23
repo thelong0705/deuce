@@ -42,7 +42,6 @@ type deps struct {
 	bookings httpapi.BookingUsecase
 	webhooks httpapi.PaymentWebhook
 	cities   httpapi.CityUsecase
-	opts     []httpapi.Option
 }
 
 func (d deps) handler(t *testing.T) http.Handler {
@@ -67,7 +66,7 @@ func (d deps) handler(t *testing.T) http.Handler {
 		d.cities = mocks.NewMockCityUsecase(t)
 	}
 
-	return httpapi.NewServer(d.users, d.venues, d.courts, d.bookings, d.webhooks, d.cities, d.opts...).Handler()
+	return httpapi.NewServer(d.users, d.venues, d.courts, d.bookings, d.webhooks, d.cities).Handler()
 }
 
 // do sends a request through the router and returns the recorded response.
