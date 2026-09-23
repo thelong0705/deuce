@@ -5,7 +5,7 @@ import { CitySelect } from './CitySelect'
 import { CourtResult } from './CourtResult'
 import { ApiError, searchCourts } from './api'
 import type { CourtSearchResult } from './api'
-import { addDays, isoDate } from './datetime'
+import { addDays, formatDay, isoDate } from './datetime'
 import { useCities } from './useCities'
 
 // A court can be booked from today up to two weeks out.
@@ -28,6 +28,9 @@ export function Browse({ onBooked, onUnauthorized }: Props) {
   // null means nothing has been searched for yet, which is not the same as a
   // search that found nothing.
   const [results, setResults] = useState<CourtSearchResult[] | null>(null)
+  // What the results are for, kept apart from the form: editing the date
+  // without searching again must not relabel the slots underneath.
+  const [searched, setSearched] = useState<{ city: string; date: string } | null>(null)
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,6 +46,7 @@ export function Browse({ onBooked, onUnauthorized }: Props) {
           toHour === anyHour ? null : Number(toHour),
         ),
       )
+      setSearched({ city, date })
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         onUnauthorized()
@@ -136,10 +140,15 @@ export function Browse({ onBooked, onUnauthorized }: Props) {
 
       {error === null &&
         results !== null &&
+        searched !== null &&
         (results.length === 0 ? (
-          <p className="lede">Nothing free in {city} then. Try another day or a wider window.</p>
+          <p className="lede">
+            Nothing free in {searched.city} on {formatDay(searched.date)}. Try another day or a
+            wider window.
+          </p>
         ) : (
           <ul className="court-results">
+            <li className="results-day">Free on {formatDay(searched.date)}</li>
             {results.map((result) => (
               <CourtResult
                 key={result.court.id}
