@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: deuce
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: deuce-ip
+    networking.gke.io/managed-certificates: deuce
+spec:
+  defaultBackend:
+    service:
+      name: web
+      port:
+        number: 80
+  rules:
+    - host: api.thelong0705.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: deuce
+                port:
+                  number: 80
+    - host: thelong0705.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
