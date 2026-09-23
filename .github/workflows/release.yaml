@@ -51,15 +51,6 @@ jobs:
           docker push "$REPO/api:$GITHUB_REF_NAME"
           docker push "$REPO/migrate:$GITHUB_REF_NAME"
 
-      # Before the rollout, because the new API may expect a column the old
-      # schema does not have.
-      - name: Migrate
-        run: |
-          (cd deploy/k8s/migrate && kustomize edit set image "deuce-migrate=$REPO/migrate:$GITHUB_REF_NAME")
-          kubectl delete job migrate --ignore-not-found
-          kubectl apply -k deploy/k8s/migrate
-          kubectl wait --for=condition=complete job/migrate --timeout=5m
-
       - name: Deploy
         run: |
           (cd deploy/k8s && kustomize edit set image "deuce-api=$REPO/api:$GITHUB_REF_NAME")
@@ -68,4 +59,15 @@ jobs:
           kubectl rollout status deployment/sweeper --timeout=5m
 
       - name: Summary
-        run: echo "Released \`$GITHUB_REF_NAME\` to $CLUSTER" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          {
+            echo "Released \`$GITHUB_REF_NAME\` to $CLUSTER"
+            echo ""
+            echo "Migrations are run by hand:"
+            echo '```'
+            echo "cd deploy/k8s/migrate && kustomize edit set image deuce-migrate=$REPO/migrate:$GITHUB_REF_NAME"
+            echo "kubectl delete job migrate --ignore-not-found"
+            echo "kubectl apply -k deploy/k8s/migrate"
+            echo "kubectl wait --for=condition=complete job/migrate --timeout=5m"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
