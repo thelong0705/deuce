@@ -1,0 +1,31 @@
+# Runs the migrations once, before the API rolls out. Needs the deuce Secret
+# and the migrations ConfigMap to exist already.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+spec:
+  # Retries with a growing wait, so the database not being up yet is survivable.
+  backoffLimit: 6
+  template:
+    spec:
+      # Never, not OnFailure: a failed attempt leaves its pod behind so the logs
+      # outlive it.
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: migrate/migrate:v4.17.1
+          args: ["-path=/migration", "-database=$(DB_URL)", "up"]
+          env:
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: deuce
+                  key: DB_URL
+          volumeMounts:
+            - name: migrations
+              mountPath: /migration
+      volumes:
+        - name: migrations
+          configMap:
+            name: migrations
