@@ -13,7 +13,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: migrate
-          image: MIGRATE_IMAGE
+          image: deuce-migrate
           args: ["-database=$(DB_URL)", "up"]
           env:
             - name: DB_URL

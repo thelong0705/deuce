@@ -1,0 +1,13 @@
+# kubectl delete job migrate --ignore-not-found && kubectl apply -k deploy/k8s/migrate
+# The delete is needed because a Job's pod template is immutable.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - job.yaml
+
+# Set the registry once, bump newTag per deploy.
+images:
+  - name: deuce-migrate
+    newName: asia-southeast1-docker.pkg.dev/REPLACE_PROJECT/deuce/migrate
+    newTag: v1
