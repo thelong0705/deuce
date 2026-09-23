@@ -16,7 +16,6 @@ jobs:
       group: release
       cancel-in-progress: false
     permissions:
-      contents: write
       id-token: write
     env:
       REGION: asia-southeast1
@@ -24,6 +23,10 @@ jobs:
       REPO: asia-southeast1-docker.pkg.dev/project-deuce-509416/deuce
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A deploy key, because GITHUB_TOKEN cannot be given a bypass on the
+          # pull_request rule: that actor is organization-only.
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
 
       # Keyless: GitHub mints a short-lived OIDC token and Google trades it for
       # credentials. No service account key to store, leak or rotate.
