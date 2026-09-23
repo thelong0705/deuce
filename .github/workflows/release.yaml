@@ -1,0 +1,71 @@
+name: Release
+
+# A tag is the release. Merging to main changes nothing in the cluster.
+on:
+  push:
+    tags: [ "v*" ]
+
+jobs:
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    # One at a time, and never cancelled midway: a half-applied rollout is
+    # worse than a queued one.
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+    env:
+      REGION: asia-southeast1
+      CLUSTER: deuce
+      REPO: asia-southeast1-docker.pkg.dev/project-deuce-509416/deuce
+    steps:
+      - uses: actions/checkout@v4
+
+      # Keyless: GitHub mints a short-lived OIDC token and Google trades it for
+      # credentials. No service account key to store, leak or rotate.
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.CLUSTER }}
+          location: ${{ env.REGION }}
+
+      - name: Install kustomize
+        run: |
+          curl -sSfL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz \
+            | sudo tar -xz -C /usr/local/bin
+
+      - name: Build and push
+        run: |
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker build -t "$REPO/api:$GITHUB_REF_NAME" .
+          docker build -f Dockerfile.migrate -t "$REPO/migrate:$GITHUB_REF_NAME" .
+          docker push "$REPO/api:$GITHUB_REF_NAME"
+          docker push "$REPO/migrate:$GITHUB_REF_NAME"
+
+      # Before the rollout, because the new API may expect a column the old
+      # schema does not have.
+      - name: Migrate
+        run: |
+          (cd deploy/k8s/migrate && kustomize edit set image "deuce-migrate=$REPO/migrate:$GITHUB_REF_NAME")
+          kubectl delete job migrate --ignore-not-found
+          kubectl apply -k deploy/k8s/migrate
+          kubectl wait --for=condition=complete job/migrate --timeout=5m
+
+      - name: Deploy
+        run: |
+          (cd deploy/k8s && kustomize edit set image "deuce-api=$REPO/api:$GITHUB_REF_NAME")
+          kubectl apply -k deploy/k8s
+          kubectl rollout status deployment/deuce --timeout=5m
+          kubectl rollout status deployment/sweeper --timeout=5m
+
+      - name: Summary
+        run: echo "Released \`$GITHUB_REF_NAME\` to $CLUSTER" >> "$GITHUB_STEP_SUMMARY"
