@@ -7,3 +7,6 @@
 !cmd
 !internal
 !api
+
+# Dockerfile.migrate bakes these in.
+!db/postgres/migration

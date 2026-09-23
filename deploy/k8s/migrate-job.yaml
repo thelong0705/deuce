@@ -1,5 +1,4 @@
-# Runs the migrations once, before the API rolls out. Needs the deuce Secret
-# and the migrations ConfigMap to exist already.
+# Runs the migrations once, before the API rolls out. Needs the deuce Secret.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -14,18 +13,11 @@ spec:
       restartPolicy: Never
       containers:
         - name: migrate
-          image: migrate/migrate:v4.17.1
-          args: ["-path=/migration", "-database=$(DB_URL)", "up"]
+          image: MIGRATE_IMAGE
+          args: ["-database=$(DB_URL)", "up"]
           env:
             - name: DB_URL
               valueFrom:
                 secretKeyRef:
                   name: deuce
                   key: DB_URL
-          volumeMounts:
-            - name: migrations
-              mountPath: /migration
-      volumes:
-        - name: migrations
-          configMap:
-            name: migrations
