@@ -56,6 +56,14 @@ type Server struct {
 	webhooks PaymentWebhook
 	cities   CityUsecase
 	router   *chi.Mux
+
+	corsOrigins []string
+}
+
+type Option func(*Server)
+
+func WithAllowedOrigins(origins []string) Option {
+	return func(s *Server) { s.corsOrigins = origins }
 }
 
 func NewServer(
@@ -65,6 +73,7 @@ func NewServer(
 	bookings BookingUsecase,
 	webhooks PaymentWebhook,
 	cities CityUsecase,
+	opts ...Option,
 ) *Server {
 	s := &Server{
 		users:    users,
@@ -74,6 +83,9 @@ func NewServer(
 		webhooks: webhooks,
 		cities:   cities,
 		router:   chi.NewRouter(),
+	}
+	for _, opt := range opts {
+		opt(s)
 	}
 	s.routes()
 	return s
@@ -85,6 +97,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) routes() {
+	s.router.Use(CORS(s.corsOrigins))
 	s.router.Use(middleware.RequestID)
 	s.router.Use(middleware.Logger)
 	s.router.Use(middleware.Recoverer)
