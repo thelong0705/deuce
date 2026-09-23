@@ -16,6 +16,7 @@ jobs:
       group: release
       cancel-in-progress: false
     permissions:
+      contents: write
       id-token: write
     env:
       REGION: asia-southeast1
@@ -59,6 +60,23 @@ jobs:
           kubectl apply -k deploy/k8s
           kubectl rollout status deployment/deuce --timeout=5m
           kubectl rollout status deployment/sweeper --timeout=5m
+
+      # After the rollout, so a failed release never records an image that is
+      # not running.
+      - name: Record the released version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout -B main origin/main
+          (cd deploy/k8s && kustomize edit set image "deuce-api=$REPO/api:$GITHUB_REF_NAME")
+          git add deploy/k8s/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "already recorded"
+          else
+            git commit -m "Release $GITHUB_REF_NAME"
+            git push origin main
+          fi
 
       - name: Summary
         run: |
