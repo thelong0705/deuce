@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sweeper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sweeper
+  template:
+    metadata:
+      labels:
+        app: sweeper
+    spec:
+      containers:
+        - name: sweeper
+          image: deuce-api
+          command: ["/sweeper"]
+          envFrom:
+            - secretRef:
+                name: deuce
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
