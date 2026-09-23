@@ -1,0 +1,7 @@
+# golang-migrate with this repo's migrations baked in, so a deploy runs the
+# migrations that shipped with it.
+FROM migrate/migrate:v4.17.1
+
+COPY db/postgres/migration /migration
+
+ENTRYPOINT ["migrate", "-path=/migration"]
