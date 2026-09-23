@@ -247,33 +247,29 @@ func (s *Booking) HandlePaymentEvent(ctx context.Context, ev entity.PaymentEvent
 		return nil
 	}
 
+	// A declined card ends the attempt, not the payment: the intent goes back
+	// to awaiting one and the player can try another card. Releasing the slot
+	// here would sell it out from under someone still at the payment form, so
+	// a checkout nobody returns to is left to the sweeper.
+	if ev.Type != entity.PaymentSucceeded {
+		return nil
+	}
+
 	booking, err := s.bookings.GetBookingByPayment(ctx, ev.IntentID)
 	if err != nil {
 		return err
 	}
 
-	switch ev.Type {
-	case entity.PaymentSucceeded:
-		if booking.Status == entity.StatusConfirmed {
-			return nil
-		}
-
-		// The hold was released before the money arrived, and the slot may
-		// belong to somebody else by now. Confirming would double book it, so
-		// the payment needs refunding instead.
-		if !booking.IsActive() {
-			return entity.ErrHoldLapsed
-		}
-
-		return s.bookings.ConfirmBooking(ctx, booking.ID)
-
-	case entity.PaymentFailed:
-		if !booking.IsActive() {
-			return nil
-		}
-
-		return s.bookings.CancelBooking(ctx, booking.ID)
+	if booking.Status == entity.StatusConfirmed {
+		return nil
 	}
 
-	return nil
+	// The hold was released before the money arrived, and the slot may belong
+	// to somebody else by now. Confirming would double book it, so the payment
+	// needs refunding instead.
+	if !booking.IsActive() {
+		return entity.ErrHoldLapsed
+	}
+
+	return s.bookings.ConfirmBooking(ctx, booking.ID)
 }
