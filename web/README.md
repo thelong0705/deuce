@@ -224,10 +224,11 @@ like a booking would be a lie about something someone owes money on.
 
 ### The publishable key
 
-`STRIPE_PUBLISHABLE_KEY` in the repo root `.env`, beside the server's Stripe
-keys. `vite.config.ts` reads it from there and injects it, so there is one
-name for it rather than a `VITE_`-prefixed copy. It is safe in the bundle by
-design: it can start a payment and nothing else.
+`VITE_STRIPE_PUBLISHABLE_KEY` in `.env.development` and `.env.production`,
+both committed. It is safe in the bundle by design — it can start a payment
+and nothing else — so a file everyone can read is where it belongs, and a
+build that has to be handed the value is a build that can silently ship
+without it.
 
 Without it the booking still holds the slot, and the panel says payments are
 not configured rather than rendering an empty box.
