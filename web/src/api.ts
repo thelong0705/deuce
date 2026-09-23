@@ -295,11 +295,16 @@ export async function listBookings(): Promise<BookingListItem[]> {
   return body.bookings ?? []
 }
 
+// Empty in development, where the dev server proxies the API onto this origin.
+// In the cluster the API is a different origin, so it is an absolute URL.
+const baseURL = import.meta.env.VITE_API_BASE_URL ?? ''
+
 async function request(path: string, init: RequestInit): Promise<Response> {
   let response: Response
   try {
-    // Default, but the session cookie makes it load-bearing.
-    response = await fetch(path, { credentials: 'same-origin', ...init })
+    // include, not same-origin: the API is a different origin in the cluster,
+    // and without this the browser withholds the session cookie by default.
+    response = await fetch(baseURL + path, { credentials: 'include', ...init })
   } catch {
     throw new ApiError(0, 'unreachable', 'Could not reach the server. Is it running?')
   }

@@ -10,12 +10,17 @@ export default defineConfig(({ mode }) => {
   const root = fileURLToPath(new URL('..', import.meta.url))
   const env = loadEnv(mode, root, '')
 
+  // process.env first, so a Docker build arg wins over a developer's .env.
+  const value = (key: string) => process.env[key] ?? env[key] ?? ''
+
   return {
     plugins: [react()],
     define: {
       'import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY': JSON.stringify(
-        env.STRIPE_PUBLISHABLE_KEY ?? '',
+        value('STRIPE_PUBLISHABLE_KEY'),
       ),
+      // Empty means same-origin, which is what the dev proxy below gives us.
+      'import.meta.env.VITE_API_BASE_URL': JSON.stringify(value('API_BASE_URL')),
     },
     server: {
       port: 5173,

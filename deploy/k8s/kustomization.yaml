@@ -6,12 +6,17 @@ kind: Kustomization
 resources:
   - api/deployment.yaml
   - api/service.yaml
-  - api/ingress.yaml
   - api/certificate.yaml
   - sweeper/deployment.yaml
+  - web/deployment.yaml
+  - web/service.yaml
+  - ingress.yaml
 
 # Set the registry once, bump newTag per deploy.
 images:
   - name: deuce-api
     newName: asia-southeast1-docker.pkg.dev/project-deuce-509416/deuce/api
     newTag: v5
+  - name: deuce-web
+    newName: asia-southeast1-docker.pkg.dev/project-deuce-509416/deuce/web
+    newTag: v2
