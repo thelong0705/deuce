@@ -1,0 +1,8 @@
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: deuce
+spec:
+  domains:
+    - api.thelong0705.dev
+    - thelong0705.dev

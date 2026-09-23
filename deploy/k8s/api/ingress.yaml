@@ -6,6 +6,7 @@ metadata:
     # Reserve it first, or the Ingress never gets an address:
     #   gcloud compute addresses create deuce-ip --global
     kubernetes.io/ingress.global-static-ip-name: deuce-ip
+    networking.gke.io/managed-certificates: deuce
 spec:
   ingressClassName: gce
   # Everything goes to the API until there is a second Service to route to.
