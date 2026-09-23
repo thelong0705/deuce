@@ -17,7 +17,7 @@ resources:
 images:
 - name: deuce-api
   newName: asia-southeast1-docker.pkg.dev/project-deuce-509416/deuce/api
-  newTag: v1.0.3
+  newTag: v1.0.4
 - name: deuce-web
   newName: asia-southeast1-docker.pkg.dev/project-deuce-509416/deuce/web
-  newTag: v1.0.3
+  newTag: v1.0.4

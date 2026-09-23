@@ -10,23 +10,53 @@ type Props = {
   onUnauthorized: () => void
 }
 
+// Long enough for a webhook that is slow rather than lost. Past this the
+// booking is still paid for and still confirms; only this page stops watching.
+const confirmAttempts = 10
+const confirmInterval = 1000
+
 export function MyBookings({ version, onUnauthorized }: Props) {
   const [bookings, setBookings] = useState<BookingListItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<BookingListItem[] | null> => {
     setError(null)
     try {
-      setBookings(await listBookings())
+      const latest = await listBookings()
+      setBookings(latest)
+      return latest
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         onUnauthorized()
-        return
+        return null
       }
       // Not the same as having nothing booked, so do not say that.
       setError(err instanceof ApiError ? err.message : 'Could not load your bookings.')
+      return null
     }
   }, [onUnauthorized])
+
+  // A card that has gone through is not a booking yet: Stripe's webhook is what
+  // confirms it, and that lands a moment after the browser hears back. Loading
+  // once would almost always ask too early and leave a paid slot looking held,
+  // so the list is reloaded until the hold is gone.
+  const awaitConfirmation = useCallback(
+    async (id: string) => {
+      for (let attempt = 0; attempt < confirmAttempts; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, confirmInterval))
+
+        const latest = await load()
+        if (latest === null) {
+          return
+        }
+
+        if (!latest.some((booking) => booking.id === id && booking.status === 'pending_payment')) {
+          return
+        }
+      }
+    },
+    [load],
+  )
 
   useEffect(() => {
     void load()
@@ -52,7 +82,7 @@ export function MyBookings({ version, onUnauthorized }: Props) {
               {booking.status === 'pending_payment' && (
                 <PendingBooking
                   booking={booking}
-                  onPaid={() => void load()}
+                  onPaid={() => void awaitConfirmation(booking.id)}
                   onGone={() => void load()}
                   onUnauthorized={onUnauthorized}
                 />
