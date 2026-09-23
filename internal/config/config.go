@@ -25,6 +25,7 @@ type Server struct {
 	RedisAddr           string   `envconfig:"REDIS_ADDR" required:"true"`
 	StripeSecretKey     string   `envconfig:"STRIPE_SECRET_KEY" required:"true"`
 	StripeWebhookSecret string   `envconfig:"STRIPE_WEBHOOK_SECRET" required:"true"`
+	StripeBaseURL       string   `envconfig:"STRIPE_BASE_URL"`
 	CORSOrigins         []string `envconfig:"CORS_ORIGINS"`
 	HTTPAddr            string   `envconfig:"HTTP_ADDR" default:":8080"`
 	Port                string   `envconfig:"PORT"`

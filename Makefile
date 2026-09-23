@@ -22,6 +22,7 @@ MIGRATE := docker run --rm \
         redis-start redis-down redis-wait redis-cli dev \
         migrate-up migrate-down migrate-version \
         sqlc-gen build test test-cover mocks \
+        e2e e2e-run e2e-down \
         lint fmt fmt-check \
         server sweeper web web-install
 
@@ -116,6 +117,23 @@ cover-check:
 	go run $(COVERAGE_TOOL) --config=.testcoverage.yml
 
 test-cover: test cover-check
+
+E2E := docker compose -f e2e/docker-compose.yml
+
+e2e:
+	docker build -t deuce-api:e2e .
+	docker build -f Dockerfile.migrate -t deuce-migrate:e2e .
+	@$(MAKE) e2e-run
+
+e2e-run:
+	$(E2E) up -d api
+	go test -tags e2e -count=1 -v ./e2e/... ; status=$$?; \
+		if [ $$status -ne 0 ]; then $(E2E) logs api; fi; \
+		$(E2E) down -v; \
+		exit $$status
+
+e2e-down:
+	$(E2E) down -v
 
 GOLANGCI_IMAGE := golangci/golangci-lint:v2.13.2
 GOLANGCI := docker run --rm -v "$(PWD):/app" -w /app $(GOLANGCI_IMAGE) golangci-lint
