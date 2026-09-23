@@ -8,6 +8,7 @@ threshold:
 exclude:
   paths:
     - ^cmd/
+    - ^e2e/
     # mockery output, in any package
     - /mocks/
     # sqlc output. The repositories that wrap it are still measured; what is

@@ -124,3 +124,31 @@ func TestGetPayment(t *testing.T) {
 		require.Contains(t, err.Error(), "retrieve payment intent")
 	})
 }
+
+func TestNewGatewayWithBaseURL(t *testing.T) {
+	var gotPath string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"pi_1","client_secret":"pi_1_secret_abc"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	gateway := NewGateway("sk_test_fake", WithBaseURL(server.URL))
+
+	payment, err := gateway.CreatePayment(context.Background(), entity.PaymentRequest{
+		BookingID: uuid.New(),
+		Amount:    1000,
+		Currency:  entity.CurrencyVND,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "pi_1", payment.IntentID)
+	require.Equal(t, "/v1/payment_intents", gotPath)
+}
+
+func TestNewGatewayWithoutBaseURL(t *testing.T) {
+	require.NotNil(t, NewGateway("sk_test_fake", WithBaseURL("")))
+	require.NotNil(t, NewGateway("sk_test_fake"))
+}

@@ -1,0 +1,60 @@
+name: deuce-e2e
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: deuce
+      POSTGRES_PASSWORD: deuce
+      POSTGRES_DB: deuce
+    ports:
+      - "15432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deuce -d deuce"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  stripe:
+    image: stripe/stripe-mock:latest
+
+  migrate:
+    image: ${E2E_MIGRATE_IMAGE:-deuce-migrate:e2e}
+    command:
+      - "-database"
+      - "postgres://deuce:deuce@postgres:5432/deuce?sslmode=disable"
+      - "up"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: ${E2E_API_IMAGE:-deuce-api:e2e}
+    environment:
+      DB_URL: postgres://deuce:deuce@postgres:5432/deuce?sslmode=disable
+      REDIS_ADDR: redis:6379
+      STRIPE_SECRET_KEY: sk_test_e2e
+      STRIPE_WEBHOOK_SECRET: whsec_e2e
+      STRIPE_BASE_URL: http://stripe:12111
+      PORT: "8080"
+    ports:
+      - "18080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      stripe:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
