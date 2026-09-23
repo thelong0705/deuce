@@ -17,6 +17,7 @@ export function PaymentForm({ amount, currency, onPaid, onCancel }: Props) {
 
   const [error, setError] = useState<string | null>(null)
   const [paying, setPaying] = useState(false)
+  const [settled, setSettled] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -51,6 +52,10 @@ export function PaymentForm({ amount, currency, onPaid, onCancel }: Props) {
     }
 
     if (paymentIntent?.status === 'succeeded') {
+      // The card is done, the booking is not: it stays a hold until the webhook
+      // lands. Leaving the button mid-payment reads as a page that has hung, so
+      // the form gives way to what is actually happening.
+      setSettled(true)
       onPaid()
       return
     }
@@ -60,6 +65,12 @@ export function PaymentForm({ amount, currency, onPaid, onCancel }: Props) {
     // pretending the payment failed.
     setError('Payment is still going through. Your bookings will update when it clears.')
     setPaying(false)
+  }
+
+  // No form once the card has gone through: there is nothing left to submit,
+  // and a live Pay button invites paying twice for the same slot.
+  if (settled) {
+    return <p className="hint">Payment received. Confirming your booking…</p>
   }
 
   return (
