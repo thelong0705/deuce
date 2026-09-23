@@ -649,6 +649,12 @@ button.link[aria-pressed='true'] {
   gap: 10px;
 }
 
+.results-day {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .court-result {
   padding: 12px;
   background: var(--bg);
