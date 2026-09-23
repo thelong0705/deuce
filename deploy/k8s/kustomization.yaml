@@ -19,4 +19,4 @@ images:
     newTag: v5
   - name: deuce-web
     newName: asia-southeast1-docker.pkg.dev/project-deuce-509416/deuce/web
-    newTag: v1
+    newTag: v2
