@@ -26,6 +26,8 @@ COPY --from=build /out/deuce /deuce
 # Cloud Run sends $PORT; 8080 is both its default and the server's.
 EXPOSE 8080
 
-USER nonroot:nonroot
+# Numeric, not the "nonroot" name: Kubernetes cannot verify a named user is
+# non-root and refuses to start the container under runAsNonRoot.
+USER 65532:65532
 
 ENTRYPOINT ["/deuce"]
