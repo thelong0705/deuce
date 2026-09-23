@@ -1,0 +1,53 @@
+# The API. Reads DB_URL and REDIS_ADDR from the same Secret the migration Job
+# uses.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deuce
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: deuce
+  template:
+    metadata:
+      labels:
+        app: deuce
+    spec:
+      containers:
+        - name: api
+          image: deuce-api
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+          # Both keys of the Secret, as environment variables of the same name.
+          envFrom:
+            - secretRef:
+                name: deuce
+          # Ready decides whether the Service sends traffic here. Live decides
+          # whether to restart the container.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          # Autopilot bills for what is requested here, so these are the price.
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
