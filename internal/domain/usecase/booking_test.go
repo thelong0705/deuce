@@ -598,27 +598,27 @@ func TestBookingHandlePaymentEvent(t *testing.T) {
 			wantErr: entity.ErrHoldLapsed,
 		},
 		{
-			name:  "a failed payment releases the slot",
+			// The player is still at the form with time on the clock. Taking
+			// the slot away now is what would strand a retry, so the event is
+			// recorded and nothing else happens: no lookup, no cancel.
+			name:  "a declined card leaves the hold alone",
 			event: paymentEvent(entity.PaymentFailed),
 			setup: func(m bookingMocks) {
 				m.events.EXPECT().RecordEvent(mock.Anything, "evt_1", "payment_failed").
 					Return(true, nil).Once()
-				m.bookings.EXPECT().GetBookingByPayment(mock.Anything, "pi_1").
-					Return(heldBooking(entity.StatusPendingPayment), nil).Once()
-				m.bookings.EXPECT().CancelBooking(mock.Anything, heldBookingID).Return(nil).Once()
 			},
 		},
 		{
-			name:  "a failed payment for a slot already released does nothing",
-			event: paymentEvent(entity.PaymentFailed),
+			// The whole point of leaving the hold: the second card confirms
+			// the same booking the first one failed on.
+			name:  "a second card after a decline confirms the booking",
+			event: paymentEvent(entity.PaymentSucceeded),
 			setup: func(m bookingMocks) {
-				booking := heldBooking(entity.StatusPendingPayment)
-				booking.CancelledAt = &cancelled
-
-				m.events.EXPECT().RecordEvent(mock.Anything, mock.Anything, mock.Anything).
+				m.events.EXPECT().RecordEvent(mock.Anything, "evt_1", "payment_succeeded").
 					Return(true, nil).Once()
 				m.bookings.EXPECT().GetBookingByPayment(mock.Anything, "pi_1").
-					Return(booking, nil).Once()
+					Return(heldBooking(entity.StatusPendingPayment), nil).Once()
+				m.bookings.EXPECT().ConfirmBooking(mock.Anything, heldBookingID).Return(nil).Once()
 			},
 		},
 		{
