@@ -9,5 +9,5 @@ resources:
 # Set the registry once, bump newTag per deploy.
 images:
   - name: deuce-migrate
-    newName: asia-southeast1-docker.pkg.dev/REPLACE_PROJECT/deuce/migrate
+    newName: asia-southeast1-docker.pkg.dev/project-deuce-509416/deuce/migrate
     newTag: v1
