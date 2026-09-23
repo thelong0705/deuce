@@ -12,7 +12,8 @@ resources:
   - web/service.yaml
   - ingress.yaml
 
-# Set the registry once, bump newTag per deploy.
+# deuce-api's newTag is written by the release workflow after each release,
+# so this file states what is running and applying it by hand is safe.
 images:
   - name: deuce-api
     newName: asia-southeast1-docker.pkg.dev/project-deuce-509416/deuce/api

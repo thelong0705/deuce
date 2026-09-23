@@ -23,6 +23,10 @@ jobs:
       REPO: asia-southeast1-docker.pkg.dev/project-deuce-509416/deuce
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A deploy key, because GITHUB_TOKEN cannot be given a bypass on the
+          # pull_request rule: that actor is organization-only.
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
 
       # Keyless: GitHub mints a short-lived OIDC token and Google trades it for
       # credentials. No service account key to store, leak or rotate.
@@ -59,6 +63,23 @@ jobs:
           kubectl apply -k deploy/k8s
           kubectl rollout status deployment/deuce --timeout=5m
           kubectl rollout status deployment/sweeper --timeout=5m
+
+      # After the rollout, so a failed release never records an image that is
+      # not running.
+      - name: Record the released version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout -B main origin/main
+          (cd deploy/k8s && kustomize edit set image "deuce-api=$REPO/api:$GITHUB_REF_NAME")
+          git add deploy/k8s/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "already recorded"
+          else
+            git commit -m "Release $GITHUB_REF_NAME"
+            git push origin main
+          fi
 
       - name: Summary
         run: |
