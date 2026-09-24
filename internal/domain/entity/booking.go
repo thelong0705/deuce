@@ -57,8 +57,8 @@ type Booking struct {
 	CreatedAt       time.Time
 }
 
-// IsActive reports whether the booking still holds its slot.
-func (b Booking) IsActive() bool {
+// StillHolding reports whether the booking still holds its slot.
+func (b Booking) StillHolding() bool {
 	return b.CancelledAt == nil
 }
 
@@ -77,7 +77,7 @@ func (b Booking) HoldHasLapsed(now time.Time) bool {
 
 // AwaitsPayment reports whether the player could still pay for the slot.
 func (b Booking) AwaitsPayment(now time.Time) bool {
-	return b.IsActive() && b.Status == StatusPendingPayment && !b.HoldHasLapsed(now)
+	return b.StillHolding() && b.Status == StatusPendingPayment && !b.HoldHasLapsed(now)
 }
 
 var (

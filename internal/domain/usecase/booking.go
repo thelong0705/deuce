@@ -260,14 +260,10 @@ func (s *Booking) HandlePaymentEvent(ctx context.Context, ev entity.PaymentEvent
 		return err
 	}
 
-	if booking.Status == entity.StatusConfirmed {
-		return nil
-	}
-
 	// The hold was released before the money arrived, and the slot may belong
 	// to somebody else by now. Confirming would double book it, so the payment
 	// needs refunding instead.
-	if !booking.IsActive() {
+	if !booking.StillHolding() {
 		return entity.ErrHoldLapsed
 	}
 

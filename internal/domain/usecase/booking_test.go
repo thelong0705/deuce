@@ -570,15 +570,16 @@ func TestBookingHandlePaymentEvent(t *testing.T) {
 			},
 		},
 		{
-			// Belt and braces: a different event id for a booking already
-			// settled is still not confirmed twice.
-			name:  "a booking already confirmed is left alone",
+			// Confirming writes the same row again, so a second event id for
+			// a settled booking needs no guard of its own.
+			name:  "a booking already confirmed is confirmed again",
 			event: paymentEvent(entity.PaymentSucceeded),
 			setup: func(m bookingMocks) {
 				m.events.EXPECT().RecordEvent(mock.Anything, mock.Anything, mock.Anything).
 					Return(true, nil).Once()
 				m.bookings.EXPECT().GetBookingByPayment(mock.Anything, "pi_1").
 					Return(heldBooking(entity.StatusConfirmed), nil).Once()
+				m.bookings.EXPECT().ConfirmBooking(mock.Anything, heldBookingID).Return(nil).Once()
 			},
 		},
 		{

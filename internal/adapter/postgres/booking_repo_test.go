@@ -78,7 +78,7 @@ func TestBookingRepositoryHoldSlot(t *testing.T) {
 				require.Equal(t, in.PlayerID, got.PlayerID)
 				require.True(t, in.StartsAt.Equal(got.StartsAt))
 				require.False(t, got.IsBlock)
-				require.True(t, got.IsActive())
+				require.True(t, got.StillHolding())
 				// The slot is taken but not paid for, and no payment is
 				// attached until the gateway has opened one.
 				require.Equal(t, entity.StatusPendingPayment, got.Status)
