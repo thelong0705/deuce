@@ -24,6 +24,8 @@
   - [High level: the running system](#high-level-the-running-system)
   - [Low level: ports and adapters](#low-level-ports-and-adapters)
   - [Project structure](#project-structure)
+- [Booking and payment](#-booking-and-payment)
+- [Authentication](#-authentication)
 - [Getting started](#-getting-started)
 - [Tests](#-tests)
 - [API](#-api)
@@ -147,6 +149,74 @@ knows that pgx, chi or Stripe exist.
 │   │   └── usecase/      the flows, written against ports it declares itself
 │   └── pkg/apperr/       error kinds the HTTP layer turns into status codes
 └── web/                  the React front end
+```
+
+<hr />
+
+## 💳 Booking and payment
+
+The slot is held before anything is charged, so two players racing for it settle
+in the database rather than at the gateway.
+
+```mermaid
+sequenceDiagram
+    participant P as Player
+    participant API as deuce
+    participant DB as Postgres
+    participant S as Stripe
+
+    P->>API: POST /courts/{id}/bookings
+    API->>DB: hold the slot for 15 minutes
+    DB-->>API: booking, pending_payment
+    API->>S: create a PaymentIntent
+    S-->>API: client_secret
+    API-->>P: client_secret
+    P->>S: pay with the card
+    S->>API: webhook, payment_intent.succeeded
+    API->>DB: confirm the booking
+```
+
+The card is paid against Stripe from the browser, so no card detail reaches the
+API. Stripe delivers webhooks at least once, so every event id is recorded
+before it is acted on and a repeat delivery changes nothing. A hold nobody pays
+is cancelled by the sweeper and the slot goes back.
+
+<hr />
+
+## 🔐 Authentication
+
+A server-side session behind a cookie. The browser is given a random token; only
+its SHA-256 hash is ever stored, so a database dump hands over no live sessions.
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant API as deuce
+    participant R as Redis
+    participant DB as Postgres
+
+    B->>API: POST /sessions, email and password
+    API->>DB: read the stored password hash
+    API->>API: bcrypt compare
+    API->>API: random token, keep only its SHA-256
+    API->>DB: store the session under that hash
+    API-->>B: Set-Cookie deuce_session, httpOnly
+
+    Note over B,DB: every later request
+
+    B->>API: GET /me, cookie
+    API->>API: hash the token
+    API->>R: session for this hash?
+    alt cached
+        R-->>API: session and user
+    else not cached
+        R-->>API: miss
+        API->>DB: look up by hash
+        DB-->>API: session and user
+        API->>R: cache for 10 minutes
+    end
+    API->>API: not expired, account still active
+    API-->>B: 200
 ```
 
 <hr />
