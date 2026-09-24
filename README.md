@@ -177,9 +177,16 @@ sequenceDiagram
 ```
 
 The card is paid against Stripe from the browser, so no card detail reaches the
-API. Stripe delivers webhooks at least once, so every event id is recorded
-before it is acted on and a repeat delivery changes nothing. A hold nobody pays
-is cancelled by the sweeper and the slot goes back.
+API. Stripe delivers webhooks at least once, so the event id is written in the
+same transaction that confirms the booking: a repeat delivery conflicts on it
+and changes nothing, and a confirmation that fails leaves no record for the
+retry to trip over. A hold nobody pays is cancelled by the sweeper and the slot
+goes back.
+
+Nothing else confirms a booking. Paying is between the browser and Stripe, so
+the webhook is the only thing that tells the API it happened — locally that
+means the Stripe CLI has to be forwarding, or a paid slot sits on its hold
+until the sweeper takes it back.
 
 <hr />
 
@@ -278,6 +285,23 @@ Stripe webhooks reach a local API through the CLI:
 
 ```bash
 stripe listen --events payment_intent.succeeded,payment_intent.payment_failed --forward-to localhost:8080/stripe/webhook
+```
+
+Leave it running for as long as you are testing payments. Without it Stripe has
+no route to localhost: the card is charged, nothing confirms the booking, and
+the only sign is a slot that stays `AWAITING PAYMENT` until the sweeper takes it
+back. The CLI prints a signing secret of its own, and that is the
+`STRIPE_WEBHOOK_SECRET` the local API wants — not the deployed one's.
+
+It adds a listener rather than replacing the endpoint the deployed API uses, so
+while it runs both receive every event in the test account. A booking paid
+locally is delivered to the deployed API too, which has never heard of that
+payment and answers 204 with `payment for an unknown booking` in its log.
+
+A payment already made before the CLI was running can be replayed:
+
+```bash
+stripe events resend evt_XXXXXXXX
 ```
 
 <hr />
