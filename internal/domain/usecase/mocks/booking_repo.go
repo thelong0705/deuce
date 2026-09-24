@@ -121,17 +121,17 @@ func (_c *MockBookingRepo_CancelBooking_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
-// ConfirmBooking provides a mock function with given fields: ctx, bookingID
-func (_m *MockBookingRepo) ConfirmBooking(ctx context.Context, bookingID uuid.UUID) error {
-	ret := _m.Called(ctx, bookingID)
+// ConfirmPaid provides a mock function with given fields: ctx, ev, bookingID
+func (_m *MockBookingRepo) ConfirmPaid(ctx context.Context, ev entity.PaymentEvent, bookingID uuid.UUID) error {
+	ret := _m.Called(ctx, ev, bookingID)
 
 	if len(ret) == 0 {
-		panic("no return value specified for ConfirmBooking")
+		panic("no return value specified for ConfirmPaid")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) error); ok {
-		r0 = rf(ctx, bookingID)
+	if rf, ok := ret.Get(0).(func(context.Context, entity.PaymentEvent, uuid.UUID) error); ok {
+		r0 = rf(ctx, ev, bookingID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -139,31 +139,32 @@ func (_m *MockBookingRepo) ConfirmBooking(ctx context.Context, bookingID uuid.UU
 	return r0
 }
 
-// MockBookingRepo_ConfirmBooking_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ConfirmBooking'
-type MockBookingRepo_ConfirmBooking_Call struct {
+// MockBookingRepo_ConfirmPaid_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ConfirmPaid'
+type MockBookingRepo_ConfirmPaid_Call struct {
 	*mock.Call
 }
 
-// ConfirmBooking is a helper method to define mock.On call
+// ConfirmPaid is a helper method to define mock.On call
 //   - ctx context.Context
+//   - ev entity.PaymentEvent
 //   - bookingID uuid.UUID
-func (_e *MockBookingRepo_Expecter) ConfirmBooking(ctx interface{}, bookingID interface{}) *MockBookingRepo_ConfirmBooking_Call {
-	return &MockBookingRepo_ConfirmBooking_Call{Call: _e.mock.On("ConfirmBooking", ctx, bookingID)}
+func (_e *MockBookingRepo_Expecter) ConfirmPaid(ctx interface{}, ev interface{}, bookingID interface{}) *MockBookingRepo_ConfirmPaid_Call {
+	return &MockBookingRepo_ConfirmPaid_Call{Call: _e.mock.On("ConfirmPaid", ctx, ev, bookingID)}
 }
 
-func (_c *MockBookingRepo_ConfirmBooking_Call) Run(run func(ctx context.Context, bookingID uuid.UUID)) *MockBookingRepo_ConfirmBooking_Call {
+func (_c *MockBookingRepo_ConfirmPaid_Call) Run(run func(ctx context.Context, ev entity.PaymentEvent, bookingID uuid.UUID)) *MockBookingRepo_ConfirmPaid_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID))
+		run(args[0].(context.Context), args[1].(entity.PaymentEvent), args[2].(uuid.UUID))
 	})
 	return _c
 }
 
-func (_c *MockBookingRepo_ConfirmBooking_Call) Return(_a0 error) *MockBookingRepo_ConfirmBooking_Call {
+func (_c *MockBookingRepo_ConfirmPaid_Call) Return(_a0 error) *MockBookingRepo_ConfirmPaid_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockBookingRepo_ConfirmBooking_Call) RunAndReturn(run func(context.Context, uuid.UUID) error) *MockBookingRepo_ConfirmBooking_Call {
+func (_c *MockBookingRepo_ConfirmPaid_Call) RunAndReturn(run func(context.Context, entity.PaymentEvent, uuid.UUID) error) *MockBookingRepo_ConfirmPaid_Call {
 	_c.Call.Return(run)
 	return _c
 }

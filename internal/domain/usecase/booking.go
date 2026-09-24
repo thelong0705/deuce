@@ -21,8 +21,11 @@ type BookingRepo interface {
 	CancelBooking(ctx context.Context, bookingID uuid.UUID) error
 	// GetBooking reads one booking by id.
 	GetBooking(ctx context.Context, bookingID uuid.UUID) (*entity.Booking, error)
-	// ConfirmBooking marks a held slot paid for.
-	ConfirmBooking(ctx context.Context, bookingID uuid.UUID) error
+	// ConfirmPaid marks a held slot paid for and records the event that says
+	// so, together. Either both land or neither does, so a delivery that
+	// fails halfway leaves the gateway's retry something to do. An event
+	// already recorded confirms nothing and reports no error.
+	ConfirmPaid(ctx context.Context, ev entity.PaymentEvent, bookingID uuid.UUID) error
 	// GetBookingByPayment finds the booking a payment belongs to.
 	GetBookingByPayment(ctx context.Context, paymentIntentID string) (*entity.Booking, error)
 	// ListBookedSlots returns the start times still held on a court, from
@@ -40,12 +43,6 @@ type PaymentGateway interface {
 	GetPayment(ctx context.Context, intentID string) (*entity.Payment, error)
 }
 
-// PaymentEventLog remembers which gateway events have been handled. Recording
-// one reports whether it is the first time it has been seen.
-type PaymentEventLog interface {
-	RecordEvent(ctx context.Context, id string, eventType string) (first bool, err error)
-}
-
 // CourtFinder looks up a court together with the venue it belongs to, whose
 // timezone the court's opening hours are read in.
 type CourtFinder interface {
@@ -57,7 +54,6 @@ type Booking struct {
 	courts   CourtFinder
 	users    UserFinder
 	payments PaymentGateway
-	events   PaymentEventLog
 }
 
 func NewBooking(
@@ -65,14 +61,12 @@ func NewBooking(
 	courts CourtFinder,
 	users UserFinder,
 	payments PaymentGateway,
-	events PaymentEventLog,
 ) *Booking {
 	return &Booking{
 		bookings: bookings,
 		courts:   courts,
 		users:    users,
 		payments: payments,
-		events:   events,
 	}
 }
 
@@ -234,19 +228,12 @@ func (s *Booking) ListForPlayer(ctx context.Context, playerID uuid.UUID) ([]enti
 // HandlePaymentEvent settles a booking against what the gateway says happened
 // to its payment.
 //
-// A gateway delivers an event at least once, so the first thing this does is
-// record the event id: a repeat is dropped rather than confirming or
-// cancelling twice.
+// A gateway delivers an event at least once, so confirming writes the event id
+// alongside the booking and a repeat delivery finds it already there. The two
+// go together deliberately: recording first would let a failed confirmation
+// leave a record of work that never happened, and the retry sent to fix it
+// would be dropped as a duplicate.
 func (s *Booking) HandlePaymentEvent(ctx context.Context, ev entity.PaymentEvent) error {
-	first, err := s.events.RecordEvent(ctx, ev.ID, string(ev.Type))
-	if err != nil {
-		return err
-	}
-
-	if !first {
-		return nil
-	}
-
 	// A declined card ends the attempt, not the payment: the intent goes back
 	// to awaiting one and the player can try another card. Releasing the slot
 	// here would sell it out from under someone still at the payment form, so
@@ -267,5 +254,5 @@ func (s *Booking) HandlePaymentEvent(ctx context.Context, ev entity.PaymentEvent
 		return entity.ErrHoldLapsed
 	}
 
-	return s.bookings.ConfirmBooking(ctx, booking.ID)
+	return s.bookings.ConfirmPaid(ctx, ev, booking.ID)
 }

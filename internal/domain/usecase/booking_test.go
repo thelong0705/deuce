@@ -53,7 +53,6 @@ type bookingMocks struct {
 	courts   *mocks.MockCourtFinder
 	users    *mocks.MockUserFinder
 	payments *mocks.MockPaymentGateway
-	events   *mocks.MockPaymentEventLog
 }
 
 func newBookingMocks(t *testing.T) bookingMocks {
@@ -64,12 +63,11 @@ func newBookingMocks(t *testing.T) bookingMocks {
 		courts:   mocks.NewMockCourtFinder(t),
 		users:    mocks.NewMockUserFinder(t),
 		payments: mocks.NewMockPaymentGateway(t),
-		events:   mocks.NewMockPaymentEventLog(t),
 	}
 }
 
 func (m bookingMocks) svc() *usecase.Booking {
-	return usecase.NewBooking(m.bookings, m.courts, m.users, m.payments, m.events)
+	return usecase.NewBooking(m.bookings, m.courts, m.users, m.payments)
 }
 
 // expectHoldAndPay sets up the write path: the slot is taken, a payment is
@@ -486,7 +484,7 @@ func TestBookingListForPlayer(t *testing.T) {
 			bookings := mocks.NewMockBookingRepo(t)
 			tt.setup(bookings)
 
-			svc := usecase.NewBooking(bookings, mocks.NewMockCourtFinder(t), mocks.NewMockUserFinder(t), mocks.NewMockPaymentGateway(t), mocks.NewMockPaymentEventLog(t))
+			svc := usecase.NewBooking(bookings, mocks.NewMockCourtFinder(t), mocks.NewMockUserFinder(t), mocks.NewMockPaymentGateway(t))
 			got, err := svc.ListForPlayer(context.Background(), tt.playerID)
 
 			if tt.wantErr != nil {
@@ -517,7 +515,7 @@ func TestBookingAvailabilityAsksForTheWholeDay(t *testing.T) {
 		Run(func(_ context.Context, _ uuid.UUID, f, t time.Time) { from, to = f, t }).
 		Return(nil, nil).Once()
 
-	svc := usecase.NewBooking(bookings, courts, mocks.NewMockUserFinder(t), mocks.NewMockPaymentGateway(t), mocks.NewMockPaymentEventLog(t))
+	svc := usecase.NewBooking(bookings, courts, mocks.NewMockUserFinder(t), mocks.NewMockPaymentGateway(t))
 	slots, err := svc.Availability(context.Background(), bookingCourtID, day)
 	require.NoError(t, err)
 	require.Len(t, slots, 3)
@@ -552,34 +550,24 @@ func TestBookingHandlePaymentEvent(t *testing.T) {
 			name:  "a successful payment confirms the booking",
 			event: paymentEvent(entity.PaymentSucceeded),
 			setup: func(m bookingMocks) {
-				m.events.EXPECT().RecordEvent(mock.Anything, "evt_1", "payment_succeeded").
-					Return(true, nil).Once()
 				m.bookings.EXPECT().GetBookingByPayment(mock.Anything, "pi_1").
 					Return(heldBooking(entity.StatusPendingPayment), nil).Once()
-				m.bookings.EXPECT().ConfirmBooking(mock.Anything, heldBookingID).Return(nil).Once()
+				m.bookings.EXPECT().
+					ConfirmPaid(mock.Anything, paymentEvent(entity.PaymentSucceeded), heldBookingID).
+					Return(nil).Once()
 			},
 		},
 		{
-			// The gateway delivers at least once, so the second copy must not
-			// confirm anything again.
-			name:  "an event already seen is dropped",
-			event: paymentEvent(entity.PaymentSucceeded),
-			setup: func(m bookingMocks) {
-				m.events.EXPECT().RecordEvent(mock.Anything, "evt_1", "payment_succeeded").
-					Return(false, nil).Once()
-			},
-		},
-		{
-			// Confirming writes the same row again, so a second event id for
-			// a settled booking needs no guard of its own.
+			// Confirming writes the same row again, and the event id keeps a
+			// repeat delivery from reaching it twice, so a settled booking
+			// needs no guard of its own here.
 			name:  "a booking already confirmed is confirmed again",
 			event: paymentEvent(entity.PaymentSucceeded),
 			setup: func(m bookingMocks) {
-				m.events.EXPECT().RecordEvent(mock.Anything, mock.Anything, mock.Anything).
-					Return(true, nil).Once()
 				m.bookings.EXPECT().GetBookingByPayment(mock.Anything, "pi_1").
 					Return(heldBooking(entity.StatusConfirmed), nil).Once()
-				m.bookings.EXPECT().ConfirmBooking(mock.Anything, heldBookingID).Return(nil).Once()
+				m.bookings.EXPECT().ConfirmPaid(mock.Anything, mock.Anything, heldBookingID).
+					Return(nil).Once()
 			},
 		},
 		{
@@ -591,8 +579,6 @@ func TestBookingHandlePaymentEvent(t *testing.T) {
 				booking := heldBooking(entity.StatusPendingPayment)
 				booking.CancelledAt = &cancelled
 
-				m.events.EXPECT().RecordEvent(mock.Anything, mock.Anything, mock.Anything).
-					Return(true, nil).Once()
 				m.bookings.EXPECT().GetBookingByPayment(mock.Anything, "pi_1").
 					Return(booking, nil).Once()
 			},
@@ -600,14 +586,11 @@ func TestBookingHandlePaymentEvent(t *testing.T) {
 		},
 		{
 			// The player is still at the form with time on the clock. Taking
-			// the slot away now is what would strand a retry, so the event is
-			// recorded and nothing else happens: no lookup, no cancel.
+			// the slot away now is what would strand a retry, so nothing at
+			// all happens: no lookup, no cancel.
 			name:  "a declined card leaves the hold alone",
 			event: paymentEvent(entity.PaymentFailed),
-			setup: func(m bookingMocks) {
-				m.events.EXPECT().RecordEvent(mock.Anything, "evt_1", "payment_failed").
-					Return(true, nil).Once()
-			},
+			setup: func(bookingMocks) {},
 		},
 		{
 			// The whole point of leaving the hold: the second card confirms
@@ -615,32 +598,31 @@ func TestBookingHandlePaymentEvent(t *testing.T) {
 			name:  "a second card after a decline confirms the booking",
 			event: paymentEvent(entity.PaymentSucceeded),
 			setup: func(m bookingMocks) {
-				m.events.EXPECT().RecordEvent(mock.Anything, "evt_1", "payment_succeeded").
-					Return(true, nil).Once()
 				m.bookings.EXPECT().GetBookingByPayment(mock.Anything, "pi_1").
 					Return(heldBooking(entity.StatusPendingPayment), nil).Once()
-				m.bookings.EXPECT().ConfirmBooking(mock.Anything, heldBookingID).Return(nil).Once()
+				m.bookings.EXPECT().ConfirmPaid(mock.Anything, mock.Anything, heldBookingID).
+					Return(nil).Once()
 			},
 		},
 		{
 			name:  "an unknown payment propagates",
 			event: paymentEvent(entity.PaymentSucceeded),
 			setup: func(m bookingMocks) {
-				m.events.EXPECT().RecordEvent(mock.Anything, mock.Anything, mock.Anything).
-					Return(true, nil).Once()
 				m.bookings.EXPECT().GetBookingByPayment(mock.Anything, "pi_1").
 					Return(nil, entity.ErrBookingNotFound).Once()
 			},
 			wantErr: entity.ErrBookingNotFound,
 		},
 		{
-			// Nothing is acted on until the event is recorded, so a failure
-			// here cannot half-handle it.
-			name:  "a failure recording the event stops everything",
+			// The gateway is told to retry, and because nothing was recorded
+			// the retry has work to do.
+			name:  "a failure confirming propagates",
 			event: paymentEvent(entity.PaymentSucceeded),
 			setup: func(m bookingMocks) {
-				m.events.EXPECT().RecordEvent(mock.Anything, mock.Anything, mock.Anything).
-					Return(false, boom).Once()
+				m.bookings.EXPECT().GetBookingByPayment(mock.Anything, "pi_1").
+					Return(heldBooking(entity.StatusPendingPayment), nil).Once()
+				m.bookings.EXPECT().ConfirmPaid(mock.Anything, mock.Anything, heldBookingID).
+					Return(boom).Once()
 			},
 			wantErr: boom,
 		},
