@@ -219,11 +219,6 @@ sequenceDiagram
     API-->>B: 200
 ```
 
-Sessions rather than a JWT, because a session can be revoked: log out or
-deactivate an account and the next request fails. The Redis cache is what stops
-that costing a database read per request, and its ten-minute TTL is the window
-in which a deactivated account still works.
-
 <hr />
 
 ## 🚀 Getting started
