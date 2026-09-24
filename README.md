@@ -25,6 +25,7 @@
   - [Low level: ports and adapters](#low-level-ports-and-adapters)
   - [Project structure](#project-structure)
 - [Booking and payment](#-booking-and-payment)
+- [Authentication](#-authentication)
 - [Getting started](#-getting-started)
 - [Tests](#-tests)
 - [API](#-api)
@@ -179,6 +180,49 @@ The card is paid against Stripe from the browser, so no card detail reaches the
 API. Stripe delivers webhooks at least once, so every event id is recorded
 before it is acted on and a repeat delivery changes nothing. A hold nobody pays
 is cancelled by the sweeper and the slot goes back.
+
+<hr />
+
+## 🔐 Authentication
+
+A server-side session behind a cookie. The browser is given a random token; only
+its SHA-256 hash is ever stored, so a database dump hands over no live sessions.
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant API as deuce
+    participant R as Redis
+    participant DB as Postgres
+
+    B->>API: POST /sessions, email and password
+    API->>DB: read the stored password hash
+    API->>API: bcrypt compare
+    API->>API: random token, keep only its SHA-256
+    API->>DB: store the session under that hash
+    API-->>B: Set-Cookie deuce_session, httpOnly
+
+    Note over B,DB: every later request
+
+    B->>API: GET /me, cookie
+    API->>API: hash the token
+    API->>R: session for this hash?
+    alt cached
+        R-->>API: session and user
+    else not cached
+        R-->>API: miss
+        API->>DB: look up by hash
+        DB-->>API: session and user
+        API->>R: cache for 10 minutes
+    end
+    API->>API: not expired, account still active
+    API-->>B: 200
+```
+
+Sessions rather than a JWT, because a session can be revoked: log out or
+deactivate an account and the next request fails. The Redis cache is what stops
+that costing a database read per request, and its ten-minute TTL is the window
+in which a deactivated account still works.
 
 <hr />
 
