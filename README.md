@@ -173,13 +173,16 @@ sequenceDiagram
     API-->>P: client_secret
     P->>S: pay with the card
     S->>API: webhook, payment_intent.succeeded
-    API->>DB: confirm the booking
+    API->>DB: record the event and confirm, one transaction
 ```
 
 The card is paid against Stripe from the browser, so no card detail reaches the
-API. Stripe delivers webhooks at least once, so every event id is recorded
-before it is acted on and a repeat delivery changes nothing. A hold nobody pays
-is cancelled by the sweeper and the slot goes back.
+API and that webhook is the only thing that says the payment happened — running
+locally, `stripe listen` has to be forwarding or nothing ever confirms. The
+event id is written in the same transaction as the confirmation, so a repeat
+delivery conflicts on it and changes nothing, and a confirmation that fails
+leaves no record for the retry to trip over. A hold nobody pays is cancelled by
+the sweeper and the slot goes back.
 
 <hr />
 
