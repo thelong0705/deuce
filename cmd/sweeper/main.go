@@ -49,7 +49,7 @@ func run() error {
 		return fmt.Errorf("connect to db: %w", err)
 	}
 
-	sweeper := usecase.NewSweeper(postgres.NewBookingRepository(postgres.New(pool)))
+	sweeper := usecase.NewSweeper(postgres.NewBookingRepository(postgres.NewStore(pool)))
 
 	slog.Info("sweeping", "interval", cfg.Interval)
 

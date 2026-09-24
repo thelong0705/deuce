@@ -23,11 +23,13 @@ var (
 
 // BookingRepository persists bookings in Postgres.
 type BookingRepository struct {
-	q *Queries
+	store *Store
 }
 
-func NewBookingRepository(q *Queries) *BookingRepository {
-	return &BookingRepository{q: q}
+// NewBookingRepository takes the Store rather than Queries: confirming a
+// payment writes two tables and needs a transaction to span them.
+func NewBookingRepository(store *Store) *BookingRepository {
+	return &BookingRepository{store: store}
 }
 
 // CreateBooking writes the booking without first checking the slot is free.
@@ -35,7 +37,7 @@ func NewBookingRepository(q *Queries) *BookingRepository {
 // players racing for one slot cannot both succeed: the loser's insert violates
 // the index and comes back as ErrSlotTaken.
 func (r *BookingRepository) HoldSlot(ctx context.Context, in entity.BookSlotInput, amount int, holdExpiresAt time.Time) (*entity.Booking, error) {
-	row, err := r.q.HoldSlot(ctx, HoldSlotParams{
+	row, err := r.store.HoldSlot(ctx, HoldSlotParams{
 		CourtID:       in.CourtID,
 		PlayerID:      uuid.NullUUID{UUID: in.PlayerID, Valid: in.PlayerID != uuid.Nil},
 		StartsAt:      pgtype.Timestamptz{Time: in.StartsAt, Valid: true},
@@ -54,7 +56,7 @@ func (r *BookingRepository) HoldSlot(ctx context.Context, in entity.BookSlotInpu
 }
 
 func (r *BookingRepository) AttachPayment(ctx context.Context, bookingID uuid.UUID, paymentIntentID string) error {
-	err := r.q.AttachPayment(ctx, AttachPaymentParams{
+	err := r.store.AttachPayment(ctx, AttachPaymentParams{
 		ID:              bookingID,
 		PaymentIntentID: pgtype.Text{String: paymentIntentID, Valid: true},
 	})
@@ -66,7 +68,7 @@ func (r *BookingRepository) AttachPayment(ctx context.Context, bookingID uuid.UU
 }
 
 func (r *BookingRepository) CancelBooking(ctx context.Context, bookingID uuid.UUID) error {
-	if err := r.q.CancelBooking(ctx, bookingID); err != nil {
+	if err := r.store.CancelBooking(ctx, bookingID); err != nil {
 		return fmt.Errorf("cancel booking: %w", err)
 	}
 
@@ -74,7 +76,7 @@ func (r *BookingRepository) CancelBooking(ctx context.Context, bookingID uuid.UU
 }
 
 func (r *BookingRepository) GetCourtWithVenue(ctx context.Context, id uuid.UUID) (*entity.Court, *entity.Venue, error) {
-	row, err := r.q.GetCourtVenue(ctx, id)
+	row, err := r.store.GetCourtVenue(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil, entity.ErrCourtNotFound
@@ -88,7 +90,7 @@ func (r *BookingRepository) GetCourtWithVenue(ctx context.Context, id uuid.UUID)
 func (r *BookingRepository) ListBookedSlots(
 	ctx context.Context, courtID uuid.UUID, from, to time.Time,
 ) ([]time.Time, error) {
-	rows, err := r.q.ListBookedSlots(ctx, ListBookedSlotsParams{
+	rows, err := r.store.ListBookedSlots(ctx, ListBookedSlotsParams{
 		CourtID:    courtID,
 		StartsAt:   pgtype.Timestamptz{Time: from, Valid: true},
 		StartsAt_2: pgtype.Timestamptz{Time: to, Valid: true},
@@ -108,7 +110,7 @@ func (r *BookingRepository) ListBookedSlots(
 func (r *BookingRepository) ListPlayerBookings(
 	ctx context.Context, playerID uuid.UUID, from time.Time,
 ) ([]entity.PlayerBooking, error) {
-	rows, err := r.q.ListPlayerBookings(ctx, ListPlayerBookingsParams{
+	rows, err := r.store.ListPlayerBookings(ctx, ListPlayerBookingsParams{
 		PlayerID: uuid.NullUUID{UUID: playerID, Valid: playerID != uuid.Nil},
 		StartsAt: pgtype.Timestamptz{Time: from, Valid: true},
 	})
@@ -189,7 +191,7 @@ func toEntityBooking(b Booking) (*entity.Booking, error) {
 }
 
 func (r *BookingRepository) ListBookedSlotsForCourts(ctx context.Context, courtIDs []uuid.UUID, from, to time.Time) (map[uuid.UUID][]time.Time, error) {
-	rows, err := r.q.ListBookedSlotsForCourts(ctx, ListBookedSlotsForCourtsParams{
+	rows, err := r.store.ListBookedSlotsForCourts(ctx, ListBookedSlotsForCourtsParams{
 		CourtIds: courtIDs,
 		FromTime: pgtype.Timestamptz{Time: from, Valid: true},
 		ToTime:   pgtype.Timestamptz{Time: to, Valid: true},
@@ -206,16 +208,34 @@ func (r *BookingRepository) ListBookedSlotsForCourts(ctx context.Context, courtI
 	return byCourt, nil
 }
 
-func (r *BookingRepository) ConfirmBooking(ctx context.Context, bookingID uuid.UUID) error {
-	if err := r.q.ConfirmBooking(ctx, bookingID); err != nil {
-		return fmt.Errorf("confirm booking: %w", err)
+// ConfirmPaid confirms the booking and records the event in one transaction.
+// Recording first and confirming after would commit the record even when the
+// confirmation failed, and the gateway's retry would then be turned away as a
+// duplicate. Here a failure rolls back both and the retry has work to do.
+//
+// The insert is what decides a repeat: a second delivery conflicts on the
+// event id, returns no row, and leaves the booking alone.
+func (r *BookingRepository) ConfirmPaid(ctx context.Context, ev entity.PaymentEvent, bookingID uuid.UUID) error {
+	err := r.store.execTx(ctx, func(q *Queries) error {
+		_, err := q.RecordStripeEvent(ctx, RecordStripeEventParams{ID: ev.ID, Type: string(ev.Type)})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+			return fmt.Errorf("record stripe event: %w", err)
+		}
+
+		return q.ConfirmBooking(ctx, bookingID)
+	})
+	if err != nil {
+		return fmt.Errorf("confirm paid booking: %w", err)
 	}
 
 	return nil
 }
 
 func (r *BookingRepository) GetBookingByPayment(ctx context.Context, paymentIntentID string) (*entity.Booking, error) {
-	row, err := r.q.GetBookingByPayment(ctx, pgtype.Text{String: paymentIntentID, Valid: true})
+	row, err := r.store.GetBookingByPayment(ctx, pgtype.Text{String: paymentIntentID, Valid: true})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, entity.ErrBookingNotFound
@@ -227,7 +247,7 @@ func (r *BookingRepository) GetBookingByPayment(ctx context.Context, paymentInte
 }
 
 func (r *BookingRepository) GetBooking(ctx context.Context, id uuid.UUID) (*entity.Booking, error) {
-	row, err := r.q.GetBooking(ctx, id)
+	row, err := r.store.GetBooking(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, entity.ErrBookingNotFound
@@ -238,30 +258,13 @@ func (r *BookingRepository) GetBooking(ctx context.Context, id uuid.UUID) (*enti
 	return toEntityBooking(row)
 }
 
-var _ usecase.PaymentEventLog = (*BookingRepository)(nil)
-
-// RecordEvent reports whether this is the first time the event has been seen.
-// The insert does the deciding, so two deliveries arriving at once cannot both
-// be told they are first.
-func (r *BookingRepository) RecordEvent(ctx context.Context, id, eventType string) (bool, error) {
-	_, err := r.q.RecordStripeEvent(ctx, RecordStripeEventParams{ID: id, Type: eventType})
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
-		}
-		return false, fmt.Errorf("record stripe event: %w", err)
-	}
-
-	return true, nil
-}
-
 var _ usecase.HoldReleaser = (*BookingRepository)(nil)
 
 // ReleaseLapsedHolds cancels every hold that has run out, in one statement.
 // Two sweepers running at once cannot double cancel: the second waits on the
 // rows and then finds they no longer match.
 func (r *BookingRepository) ReleaseLapsedHolds(ctx context.Context, asOf time.Time) (int, error) {
-	released, err := r.q.ReleaseLapsedHolds(ctx, pgtype.Timestamptz{Time: asOf, Valid: true})
+	released, err := r.store.ReleaseLapsedHolds(ctx, pgtype.Timestamptz{Time: asOf, Valid: true})
 	if err != nil {
 		return 0, fmt.Errorf("release lapsed holds: %w", err)
 	}

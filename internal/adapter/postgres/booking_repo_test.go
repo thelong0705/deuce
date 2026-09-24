@@ -59,7 +59,7 @@ func validBookSlotInput(t *testing.T) entity.BookSlotInput {
 }
 
 func TestBookingRepositoryHoldSlot(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
+	repo := NewBookingRepository(testStore)
 
 	tests := []struct {
 		name    string
@@ -149,7 +149,7 @@ func TestBookingRepositoryHoldSlot(t *testing.T) {
 func TestBookingRepositoryCreateBookingSettlesRacesInTheDatabase(t *testing.T) {
 	const players = 8
 
-	repo := NewBookingRepository(testQueries)
+	repo := NewBookingRepository(testStore)
 
 	courtID := createRandomCourt(t).ID
 	slot := nextSlot()
@@ -208,7 +208,7 @@ func TestBookingRepositoryCreateBookingSettlesRacesInTheDatabase(t *testing.T) {
 }
 
 func TestBookingRepositoryGetCourtWithVenue(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
+	repo := NewBookingRepository(testStore)
 
 	tests := []struct {
 		name    string
@@ -246,7 +246,7 @@ func TestBookingRepositoryGetCourtWithVenue(t *testing.T) {
 }
 
 func TestBookingRepositoryListBookedSlots(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
+	repo := NewBookingRepository(testStore)
 	ctx := context.Background()
 
 	court := createRandomCourt(t)
@@ -313,7 +313,7 @@ func TestBookingRepositoryListBookedSlots(t *testing.T) {
 }
 
 func TestBookingRepositoryListPlayerBookings(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
+	repo := NewBookingRepository(testStore)
 	ctx := context.Background()
 
 	court := createRandomCourt(t)
@@ -368,7 +368,7 @@ func TestBookingRepositoryListPlayerBookings(t *testing.T) {
 // One query answers for every court at once, keyed so each court's slots stay
 // its own.
 func TestBookingRepositoryListBookedSlotsForCourts(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
+	repo := NewBookingRepository(testStore)
 	ctx := context.Background()
 
 	first := createRandomCourt(t).ID
@@ -400,7 +400,7 @@ func TestBookingRepositoryListBookedSlotsForCourts(t *testing.T) {
 }
 
 func TestBookingRepositoryListBookedSlotsForCourtsIsBoundedAndSkipsCancelled(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
+	repo := NewBookingRepository(testStore)
 	ctx := context.Background()
 
 	courtID := createRandomCourt(t).ID
@@ -427,7 +427,7 @@ func TestBookingRepositoryListBookedSlotsForCourtsIsBoundedAndSkipsCancelled(t *
 }
 
 func TestBookingRepositoryAttachPayment(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
+	repo := NewBookingRepository(testStore)
 	ctx := context.Background()
 
 	booking, err := hold(t, repo, validBookSlotInput(t))
@@ -448,7 +448,7 @@ func TestBookingRepositoryAttachPayment(t *testing.T) {
 // Cancelling is what frees the slot: the unique index ignores cancelled rows,
 // so the same hour can be held again straight away.
 func TestBookingRepositoryCancelBookingFreesTheSlot(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
+	repo := NewBookingRepository(testStore)
 	ctx := context.Background()
 
 	in := validBookSlotInput(t)
@@ -466,8 +466,8 @@ func TestBookingRepositoryCancelBookingFreesTheSlot(t *testing.T) {
 	require.NotEqual(t, first.ID, again.ID)
 }
 
-func TestBookingRepositoryConfirmBooking(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
+func TestBookingRepositoryConfirmPaid(t *testing.T) {
+	repo := NewBookingRepository(testStore)
 	ctx := context.Background()
 
 	booking, err := hold(t, repo, validBookSlotInput(t))
@@ -476,7 +476,7 @@ func TestBookingRepositoryConfirmBooking(t *testing.T) {
 
 	intent := "pi_confirm_" + gofakeit.LetterN(12)
 	require.NoError(t, repo.AttachPayment(ctx, booking.ID, intent))
-	require.NoError(t, repo.ConfirmBooking(ctx, booking.ID))
+	require.NoError(t, repo.ConfirmPaid(ctx, paidEvent(intent), booking.ID))
 
 	got, err := repo.GetBookingByPayment(ctx, intent)
 	require.NoError(t, err)
@@ -488,8 +488,37 @@ func TestBookingRepositoryConfirmBooking(t *testing.T) {
 	require.False(t, got.AwaitsPayment(time.Now()))
 }
 
+// A redelivery must not reach the booking a second time, and must not be
+// reported as a failure either: the work is already done.
+func TestBookingRepositoryConfirmPaidIsIdempotent(t *testing.T) {
+	repo := NewBookingRepository(testStore)
+	ctx := context.Background()
+
+	booking, err := hold(t, repo, validBookSlotInput(t))
+	require.NoError(t, err)
+
+	intent := "pi_repeat_" + gofakeit.LetterN(12)
+	require.NoError(t, repo.AttachPayment(ctx, booking.ID, intent))
+
+	ev := paidEvent(intent)
+	require.NoError(t, repo.ConfirmPaid(ctx, ev, booking.ID))
+	require.NoError(t, repo.ConfirmPaid(ctx, ev, booking.ID))
+
+	got, err := repo.GetBooking(ctx, booking.ID)
+	require.NoError(t, err)
+	require.Equal(t, entity.StatusConfirmed, got.Status)
+}
+
+func paidEvent(intentID string) entity.PaymentEvent {
+	return entity.PaymentEvent{
+		ID:       "evt_" + gofakeit.LetterN(16),
+		Type:     entity.PaymentSucceeded,
+		IntentID: intentID,
+	}
+}
+
 func TestBookingRepositoryGetBookingByPayment(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
+	repo := NewBookingRepository(testStore)
 	ctx := context.Background()
 
 	booking, err := hold(t, repo, validBookSlotInput(t))
@@ -507,37 +536,27 @@ func TestBookingRepositoryGetBookingByPayment(t *testing.T) {
 	require.ErrorIs(t, err, entity.ErrBookingNotFound)
 }
 
-// The insert decides who is first, so two deliveries of the same event arriving
-// at once cannot both be told to act on it.
-func TestBookingRepositoryRecordEvent(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
-	ctx := context.Background()
-
-	id := "evt_" + gofakeit.LetterN(16)
-
-	first, err := repo.RecordEvent(ctx, id, "payment_succeeded")
-	require.NoError(t, err)
-	require.True(t, first)
-
-	again, err := repo.RecordEvent(ctx, id, "payment_succeeded")
-	require.NoError(t, err)
-	require.False(t, again, "the same event must not be handled twice")
-
-	other, err := repo.RecordEvent(ctx, "evt_"+gofakeit.LetterN(16), "payment_failed")
-	require.NoError(t, err)
-	require.True(t, other)
-}
-
-func TestBookingRepositoryRecordEventSettlesRacesInTheDatabase(t *testing.T) {
+// The insert decides who is first, so deliveries of one event arriving at once
+// cannot each confirm it, and must not trip over each other in the transaction
+// either.
+func TestBookingRepositoryConfirmPaidSettlesRacesInTheDatabase(t *testing.T) {
 	const deliveries = 8
 
-	repo := NewBookingRepository(testQueries)
-	id := "evt_" + gofakeit.LetterN(16)
+	repo := NewBookingRepository(testStore)
+	ctx := context.Background()
+
+	booking, err := hold(t, repo, validBookSlotInput(t))
+	require.NoError(t, err)
+
+	intent := "pi_race_" + gofakeit.LetterN(12)
+	require.NoError(t, repo.AttachPayment(ctx, booking.ID, intent))
+
+	ev := paidEvent(intent)
 
 	var (
-		wg     sync.WaitGroup
-		mu     sync.Mutex
-		firsts int
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		unwanted []error
 	)
 
 	start := make(chan struct{})
@@ -549,12 +568,9 @@ func TestBookingRepositoryRecordEventSettlesRacesInTheDatabase(t *testing.T) {
 			defer wg.Done()
 			<-start
 
-			first, err := repo.RecordEvent(context.Background(), id, "payment_succeeded")
-			require.NoError(t, err)
-
-			if first {
+			if err := repo.ConfirmPaid(context.Background(), ev, booking.ID); err != nil {
 				mu.Lock()
-				firsts++
+				unwanted = append(unwanted, err)
 				mu.Unlock()
 			}
 		}()
@@ -563,11 +579,20 @@ func TestBookingRepositoryRecordEventSettlesRacesInTheDatabase(t *testing.T) {
 	close(start)
 	wg.Wait()
 
-	require.Equal(t, 1, firsts, "exactly one delivery may be told it is first")
+	require.Empty(t, unwanted, "a repeat delivery is settled, not an error")
+
+	var recorded int
+	require.NoError(t, testPool.QueryRow(ctx,
+		"SELECT count(*) FROM stripe_events WHERE id = $1", ev.ID).Scan(&recorded))
+	require.Equal(t, 1, recorded, "one event, one row, whatever arrives together")
+
+	got, err := repo.GetBooking(ctx, booking.ID)
+	require.NoError(t, err)
+	require.Equal(t, entity.StatusConfirmed, got.Status)
 }
 
 func TestBookingRepositoryReleaseLapsedHolds(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
+	repo := NewBookingRepository(testStore)
 	ctx := context.Background()
 
 	lapsed, err := repo.HoldSlot(ctx, validBookSlotInput(t), 240000, time.Now().Add(-time.Minute))
@@ -578,7 +603,7 @@ func TestBookingRepositoryReleaseLapsedHolds(t *testing.T) {
 
 	paid, err := repo.HoldSlot(ctx, validBookSlotInput(t), 240000, time.Now().Add(-time.Hour))
 	require.NoError(t, err)
-	require.NoError(t, repo.ConfirmBooking(ctx, paid.ID))
+	require.NoError(t, repo.ConfirmPaid(ctx, paidEvent("pi_swept_"+gofakeit.LetterN(12)), paid.ID))
 
 	released, err := repo.ReleaseLapsedHolds(ctx, time.Now())
 	require.NoError(t, err)
@@ -606,7 +631,7 @@ func TestBookingRepositoryReleaseLapsedHolds(t *testing.T) {
 
 // Nothing overdue is a quiet no-op rather than an error.
 func TestBookingRepositoryReleaseLapsedHoldsWithNothingToDo(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
+	repo := NewBookingRepository(testStore)
 	ctx := context.Background()
 
 	_, err := repo.ReleaseLapsedHolds(ctx, time.Now())
@@ -618,7 +643,7 @@ func TestBookingRepositoryReleaseLapsedHoldsWithNothingToDo(t *testing.T) {
 }
 
 func TestBookingRepositoryGetBooking(t *testing.T) {
-	repo := NewBookingRepository(testQueries)
+	repo := NewBookingRepository(testStore)
 	ctx := context.Background()
 
 	in := validBookSlotInput(t)

@@ -67,11 +67,12 @@ func run() error {
 	}
 
 	var (
-		queries     = postgres.New(pool)
+		store       = postgres.NewStore(pool)
+		queries     = store.Queries
 		userRepo    = postgres.NewUserRepository(queries)
 		venueRepo   = postgres.NewVenueRepository(queries)
 		courtRepo   = postgres.NewCourtRepository(queries)
-		bookingRepo = postgres.NewBookingRepository(queries)
+		bookingRepo = postgres.NewBookingRepository(store)
 		sessionRepo = postgres.NewSessionRepository(queries)
 		cityRepo    = postgres.NewCityRepository(queries)
 		hasher      = crypto.NewBcryptHasher()
@@ -81,7 +82,7 @@ func run() error {
 		courtUC     = usecase.NewCourt(courtRepo, venueRepo, bookingRepo)
 		payments    = stripe.NewGateway(cfg.StripeSecretKey, stripe.WithBaseURL(cfg.StripeBaseURL))
 		webhooks    = stripe.NewVerifier(cfg.StripeWebhookSecret)
-		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo, payments, bookingRepo)
+		bookingUC   = usecase.NewBooking(bookingRepo, bookingRepo, userRepo, payments)
 		cityUC      = usecase.NewCity(cityRepo)
 		api         = httpapi.NewServer(userUC, venueUC, courtUC, bookingUC, webhooks, cityUC, httpapi.WithAllowedOrigins(cfg.CORSOrigins))
 	)
