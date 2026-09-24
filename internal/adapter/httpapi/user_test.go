@@ -147,6 +147,15 @@ func TestCreateUser(t *testing.T) {
 			wantStatus: http.StatusCreated,
 		},
 		{
+			// Refused here rather than carried into the domain as a Role.
+			name:       "rejects a role that is not one of the two",
+			body:       `{"email":"a@b.com","password":"supersecret","phone_number":"+84901234567","role":"admin"}`,
+			wantNoCall: true,
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: `role must be "player" or "owner"`,
+			wantCode:   "invalid_role",
+		},
+		{
 			name:       "rejects malformed json",
 			body:       `{"email":`,
 			wantNoCall: true,
