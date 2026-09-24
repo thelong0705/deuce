@@ -62,7 +62,7 @@ func TestBookSlotInputValidate(t *testing.T) {
 	}
 }
 
-func TestBookingIsActive(t *testing.T) {
+func TestBookingStillHolding(t *testing.T) {
 	cancelled := time.Now()
 
 	tests := []struct {
@@ -83,7 +83,7 @@ func TestBookingIsActive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, tt.in.IsActive())
+			require.Equal(t, tt.want, tt.in.StillHolding())
 		})
 	}
 }
